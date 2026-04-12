@@ -8,6 +8,9 @@ const result = ref<WordGenerateData | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
 
+/**
+ * 提交单词并读取按义项分组的记忆结果。
+ */
 async function handleGenerate() {
   const inputWord = word.value.trim()
 
@@ -60,21 +63,21 @@ async function handleGenerate() {
         <h2 class="word-title">{{ result.word }}</h2>
 
         <div class="section">
-          <h3>例句</h3>
-          <ul>
-            <li v-for="example in result.examples" :key="example">
-              {{ example }}
-            </li>
-          </ul>
-        </div>
+          <h3>考研常用义项</h3>
 
-        <div class="section">
-          <h3>记忆提示</h3>
-          <ul>
-            <li v-for="tip in result.tips" :key="tip">
-              {{ tip }}
-            </li>
-          </ul>
+          <div class="meaning-list">
+            <article
+              v-for="item in result.meanings"
+              :key="`${item.meaning}-${item.example}`"
+              class="meaning-card"
+            >
+              <p class="meaning-label">{{ item.meaning }}</p>
+              <p class="meaning-example">{{ item.example }}</p>
+              <p class="meaning-tip">
+                <span class="tip-prefix">联想：</span>{{ item.tip }}
+              </p>
+            </article>
+          </div>
         </div>
       </div>
     </div>
@@ -172,13 +175,39 @@ async function handleGenerate() {
   margin-bottom: 10px;
 }
 
-.section ul {
-  margin: 0;
-  padding-left: 20px;
+.meaning-list {
+  display: grid;
+  gap: 14px;
 }
 
-.section li {
-  margin-bottom: 8px;
-  line-height: 1.6;
+.meaning-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #dbe4f0;
+}
+
+.meaning-label {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.meaning-example {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #111827;
+}
+
+.meaning-tip {
+  margin: 10px 0 0;
+  line-height: 1.7;
+  color: #475569;
+}
+
+.tip-prefix {
+  font-weight: 600;
 }
 </style>

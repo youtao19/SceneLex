@@ -1,74 +1,107 @@
 import { buildWordPrompt } from '../prompts/word.prompt'
 import { generateWithOllama } from './llm.service'
 
+export interface WordMeaningItem {
+  meaning: string
+  example: string
+  tip: string
+}
+
 export interface WordGenerateResult {
   word: string
-  examples: string[]
-  tips: string[]
+  meanings: WordMeaningItem[]
 }
 
+/**
+ * 模型不可用时至少返回一组可读内容，避免页面完全空白。
+ */
 function buildFallback(word: string): WordGenerateResult {
-  const examples = [
-    `This is a simple example with ${word}.`,
-    `I am learning the word ${word} today.`,
-    `${word} appears in a short scene here.`
-  ]
-
-  const tips = [
-    `${word}：先建立基础印象`,
-    `把 ${word} 放进短场景里记`,
-    `重复看几次 ${word} 的用法`
-  ]
-
   return {
     word,
-    examples,
-    tips
+    meanings: [
+      {
+        meaning: '常见意思',
+        example: `I met the word ${word} in a short sentence.`,
+        tip: `${word} 的使用场景`
+      }
+    ]
   }
 }
 
-function readStringList(value: unknown): string[] {
-  const result: string[] = []
-
+/**
+ * 读取新结构 meanings，保留义项之间的一一对应关系。
+ */
+function readMeaningItems(value: unknown): WordMeaningItem[] {
   if (!Array.isArray(value)) {
-    return result
+    return []
   }
+
+  const result: WordMeaningItem[] = []
 
   for (let i = 0; i < value.length; i += 1) {
     const item = value[i]
 
-    if (typeof item !== 'string') {
+    if (!item || typeof item !== 'object') {
       continue
     }
 
-    const text = item.trim()
+    const data = item as Record<string, unknown>
+    const meaning = typeof data.meaning === 'string' ? data.meaning.trim() : ''
+    const example = typeof data.example === 'string' ? data.example.trim() : ''
+    const tip = typeof data.tip === 'string' ? data.tip.trim() : ''
 
-    if (!text) {
+    if (!meaning || !example || !tip) {
       continue
     }
 
-    result.push(text)
-
-    // 只取前 3 条，和接口约定保持一致。
-    if (result.length === 3) {
-      break
-    }
+    result.push({
+      meaning,
+      example,
+      tip
+    })
   }
 
   return result
 }
 
+/**
+ * 兼容旧结构 examples/tips，避免模型偶尔没跟上新 prompt 时直接失败。
+ */
+function readLegacyMeaningItems(raw: Record<string, unknown>): WordMeaningItem[] {
+  const examples = Array.isArray(raw.examples) ? raw.examples : []
+  const tips = Array.isArray(raw.tips) ? raw.tips : []
+  const count = Math.min(examples.length, tips.length)
+  const result: WordMeaningItem[] = []
+
+  for (let i = 0; i < count; i += 1) {
+    const example = typeof examples[i] === 'string' ? examples[i].trim() : ''
+    const tip = typeof tips[i] === 'string' ? tips[i].trim() : ''
+
+    if (!example || !tip) {
+      continue
+    }
+
+    result.push({
+      meaning: `义项 ${result.length + 1}`,
+      example,
+      tip
+    })
+  }
+
+  return result
+}
+
+/**
+ * 标准化模型结果，优先保留合法数据，其次回退到兜底内容。
+ */
 function normalizeResult(raw: unknown, fallbackWord: string): WordGenerateResult {
   const fallback = buildFallback(fallbackWord)
   let word = fallbackWord
-  let examples = fallback.examples
-  let tips = fallback.tips
+  let meanings = fallback.meanings
 
   if (raw && typeof raw === 'object') {
     const data = raw as Record<string, unknown>
     const rawWord = data.word
-    const rawExamples = data.examples
-    const rawTips = data.tips
 
     if (typeof rawWord === 'string') {
       const cleanWord = rawWord.trim()
@@ -78,27 +111,29 @@ function normalizeResult(raw: unknown, fallbackWord: string): WordGenerateResult
       }
     }
 
-    const exampleList = readStringList(rawExamples)
+    const meaningItems = readMeaningItems(data.meanings)
 
-    if (exampleList.length === 3) {
-      examples = exampleList
-    }
+    if (meaningItems.length > 0) {
+      meanings = meaningItems
+    } else {
+      const legacyItems = readLegacyMeaningItems(data)
 
-    const tipList = readStringList(rawTips)
-
-    if (tipList.length === 3) {
-      tips = tipList
+      if (legacyItems.length > 0) {
+        meanings = legacyItems
+      }
     }
   }
 
   return {
     word,
-    examples,
-    tips
+    meanings
   }
 }
 
 export const wordService = {
+  /**
+   * 生成按义项分组的标准释义、典型短语和简短联想。
+   */
   async generateWordContent(word: string): Promise<WordGenerateResult> {
     const cleanWord = word.trim().toLowerCase()
     const prompt = buildWordPrompt(cleanWord)

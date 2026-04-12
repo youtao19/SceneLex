@@ -1,7 +1,12 @@
+export interface WordMeaningItem {
+  meaning: string
+  example: string
+  tip: string
+}
+
 export interface WordGenerateData {
   word: string
-  examples: string[]
-  tips: string[]
+  meanings: WordMeaningItem[]
 }
 
 export interface ApiResponse<T> {
