@@ -8,4 +8,3 @@ export const env = {
   aiProvider: process.env.AI_PROVIDER ?? 'openai',
   databaseUrl: process.env.DATABASE_URL ?? '',
 };
-

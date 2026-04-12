@@ -1,12 +1,5 @@
-export interface WordMeaningItem {
-  partOfSpeech: string;
-  meaning: string;
-  example: string;
-  tip: string;
-}
+import type { StoredWord, WordMeaningItem } from '../types/word';
 
-export interface WordModel {
-  word: string;
-  scene: string;
-  meanings: WordMeaningItem[];
-}
+export type { WordMeaningItem };
+
+export interface WordModel extends StoredWord {}

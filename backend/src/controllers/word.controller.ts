@@ -1,21 +1,10 @@
-/**
- * 文件作用：
- * 处理单词生成请求。
- * controller 只负责：
- * 1. 接收参数
- * 2. 调用 service
- * 3. 返回结果
- */
-
 import type { Request, Response, NextFunction } from 'express'
 import { wordService } from '../services/word.service'
+import { ok } from '../utils/response'
+import type { ReviewRating, WordMeaningItem } from '../types/word'
 
 /**
- * 根据用户输入的单词，生成例句和记忆提示。
- *
- * @param req 请求对象，body 中需要 word 字段
- * @param res 响应对象
- * @param next 错误传递函数
+ * 生成预览内容时仍走当前 prompt，这里只负责接住请求并返回统一响应。
  */
 export async function generateWordContent(
   req: Request,
@@ -24,26 +13,66 @@ export async function generateWordContent(
 ) {
   try {
     const { word } = req.body as { word?: string }
+    const result = await wordService.generateWordContent(word ?? '')
+    return res.json(ok(result, 'Word preview generated'))
+  } catch (error) {
+    next(error)
+  }
+}
 
-    /**
-     * 基础校验：
-     * 1. 必须传 word
-     * 2. 必须是字符串
-     * 3. 去掉首尾空格后不能为空
-     */
-    if (!word || typeof word !== 'string' || !word.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'word 不能为空'
-      })
+/**
+ * 添加单词时直接保存前端确认过的 meanings，避免再次调用模型导致结果飘移。
+ */
+export async function addWord(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { word, meanings } = req.body as {
+      word?: string
+      meanings?: WordMeaningItem[]
     }
+    const result = await wordService.addWordToReview(word ?? '', meanings)
+    const message = result.wasUpdated ? 'Word updated' : 'Word added'
 
-    const result = await wordService.generateWordContent(word.trim())
+    return res.json(ok(result.card, message))
+  } catch (error) {
+    next(error)
+  }
+}
 
-    return res.json({
-      success: true,
-      data: result
-    })
+/**
+ * 今日任务页按到期时间拉取整张单词卡，前端逐张消费。
+ */
+export async function getTodayWords(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result = await wordService.getTodayReviewWords()
+    return res.json(ok(result, 'Today words fetched'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * 评分后只推进 SRS 计划，不重新生成教学内容。
+ */
+export async function reviewWord(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { wordId, rating } = req.body as {
+      wordId?: number
+      rating?: ReviewRating
+    }
+    const result = await wordService.reviewWord(Number(wordId), rating as ReviewRating)
+    return res.json(ok(result, 'Word review updated'))
   } catch (error) {
     next(error)
   }
