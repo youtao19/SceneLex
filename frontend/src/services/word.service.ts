@@ -1,6 +1,24 @@
-import { post } from './http'
-import type { ApiResponse, WordGenerateData } from '../types/word'
+import { get, post } from './http'
+import type { ApiResponse } from '../types/api'
+import type {
+  ReviewRating,
+  StoredWord,
+  WordGenerateData,
+  WordMeaningItem,
+} from '../types/word'
 
 export async function generateWord(word: string) {
   return post<ApiResponse<WordGenerateData>>('/words/generate', { word })
+}
+
+export async function addWord(word: string, meanings: WordMeaningItem[]) {
+  return post<ApiResponse<StoredWord>>('/word/add', { word, meanings })
+}
+
+export async function getTodayWords() {
+  return get<ApiResponse<StoredWord[]>>('/word/today')
+}
+
+export async function reviewWord(wordId: number, rating: ReviewRating) {
+  return post<ApiResponse<StoredWord>>('/word/review', { wordId, rating })
 }

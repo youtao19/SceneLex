@@ -10,8 +10,17 @@ export interface WordGenerateData {
   meanings: WordMeaningItem[]
 }
 
-export interface ApiResponse<T> {
-  success: boolean
-  message?: string
-  data: T
+export interface StoredWord {
+  id: number
+  word: string
+  primaryMeaning: string
+  meanings: WordMeaningItem[]
+  ease: number
+  interval: number
+  nextReview: string
+  reviewCount: number
+  createdAt: string
+  updatedAt: string
 }
+
+export type ReviewRating = 'again' | 'hard' | 'good'

@@ -4,8 +4,8 @@ import type { WordMeaningItem } from '../types/word';
 export const useWordStore = defineStore('word', {
   state: () => ({
     currentWord: '',
-    scene: '',
     meanings: [] as WordMeaningItem[],
+    teachingMode: false,
   }),
   actions: {
     /**
@@ -13,6 +13,18 @@ export const useWordStore = defineStore('word', {
      */
     setWord(word: string) {
       this.currentWord = word;
+    },
+    /**
+     * 教学模式是纯展示偏好，放进 store 后两个页面能保持一致。
+     */
+    setTeachingMode(value: boolean) {
+      this.teachingMode = value;
+    },
+    /**
+     * 首页预览后缓存一下当前义项，加入记忆库时就不用再拼装一遍。
+     */
+    setMeanings(meanings: WordMeaningItem[]) {
+      this.meanings = meanings;
     },
   },
 });

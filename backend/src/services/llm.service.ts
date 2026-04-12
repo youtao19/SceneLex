@@ -19,7 +19,6 @@ const jsonFormat = {
     meanings: {
       type: 'array',
       minItems: 1,
-      maxItems: 4,
       items: {
         type: 'object',
         properties: {

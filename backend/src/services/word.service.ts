@@ -1,21 +1,20 @@
-import { buildWordPrompt } from '../prompts/word.prompt'
-import { generateWithOllama } from './llm.service'
+import { buildWordPrompt } from '../prompts/word.prompt';
+import { generateWithOllama } from './llm.service';
+import {
+  findWordById,
+  listTodayWords,
+  saveWordCard,
+  updateReviewSchedule,
+} from '../repositories/word.repository';
+import { HttpError } from '../utils/http-error';
+import type {
+  ReviewRating,
+  SaveWordResult,
+  StoredWord,
+  WordGenerateResult,
+  WordMeaningItem,
+} from '../types/word';
 
-export interface WordMeaningItem {
-  partOfSpeech: string
-  meaning: string
-  example: string
-  tip: string
-}
-
-export interface WordGenerateResult {
-  word: string
-  meanings: WordMeaningItem[]
-}
-
-/**
- * 模型不可用时至少返回一组可读内容，避免页面完全空白。
- */
 function buildFallback(word: string): WordGenerateResult {
   return {
     word,
@@ -24,135 +23,222 @@ function buildFallback(word: string): WordGenerateResult {
         partOfSpeech: '词性',
         meaning: '常见意思',
         example: `I met the word ${word} in a short sentence.`,
-        tip: `${word} 的使用场景`
-      }
-    ]
-  }
+        tip: `${word} 的使用场景`,
+      },
+    ],
+  };
 }
 
 /**
- * 读取新结构 meanings，保留义项之间的一一对应关系。
+ * 前端预览和正式入库共用同一套校验，避免两边看到的数据结构不一致。
  */
 function readMeaningItems(value: unknown): WordMeaningItem[] {
   if (!Array.isArray(value)) {
-    return []
+    return [];
   }
 
-  const result: WordMeaningItem[] = []
+  const result: WordMeaningItem[] = [];
 
   for (let i = 0; i < value.length; i += 1) {
-    const item = value[i]
+    const item = value[i];
 
     if (!item || typeof item !== 'object') {
-      continue
+      continue;
     }
 
-    const data = item as Record<string, unknown>
+    const data = item as Record<string, unknown>;
     const partOfSpeech =
-      typeof data.partOfSpeech === 'string' ? data.partOfSpeech.trim() : ''
-    const meaning = typeof data.meaning === 'string' ? data.meaning.trim() : ''
-    const example = typeof data.example === 'string' ? data.example.trim() : ''
-    const tip = typeof data.tip === 'string' ? data.tip.trim() : ''
+      typeof data.partOfSpeech === 'string' ? data.partOfSpeech.trim() : '';
+    const meaning = typeof data.meaning === 'string' ? data.meaning.trim() : '';
+    const example = typeof data.example === 'string' ? data.example.trim() : '';
+    const tip = typeof data.tip === 'string' ? data.tip.trim() : '';
 
     if (!partOfSpeech || !meaning || !example || !tip) {
-      continue
+      continue;
     }
 
     result.push({
       partOfSpeech,
       meaning,
       example,
-      tip
-    })
+      tip,
+    });
   }
 
-  return result
+  return result;
 }
 
-/**
- * 兼容旧结构 examples/tips，避免模型偶尔没跟上新 prompt 时直接失败。
- */
 function readLegacyMeaningItems(raw: Record<string, unknown>): WordMeaningItem[] {
-  const examples = Array.isArray(raw.examples) ? raw.examples : []
-  const tips = Array.isArray(raw.tips) ? raw.tips : []
-  const count = Math.min(examples.length, tips.length)
-  const result: WordMeaningItem[] = []
+  const examples = Array.isArray(raw.examples) ? raw.examples : [];
+  const tips = Array.isArray(raw.tips) ? raw.tips : [];
+  const count = Math.min(examples.length, tips.length);
+  const result: WordMeaningItem[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    const example = typeof examples[i] === 'string' ? examples[i].trim() : ''
-    const tip = typeof tips[i] === 'string' ? tips[i].trim() : ''
+    const example = typeof examples[i] === 'string' ? examples[i].trim() : '';
+    const tip = typeof tips[i] === 'string' ? tips[i].trim() : '';
 
     if (!example || !tip) {
-      continue
+      continue;
     }
 
     result.push({
       partOfSpeech: '词性',
       meaning: `义项 ${result.length + 1}`,
       example,
-      tip
-    })
+      tip,
+    });
   }
 
-  return result
+  return result;
 }
 
-/**
- * 标准化模型结果，优先保留合法数据，其次回退到兜底内容。
- */
-function normalizeResult(raw: unknown, fallbackWord: string): WordGenerateResult {
-  const fallback = buildFallback(fallbackWord)
-  let word = fallbackWord
-  let meanings = fallback.meanings
+function normalizeWord(word: string) {
+  return word.trim().toLowerCase();
+}
+
+function normalizeGeneratedResult(
+  raw: unknown,
+  fallbackWord: string,
+): WordGenerateResult {
+  const fallback = buildFallback(fallbackWord);
+  let word = fallbackWord;
+  let meanings = fallback.meanings;
 
   if (raw && typeof raw === 'object') {
-    const data = raw as Record<string, unknown>
-    const rawWord = data.word
+    const data = raw as Record<string, unknown>;
+    const rawWord = data.word;
 
-    if (typeof rawWord === 'string') {
-      const cleanWord = rawWord.trim()
-
-      if (cleanWord) {
-        word = cleanWord
-      }
+    if (typeof rawWord === 'string' && rawWord.trim()) {
+      word = normalizeWord(rawWord);
     }
 
-    const meaningItems = readMeaningItems(data.meanings)
+    const meaningItems = readMeaningItems(data.meanings);
 
     if (meaningItems.length > 0) {
-      meanings = meaningItems
+      meanings = meaningItems;
     } else {
-      const legacyItems = readLegacyMeaningItems(data)
+      const legacyItems = readLegacyMeaningItems(data);
 
       if (legacyItems.length > 0) {
-        meanings = legacyItems
+        meanings = legacyItems;
       }
     }
   }
 
   return {
     word,
-    meanings
+    meanings,
+  };
+}
+
+function normalizeIncomingMeanings(value: unknown) {
+  const meanings = readMeaningItems(value);
+
+  if (meanings.length === 0) {
+    throw new HttpError(400, 'meanings 不能为空，且必须包含合法义项');
   }
+
+  return meanings;
+}
+
+function buildPrimaryMeaning(meanings: WordMeaningItem[]) {
+  const primary = meanings[0];
+
+  return `${primary.partOfSpeech} ${primary.meaning}`.trim();
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(dateString: string, days: number) {
+  const baseDate = new Date(`${dateString}T00:00:00.000Z`);
+  baseDate.setUTCDate(baseDate.getUTCDate() + days);
+  return baseDate.toISOString().slice(0, 10);
+}
+
+function getNextInterval(interval: number, rating: ReviewRating) {
+  if (rating === 'again') {
+    return 1;
+  }
+
+  if (rating === 'hard') {
+    return Math.max(1, Math.round(interval * 1.5));
+  }
+
+  return Math.max(1, Math.round(interval * 2));
 }
 
 export const wordService = {
   /**
-   * 生成按义项分组的标准释义、典型短语和简短联想。
+   * 生成预览内容时沿用当前 prompt，只负责把模型结果整理成稳定结构。
    */
   async generateWordContent(word: string): Promise<WordGenerateResult> {
-    const cleanWord = word.trim().toLowerCase()
-    const prompt = buildWordPrompt(cleanWord)
-    const rawText = await generateWithOllama(prompt)
+    const cleanWord = normalizeWord(word);
+
+    if (!cleanWord) {
+      throw new HttpError(400, 'word 不能为空');
+    }
+
+    const prompt = buildWordPrompt(cleanWord);
+    const rawText = await generateWithOllama(prompt);
 
     try {
-      const parsed = JSON.parse(rawText)
-      const result = normalizeResult(parsed, cleanWord)
-      return result
+      const parsed = JSON.parse(rawText);
+      return normalizeGeneratedResult(parsed, cleanWord);
     } catch {
-      // 小模型偶尔会吐出非 JSON 文本，这里直接报错给上层处理。
-      console.error('模型返回非 JSON：', rawText)
-      throw new Error('模型输出解析失败')
+      console.error('模型返回非 JSON：', rawText);
+      throw new Error('模型输出解析失败');
     }
-  }
-}
+  },
+
+  /**
+   * 直接持久化用户刚刚看到的预览结果，避免预览和入库内容不一致。
+   */
+  async addWordToReview(word: string, meaningsInput: unknown): Promise<SaveWordResult> {
+    const cleanWord = normalizeWord(word);
+
+    if (!cleanWord) {
+      throw new HttpError(400, 'word 不能为空');
+    }
+
+    const meanings = normalizeIncomingMeanings(meaningsInput);
+    const primaryMeaning = buildPrimaryMeaning(meanings);
+
+    return saveWordCard(cleanWord, primaryMeaning, meanings);
+  },
+
+  /**
+   * 今日复习队列只返回到期单词，保证前端按单词逐张推进。
+   */
+  async getTodayReviewWords(): Promise<StoredWord[]> {
+    return listTodayWords(getTodayDateString());
+  },
+
+  /**
+   * 评分只更新最简 SRS 字段，不动教学内容。
+   */
+  async reviewWord(wordId: number, rating: ReviewRating): Promise<StoredWord> {
+    if (!Number.isInteger(wordId) || wordId <= 0) {
+      throw new HttpError(400, 'wordId 非法');
+    }
+
+    const allowedRatings: ReviewRating[] = ['again', 'hard', 'good'];
+
+    if (!allowedRatings.includes(rating)) {
+      throw new HttpError(400, 'rating 非法');
+    }
+
+    const current = await findWordById(wordId);
+
+    if (!current) {
+      throw new HttpError(404, '单词不存在');
+    }
+
+    const nextInterval = getNextInterval(current.interval, rating);
+    const nextReview = addDays(getTodayDateString(), nextInterval);
+
+    return updateReviewSchedule(wordId, nextInterval, nextReview);
+  },
+};

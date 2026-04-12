@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { HttpError } from '../utils/http-error';
 
 export function errorMiddleware(
   error: unknown,
@@ -6,12 +7,12 @@ export function errorMiddleware(
   res: Response,
   _next: NextFunction,
 ) {
+  const statusCode = error instanceof HttpError ? error.statusCode : 500;
   const message = error instanceof Error ? error.message : 'Unknown error';
 
-  res.status(500).json({
-    code: 500,
+  res.status(statusCode).json({
+    code: statusCode,
     message,
     data: null,
   });
 }
-

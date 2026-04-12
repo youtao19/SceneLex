@@ -4,9 +4,18 @@
  */
 
 import app from './app'
+import { env } from './config/env'
+import { initializeDatabase } from './config/database'
 
-const PORT = 3003
+async function startServer() {
+  await initializeDatabase()
 
-app.listen(PORT, () => {
-  console.log(`server running at http://localhost:${PORT}`)
+  app.listen(env.port, () => {
+    console.log(`server running at http://localhost:${env.port}`)
+  })
+}
+
+startServer().catch((error) => {
+  console.error('server failed to start:', error)
+  process.exit(1)
 })
