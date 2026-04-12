@@ -1,0 +1,181 @@
+:root {
+  color-scheme: light;
+  font-family: "SF Pro Display", "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* --- Light Theme (白天模式) --- */
+  --sl-bg: #fdf8f8;
+  --sl-text-main: #000000; /* 修改为纯黑色 */
+  --sl-text-soft: #444444;
+  --sl-text-mute: #888888;
+  
+  --sl-peach-500: #ff5a71;
+  --sl-peach-400: #ff7d8f;
+  --sl-peach-100: #ffe9ec;
+  --sl-peach-50: #fff5f6;
+
+  --sl-glass-bg: rgba(255, 255, 255, 0.85); /* 增加不透明度 */
+  --sl-glass-bg-hover: rgba(255, 255, 255, 0.95);
+  --sl-glass-border: rgba(255, 255, 255, 0.5);
+  --sl-glass-border-strong: rgba(255, 255, 255, 0.8);
+  
+  --sl-shadow: 0 12px 40px rgba(255, 110, 130, 0.08);
+  --sl-shadow-lg: 0 20px 60px rgba(255, 90, 113, 0.12);
+  
+  --sl-radius-xl: 32px;
+  --sl-radius-lg: 24px;
+  --sl-radius-md: 16px;
+  
+  --sl-display-font: "Georgia", "Iowan Old Style", "Songti SC", serif;
+}
+
+/* --- Dark Theme (黑夜模式) --- */
+.dark-theme {
+  color-scheme: dark;
+  --sl-bg: #0f0d13; /* 更深的背景 */
+  --sl-text-main: #ffffff; /* 纯白字 */
+  --sl-text-soft: #d1cbd8; /* 提高文字亮度 */
+  --sl-text-mute: #9e94a7;
+  
+  --sl-peach-500: #ff5a71;
+  --sl-peach-400: #ff7d8f;
+  --sl-peach-100: rgba(255, 90, 113, 0.25);
+  --sl-peach-50: rgba(255, 90, 113, 0.12);
+
+  --sl-glass-bg: rgba(30, 25, 38, 0.8); /* 提高黑夜模式卡片不透明度 */
+  --sl-glass-bg-hover: rgba(40, 34, 50, 0.9);
+  --sl-glass-border: rgba(255, 255, 255, 0.1);
+  --sl-glass-border-strong: rgba(255, 255, 255, 0.2);
+  
+  --sl-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  --sl-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background-color: var(--sl-bg);
+  color: var(--sl-text-main);
+  transition: background-color 0.4s ease, color 0.4s ease;
+  
+  /* 动态渐变背景 */
+  background-image: 
+    radial-gradient(at 0% 0%, var(--sl-peach-100) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(130, 140, 255, 0.1) 0px, transparent 50%);
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, button, textarea {
+  color: inherit; /* 强制继承 body 或父级设置的主题颜色 */
+}
+
+/* Glass Card Style */
+.surface-card {
+  position: relative;
+  background: var(--sl-glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--sl-glass-border);
+  box-shadow: var(--sl-shadow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.surface-card:hover {
+  background: var(--sl-glass-bg-hover);
+  box-shadow: var(--sl-shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Pill/Navigation Style */
+.soft-pill {
+  background: var(--sl-glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--sl-glass-border);
+  box-shadow: var(--sl-shadow);
+  border-radius: 999px;
+}
+
+/* Button Styles */
+.peach-button,
+.peach-button-secondary,
+.peach-button-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 28px;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  font-size: 15px;
+  gap: 8px;
+}
+
+.peach-button {
+  color: #fff;
+  background: linear-gradient(135deg, #ff7d8f 0%, #ff5a71 100%);
+  box-shadow: 0 10px 20px rgba(255, 90, 113, 0.25);
+}
+
+.peach-button-secondary {
+  color: var(--sl-peach-500);
+  background: var(--sl-peach-50);
+  border: 1px solid var(--sl-peach-100);
+}
+
+.peach-button-ghost {
+  color: var(--sl-text-soft);
+  background: transparent;
+  border: 1px solid var(--sl-glass-border-strong);
+}
+
+.peach-button-ghost:hover {
+  background: var(--sl-glass-bg);
+}
+
+/* Typography Helpers */
+.section-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--sl-text-main);
+  margin-bottom: 8px;
+}
+
+.card-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--sl-peach-500);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 4px;
+}
+
+/* Global Transitions */
+a, button, input {
+  transition: all 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --sl-radius-xl: 24px;
+    --sl-radius-lg: 18px;
+  }
+}
