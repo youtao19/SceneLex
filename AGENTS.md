@@ -31,4 +31,12 @@ This repository currently has no commit history, so use short imperative commit 
 PRs should include a clear summary, verification steps, related issue links if available, and screenshots or request/response samples for UI or API changes. Call out new environment variables such as `PORT`, `AI_PROVIDER`, or `DATABASE_URL`.
 
 ## Development Specifications
-+ 
++ The code should be simple and easy to understand.
+
+## 注释要求
++ 注释要解释“为什么”，不是只解释“做什么”，短，但准确
++ 不能和代码撒谎
++ 补充代码里看不出来的信息
++ 代码一眼能看懂的，不要注释。
++ 代码不清晰的地方，必须注释。
++ 函数要写注释

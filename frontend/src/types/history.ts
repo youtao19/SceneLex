@@ -1,6 +1,5 @@
 export interface HistoryItem {
-  id: string;
-  word: string;
-  createdAt: string;
+  id: string
+  word: string
+  createdAt: string
 }
-

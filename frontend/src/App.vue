@@ -1,47 +1,17 @@
 <script setup lang="ts">
-/**
- * 文件作用：
- * 项目首页，提供输入单词并展示生成结果的最小页面。
- */
-
 import { ref } from 'vue'
 import { generateWord } from './services/word.service'
 import type { WordGenerateData } from './types/word'
 
-/**
- * 用户输入的单词。
- */
 const word = ref('')
-
-/**
- * 接口返回结果。
- */
 const result = ref<WordGenerateData | null>(null)
-
-/**
- * 加载状态。
- * 用于按钮禁用、显示加载中。
- */
 const loading = ref(false)
-
-/**
- * 错误提示信息。
- */
 const errorMessage = ref('')
 
-/**
- * 点击生成按钮时触发。
- * 作用：
- * 1. 校验输入
- * 2. 调接口
- * 3. 展示结果
- */
 async function handleGenerate() {
-  /**
-   * 前端基础校验：
-   * 用户没输入内容时，直接提示，不发请求。
-   */
-  if (!word.value.trim()) {
+  const inputWord = word.value.trim()
+
+  if (!inputWord) {
     errorMessage.value = '请输入单词'
     result.value = null
     return
@@ -51,7 +21,7 @@ async function handleGenerate() {
   errorMessage.value = ''
 
   try {
-    const response = await generateWord(word.value.trim())
+    const response = await generateWord(inputWord)
     result.value = response.data
   } catch (error) {
     console.error(error)
@@ -112,7 +82,6 @@ async function handleGenerate() {
 </template>
 
 <style scoped>
-/* 页面整体布局 */
 .page {
   min-height: 100vh;
   background: #f5f7fb;
@@ -120,7 +89,6 @@ async function handleGenerate() {
   box-sizing: border-box;
 }
 
-/* 内容容器 */
 .container {
   max-width: 760px;
   margin: 0 auto;
@@ -131,27 +99,23 @@ async function handleGenerate() {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
-/* 标题 */
 .title {
   margin: 0;
   font-size: 32px;
   font-weight: 700;
 }
 
-/* 副标题 */
 .subtitle {
   margin: 8px 0 24px;
   color: #666;
 }
 
-/* 输入区域 */
 .input-box {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
 }
 
-/* 输入框 */
 .word-input {
   flex: 1;
   height: 44px;
@@ -162,12 +126,10 @@ async function handleGenerate() {
   outline: none;
 }
 
-/* 输入框聚焦 */
 .word-input:focus {
   border-color: #3b82f6;
 }
 
-/* 按钮 */
 .generate-btn {
   height: 44px;
   padding: 0 18px;
@@ -179,19 +141,16 @@ async function handleGenerate() {
   cursor: pointer;
 }
 
-/* 按钮禁用态 */
 .generate-btn:disabled {
   background: #93c5fd;
   cursor: not-allowed;
 }
 
-/* 错误提示 */
 .error-text {
   color: #dc2626;
   margin: 8px 0 0;
 }
 
-/* 结果卡片 */
 .result-card {
   margin-top: 24px;
   padding: 24px;
@@ -199,14 +158,12 @@ async function handleGenerate() {
   background: #f8fafc;
 }
 
-/* 单词标题 */
 .word-title {
   margin-top: 0;
   margin-bottom: 20px;
   font-size: 24px;
 }
 
-/* 分区 */
 .section {
   margin-bottom: 20px;
 }

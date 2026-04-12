@@ -1,3 +1,42 @@
-export const WORD_PROMPT_TEMPLATE =
-  'Create a vivid memory scene for the word "{{word}}" in simple English.';
+/**
+ * 文件作用：
+ * 生成单词例句与记忆提示的 Prompt 模板。
+ * 目标：
+ * 1. 输出稳定
+ * 2. 输出短
+ * 3. 适合 4B 小模型
+ */
 
+export function buildWordPrompt(word: string): string {
+  return `
+你是一个英语单词记忆助手。
+
+任务：
+针对用户输入的单词，生成适合背单词的短例句和中文记忆提示。
+
+要求：
+1. 只围绕单词 "${word}" 输出内容
+2. 给出 3 个简短、自然、常见的英文例句
+3. 每个例句尽量不超过 12 个英文单词
+4. 再给出 3 条中文记忆提示
+5. 中文提示要帮助用户形成画面感或场景感
+6. 不要输出解释，不要输出多余文字
+7. 必须严格返回 JSON
+8. 使用的例句单词要简单，适合初学者
+
+返回格式：
+{
+  "word": "${word}",
+  "examples": [
+    "example 1",
+    "example 2",
+    "example 3"
+  ],
+  "tips": [
+    "tip 1",
+    "tip 2",
+    "tip 3"
+  ]
+}
+`.trim();
+}

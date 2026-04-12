@@ -1,8 +1,5 @@
-/**
- * 文件作用：
- * 单词业务逻辑层。
- * 目前先返回假数据，后面再接本地模型。
- */
+import { buildWordPrompt } from '../prompts/word.prompt'
+import { generateWithOllama } from './llm.service'
 
 export interface WordGenerateResult {
   word: string
@@ -10,72 +7,111 @@ export interface WordGenerateResult {
   tips: string[]
 }
 
-/**
- * 单词业务服务。
- */
+function buildFallback(word: string): WordGenerateResult {
+  const examples = [
+    `This is a simple example with ${word}.`,
+    `I am learning the word ${word} today.`,
+    `${word} appears in a short scene here.`
+  ]
+
+  const tips = [
+    `${word}：先建立基础印象`,
+    `把 ${word} 放进短场景里记`,
+    `重复看几次 ${word} 的用法`
+  ]
+
+  return {
+    word,
+    examples,
+    tips
+  }
+}
+
+function readStringList(value: unknown): string[] {
+  const result: string[] = []
+
+  if (!Array.isArray(value)) {
+    return result
+  }
+
+  for (let i = 0; i < value.length; i += 1) {
+    const item = value[i]
+
+    if (typeof item !== 'string') {
+      continue
+    }
+
+    const text = item.trim()
+
+    if (!text) {
+      continue
+    }
+
+    result.push(text)
+
+    // 只取前 3 条，和接口约定保持一致。
+    if (result.length === 3) {
+      break
+    }
+  }
+
+  return result
+}
+
+function normalizeResult(raw: unknown, fallbackWord: string): WordGenerateResult {
+  const fallback = buildFallback(fallbackWord)
+  let word = fallbackWord
+  let examples = fallback.examples
+  let tips = fallback.tips
+
+  if (raw && typeof raw === 'object') {
+    const data = raw as Record<string, unknown>
+    const rawWord = data.word
+    const rawExamples = data.examples
+    const rawTips = data.tips
+
+    if (typeof rawWord === 'string') {
+      const cleanWord = rawWord.trim()
+
+      if (cleanWord) {
+        word = cleanWord
+      }
+    }
+
+    const exampleList = readStringList(rawExamples)
+
+    if (exampleList.length === 3) {
+      examples = exampleList
+    }
+
+    const tipList = readStringList(rawTips)
+
+    if (tipList.length === 3) {
+      tips = tipList
+    }
+  }
+
+  return {
+    word,
+    examples,
+    tips
+  }
+}
+
 export const wordService = {
-  /**
-   * 根据单词生成记忆内容。
-   *
-   * @param word 用户输入的单词
-   * @returns 结构化的例句与提示
-   *
-   * 注意：
-   * 这里先用假数据跑通全流程，等前后端联调成功后再替换成 LLM 调用。
-   */
   async generateWordContent(word: string): Promise<WordGenerateResult> {
-    /**
-     * 这里先做一个简单的“按输入返回示例”的版本。
-     * 这样能快速验证页面和接口是否正常联通。
-     */
-    if (word.toLowerCase() === 'heave') {
-      return {
-        word,
-        examples: [
-          'He heaved the box onto the truck.',
-          'Her chest heaved after the run.',
-          'The sea heaved in the storm.'
-        ],
-        tips: [
-          'heave box：用力抬起箱子',
-          'chest heave：胸口上下起伏',
-          'sea heave：海面翻涌起伏'
-        ]
-      }
-    }
+    const cleanWord = word.trim().toLowerCase()
+    const prompt = buildWordPrompt(cleanWord)
+    const rawText = await generateWithOllama(prompt)
 
-    if (word.toLowerCase() === 'optical') {
-      return {
-        word,
-        examples: [
-          'This is an optical device.',
-          'The lens has an optical defect.',
-          'We tested the optical system.'
-        ],
-        tips: [
-          'optical device：光学设备',
-          'optical defect：光学缺陷',
-          'optical system：光学系统'
-        ]
-      }
-    }
-
-    /**
-     * 默认返回：
-     * 先保证任意单词都能看到结果，方便前端联调。
-     */
-    return {
-      word,
-      examples: [
-        `This is a simple example with ${word}.`,
-        `I am learning the word ${word} today.`,
-        `${word} can appear in many sentences.`
-      ],
-      tips: [
-        `${word}：先建立一个基础印象`,
-        `把 ${word} 放进短句里记`,
-        `多看几次 ${word} 的使用场景`
-      ]
+    try {
+      const parsed = JSON.parse(rawText)
+      const result = normalizeResult(parsed, cleanWord)
+      return result
+    } catch {
+      // 小模型偶尔会吐出非 JSON 文本，这里直接报错给上层处理。
+      console.error('模型返回非 JSON：', rawText)
+      throw new Error('模型输出解析失败')
     }
   }
 }
