@@ -1,52 +1,39 @@
 <template>
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <p class="eyebrow">{{ teachingMode ? '教学模式' : '标准模式' }}</p>
-        <h2 class="word">{{ word }}</h2>
+  <section class="compact-meaning-panel">
+    <!-- 头部：更小巧的布局 -->
+    <header class="panel-header">
+      <div class="word-info">
+        <h2 class="display-word">{{ word }}</h2>
+        <div class="summary-tags">
+          <span v-for="item in meanings" :key="item.partOfSpeech" class="pos-tag">
+            {{ item.partOfSpeech }}
+          </span>
+        </div>
       </div>
-      <div v-if="teachingMode" class="summary">
-        <span
-          v-for="item in meanings"
-          :key="`${item.partOfSpeech}-${item.meaning}`"
-          class="summary-chip"
-        >
-          {{ item.partOfSpeech }} {{ item.meaning }}
-        </span>
+      <div class="mode-indicator">
+        <span class="dot" :class="{ 'is-teaching': teachingMode }"></span>
+        {{ teachingMode ? 'Teaching' : 'Standard' }}
       </div>
-    </div>
+    </header>
 
-    <div class="meaning-list">
+    <!-- 列表：更紧凑的义项排版 -->
+    <div class="meanings-list">
       <article
-        v-for="item in meanings"
-        :key="`${item.partOfSpeech}-${item.meaning}-${item.example}`"
-        class="meaning-card"
-        :class="{ teaching: teachingMode }"
+        v-for="(item, index) in meanings"
+        :key="index"
+        class="meaning-item"
       >
-        <div class="meaning-row">
-          <span class="part-of-speech">{{ item.partOfSpeech }}</span>
-          <span class="meaning">{{ item.meaning }}</span>
+        <div class="meaning-header">
+          <span class="pos-label">{{ item.partOfSpeech }}</span>
+          <h3 class="meaning-text">{{ item.meaning }}</h3>
         </div>
 
-        <template v-if="teachingMode">
-          <div class="teaching-grid">
-            <div>
-              <p class="block-label">例子</p>
-              <p class="body-text">{{ item.example }}</p>
-            </div>
-            <div>
-              <p class="block-label">联想</p>
-              <p class="body-text">{{ item.tip }}</p>
-            </div>
-          </div>
-        </template>
-
-        <template v-else>
-          <p class="body-text">{{ item.example }}</p>
-          <p class="hint-text">
-            <span class="hint-prefix">联想：</span>{{ item.tip }}
+        <div class="example-area">
+          <p class="example-text">“ {{ item.example }} ”</p>
+          <p v-if="item.tip" class="tip-text">
+            <strong>联想：</strong>{{ item.tip }}
           </p>
-        </template>
+        </div>
       </article>
     </div>
   </section>
@@ -63,108 +50,120 @@ defineProps<{
 </script>
 
 <style scoped>
-.panel {
-  padding: 24px;
-  border-radius: 24px;
-  background: #ffffff;
-  border: 1px solid #d9e3f1;
-  box-shadow: 0 18px 45px rgba(37, 99, 235, 0.08);
+.compact-meaning-panel {
+  padding: 12px 0;
 }
 
-.panel-head {
-  display: grid;
-  gap: 14px;
-  margin-bottom: 18px;
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--sl-glass-border);
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.word {
+.display-word {
+  font-size: 32px; /* 从 48px 缩小 */
+  font-weight: 800;
+  color: var(--sl-text-main);
   margin: 0;
-  font-size: 30px;
-  color: #0f172a;
+  font-family: var(--sl-display-font);
+  line-height: 1;
 }
 
-.summary {
+.summary-tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
-.summary-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+.pos-tag {
+  font-size: 11px;
   font-weight: 700;
+  color: var(--sl-peach-400);
+  text-transform: uppercase;
 }
 
-.meaning-list {
-  display: grid;
-  gap: 14px;
-}
-
-.meaning-card {
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid #dbe4f0;
-  background: #f8fbff;
-}
-
-.meaning-card.teaching {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-}
-
-.meaning-row {
+.mode-indicator {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sl-text-mute);
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sl-text-mute);
+  opacity: 0.5;
+}
+
+.dot.is-teaching {
+  background: var(--sl-peach-500);
+  opacity: 1;
+  box-shadow: 0 0 8px var(--sl-peach-300);
+}
+
+/* 义项列表 */
+.meanings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* 间距从 32px 缩减 */
+}
+
+.meaning-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meaning-header {
+  display: flex;
   align-items: baseline;
+  gap: 10px;
 }
 
-.part-of-speech {
-  min-width: 2.4em;
+.pos-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--sl-peach-500);
+  background: var(--sl-peach-50);
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 28px;
+  text-align: center;
+}
+
+.meaning-text {
+  font-size: 17px; /* 从 20px 稍微缩小 */
   font-weight: 700;
-  color: #2563eb;
+  color: var(--sl-text-main);
+  margin: 0;
 }
 
-.meaning {
-  font-weight: 700;
-  color: #0f172a;
+.example-area {
+  padding-left: 38px; /* 对齐到含义文字下方 */
 }
 
-.teaching-grid {
-  margin-top: 14px;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+.example-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--sl-text-soft);
+  margin: 0;
+  font-style: italic;
 }
 
-.block-label {
-  margin: 0 0 6px;
+.tip-text {
+  margin-top: 4px;
   font-size: 13px;
-  font-weight: 700;
-  color: #64748b;
+  color: var(--sl-text-mute);
 }
 
-.body-text {
-  margin: 12px 0 0;
-  line-height: 1.7;
-  color: #0f172a;
-}
-
-.hint-text {
-  margin: 10px 0 0;
-  line-height: 1.7;
-  color: #475569;
-}
-
-.hint-prefix {
-  font-weight: 700;
+.tip-text strong {
+  color: var(--sl-peach-400);
 }
 </style>

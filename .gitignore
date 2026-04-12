@@ -8,3 +8,4 @@ coverage
 frontend/.vite
 backend/dist
 
+output
