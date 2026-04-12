@@ -2,6 +2,7 @@ import { buildWordPrompt } from '../prompts/word.prompt'
 import { generateWithOllama } from './llm.service'
 
 export interface WordMeaningItem {
+  partOfSpeech: string
   meaning: string
   example: string
   tip: string
@@ -20,6 +21,7 @@ function buildFallback(word: string): WordGenerateResult {
     word,
     meanings: [
       {
+        partOfSpeech: '词性',
         meaning: '常见意思',
         example: `I met the word ${word} in a short sentence.`,
         tip: `${word} 的使用场景`
@@ -46,15 +48,18 @@ function readMeaningItems(value: unknown): WordMeaningItem[] {
     }
 
     const data = item as Record<string, unknown>
+    const partOfSpeech =
+      typeof data.partOfSpeech === 'string' ? data.partOfSpeech.trim() : ''
     const meaning = typeof data.meaning === 'string' ? data.meaning.trim() : ''
     const example = typeof data.example === 'string' ? data.example.trim() : ''
     const tip = typeof data.tip === 'string' ? data.tip.trim() : ''
 
-    if (!meaning || !example || !tip) {
+    if (!partOfSpeech || !meaning || !example || !tip) {
       continue
     }
 
     result.push({
+      partOfSpeech,
       meaning,
       example,
       tip
@@ -82,6 +87,7 @@ function readLegacyMeaningItems(raw: Record<string, unknown>): WordMeaningItem[]
     }
 
     result.push({
+      partOfSpeech: '词性',
       meaning: `义项 ${result.length + 1}`,
       example,
       tip

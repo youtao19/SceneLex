@@ -1,4 +1,5 @@
 export interface WordMeaningItem {
+  partOfSpeech: string
   meaning: string
   example: string
   tip: string

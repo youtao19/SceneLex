@@ -68,10 +68,13 @@ async function handleGenerate() {
           <div class="meaning-list">
             <article
               v-for="item in result.meanings"
-              :key="`${item.meaning}-${item.example}`"
+              :key="`${item.partOfSpeech}-${item.meaning}-${item.example}`"
               class="meaning-card"
             >
-              <p class="meaning-label">{{ item.meaning }}</p>
+              <p class="meaning-label">
+                <span class="part-of-speech">{{ item.partOfSpeech }}</span>
+                <span>{{ item.meaning }}</span>
+              </p>
               <p class="meaning-example">{{ item.example }}</p>
               <p class="meaning-tip">
                 <span class="tip-prefix">联想：</span>{{ item.tip }}
@@ -189,9 +192,18 @@ async function handleGenerate() {
 
 .meaning-label {
   margin: 0 0 8px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
   font-size: 14px;
   font-weight: 700;
   color: #1d4ed8;
+}
+
+.part-of-speech {
+  display: inline-block;
+  min-width: 2.4em;
+  color: #2563eb;
 }
 
 .meaning-example {

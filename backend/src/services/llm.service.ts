@@ -23,11 +23,12 @@ const jsonFormat = {
       items: {
         type: 'object',
         properties: {
+          partOfSpeech: { type: 'string' },
           meaning: { type: 'string' },
           example: { type: 'string' },
           tip: { type: 'string' }
         },
-        required: ['meaning', 'example', 'tip']
+        required: ['partOfSpeech', 'meaning', 'example', 'tip']
       }
     }
   },
