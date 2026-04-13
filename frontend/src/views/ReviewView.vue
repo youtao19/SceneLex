@@ -34,7 +34,6 @@
               <WordMeaningsPanel
                 :word="currentWord.word"
                 :meanings="currentWord.meanings"
-                :teaching-mode="wordStore.teachingMode"
               />
               
               <div class="rating-bar">

@@ -28,7 +28,6 @@
                 <WordMeaningsPanel
                   :word="preview.word"
                   :meanings="preview.meanings"
-                  :teaching-mode="wordStore.teachingMode"
                 />
               </div>
 

@@ -1,22 +1,13 @@
 <template>
-  <section class="compact-meaning-panel">
-    <!-- 头部：更小巧的布局 -->
+  <section class="meaning-panel">
+    <!-- 头部 -->
     <header class="panel-header">
       <div class="word-info">
         <h2 class="display-word">{{ word }}</h2>
-        <div class="summary-tags">
-          <span v-for="item in meanings" :key="item.partOfSpeech" class="pos-tag">
-            {{ item.partOfSpeech }}
-          </span>
-        </div>
-      </div>
-      <div class="mode-indicator">
-        <span class="dot" :class="{ 'is-teaching': teachingMode }"></span>
-        {{ teachingMode ? 'Teaching' : 'Standard' }}
       </div>
     </header>
 
-    <!-- 列表：更紧凑的义项排版 -->
+    <!-- 义项列表 -->
     <div class="meanings-list">
       <article
         v-for="(item, index) in meanings"
@@ -28,11 +19,23 @@
           <h3 class="meaning-text">{{ item.meaning }}</h3>
         </div>
 
-        <div class="example-area">
-          <p class="example-text">“ {{ item.example }} ”</p>
-          <p v-if="item.tip" class="tip-text">
-            <strong>联想：</strong>{{ item.tip }}
-          </p>
+        <!-- 场景例句与联想卡片结构 -->
+        <div class="teaching-content">
+          <div class="teaching-block example-block">
+            <div class="block-icon">💬</div>
+            <div class="block-body">
+              <span class="block-title">场景例句</span>
+              <p class="block-text">“{{ item.example }}”</p>
+            </div>
+          </div>
+          
+          <div v-if="item.tip" class="teaching-block tip-block">
+            <div class="block-icon">💡</div>
+            <div class="block-body">
+              <span class="block-title">联想记忆</span>
+              <p class="block-text">{{ item.tip }}</p>
+            </div>
+          </div>
         </div>
       </article>
     </div>
@@ -45,12 +48,11 @@ import type { WordMeaningItem } from '../types/word'
 defineProps<{
   word: string
   meanings: WordMeaningItem[]
-  teachingMode: boolean
 }>()
 </script>
 
 <style scoped>
-.compact-meaning-panel {
+.meaning-panel {
   padding: 12px 0;
 }
 
@@ -58,67 +60,31 @@ defineProps<{
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--sl-glass-border);
 }
 
 .display-word {
-  font-size: 32px; /* 从 48px 缩小 */
+  font-size: 36px;
   font-weight: 800;
   color: var(--sl-text-main);
   margin: 0;
   font-family: var(--sl-display-font);
-  line-height: 1;
+  line-height: 1.1;
 }
 
-.summary-tags {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.pos-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--sl-peach-400);
-  text-transform: uppercase;
-}
-
-.mode-indicator {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--sl-text-mute);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--sl-text-mute);
-  opacity: 0.5;
-}
-
-.dot.is-teaching {
-  background: var(--sl-peach-500);
-  opacity: 1;
-  box-shadow: 0 0 8px var(--sl-peach-300);
-}
-
-/* 义项列表 */
+/* 列表容器 */
 .meanings-list {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* 间距从 32px 缩减 */
+  gap: 16px; /* 大幅缩减义项之间的间距 */
 }
 
 .meaning-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .meaning-header {
@@ -128,42 +94,83 @@ defineProps<{
 }
 
 .pos-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: var(--sl-peach-500);
-  background: var(--sl-peach-50);
-  padding: 2px 6px;
-  border-radius: 4px;
-  min-width: 28px;
-  text-align: center;
+  text-transform: uppercase;
+  min-width: 18px;
 }
 
 .meaning-text {
-  font-size: 17px; /* 从 20px 稍微缩小 */
+  font-size: 16px;
   font-weight: 700;
+  color: var(--sl-text-main);
+  margin: 0;
+  line-height: 1.3;
+}
+
+/* 卡片样式 */
+.teaching-content {
+  margin-top: 4px;
+  padding-left: 24px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+
+.teaching-block {
+  display: flex;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+
+.example-block {
+  background: rgba(128, 128, 128, 0.04);
+  border-color: rgba(128, 128, 128, 0.08);
+}
+
+.tip-block {
+  background: var(--sl-peach-50);
+  border-color: var(--sl-peach-100);
+}
+
+.block-icon {
+  font-size: 14px;
+  margin-top: 1px;
+  opacity: 0.9;
+}
+
+.block-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.block-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--sl-text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tip-block .block-title {
+  color: var(--sl-peach-500);
+}
+
+.block-text {
+  font-size: 14px;
+  line-height: 1.4;
   color: var(--sl-text-main);
   margin: 0;
 }
 
-.example-area {
-  padding-left: 38px; /* 对齐到含义文字下方 */
-}
-
-.example-text {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--sl-text-soft);
-  margin: 0;
-  font-style: italic;
-}
-
-.tip-text {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--sl-text-mute);
-}
-
-.tip-text strong {
-  color: var(--sl-peach-400);
+@media (min-width: 768px) {
+  .teaching-content {
+    grid-template-columns: 1fr 1fr; /* 在大屏幕上，例句和联想并排显示 */
+    align-items: stretch;
+  }
 }
 </style>

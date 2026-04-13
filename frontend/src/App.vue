@@ -31,12 +31,6 @@
 
         <!-- Utility Row -->
         <div class="utility-row">
-          <div class="header-toggle-wrap">
-            <TeachingModeToggle
-              :model-value="wordStore.teachingMode"
-              @update:model-value="wordStore.setTeachingMode"
-            />
-          </div>
           
           <!-- Theme Toggle Button: 切换黑夜模式 -->
           <button 
@@ -61,15 +55,14 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import TeachingModeToggle from './components/TeachingModeToggle.vue'
 import { useWordStore } from './stores/word'
 
 const wordStore = useWordStore()
 const isDark = ref(false)
 
 const navigationItems = [
-  { to: '/', label: '仪表盘', icon: 'dashboard', badge: '热销' },
-  { to: '/review', label: '复习舱', icon: 'review', badge: '返利' },
+  { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
+  { to: '/review', label: '复习舱', icon: 'review' },
   { to: '/history', label: '归档册', icon: 'history' },
   { to: '/settings', label: '更多', icon: 'more' },
 ]
