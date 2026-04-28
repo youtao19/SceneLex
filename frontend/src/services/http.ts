@@ -51,3 +51,13 @@ export async function post<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body)
   })
 }
+
+export async function patch<T>(url: string, body: unknown): Promise<T> {
+  return request<T>(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  })
+}

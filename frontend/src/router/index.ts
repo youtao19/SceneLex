@@ -4,6 +4,7 @@ import HomeView from '../views/HomeView.vue';
 import HistoryView from '../views/HistoryView.vue';
 import ReviewView from '../views/ReviewView.vue';
 import SettingsView from '../views/SettingsView.vue';
+import ProfileView from '../views/ProfileView.vue';
 import { AUTH_STORAGE_KEY, type AuthState } from '../types/auth';
 import { readFromStorage } from '../utils/storage';
 
@@ -14,6 +15,7 @@ const router = createRouter({
     { path: '/dashboard', name: 'dashboard', component: HomeView, meta: { requiresAuth: true } },
     { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },
     { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
+    { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

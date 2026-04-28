@@ -10,6 +10,7 @@ import {
   findUserByEmail,
   findUserByTokenHash,
   touchSession,
+  updateUserProfile,
 } from '../repositories/auth.repository';
 import type {
   AccessStatus,
@@ -17,6 +18,7 @@ import type {
   AuthUser,
   LoginPayload,
   RegisterPayload,
+  UpdateProfilePayload,
 } from '../types/auth';
 import { HttpError } from '../utils/http-error';
 import { hashPassword, verifyPassword } from '../utils/password';
@@ -52,6 +54,23 @@ function throwInvalidCredentials(): never {
 function validatePassword(password: string) {
   if (password.length < 8) {
     throw new HttpError(400, '密码至少需要 8 位');
+  }
+}
+
+/**
+ * 昵称会直接展示在顶栏和资料页，长度收敛能避免小屏布局被撑坏。
+ */
+function normalizeNickname(nickname: string) {
+  return nickname.trim().replace(/\s+/g, ' ');
+}
+
+function validateNickname(nickname: string) {
+  if (!nickname) {
+    throw new HttpError(400, '昵称不能为空');
+  }
+
+  if (nickname.length > 24) {
+    throw new HttpError(400, '昵称最多 24 个字符');
   }
 }
 
@@ -241,6 +260,22 @@ export const authService = {
     }
 
     await touchSession(tokenHash);
+
+    return user;
+  },
+
+  /**
+   * 资料更新只接受当前登录用户自己的 userId，避免前端传入目标用户造成越权。
+   */
+  async updateProfile(userId: number, payload: UpdateProfilePayload): Promise<AuthUser> {
+    const nickname = normalizeNickname(payload.nickname ?? '');
+    validateNickname(nickname);
+
+    const user = await updateUserProfile(userId, nickname);
+
+    if (!user) {
+      throw new HttpError(404, '用户不存在');
+    }
 
     return user;
   },

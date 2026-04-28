@@ -19,6 +19,21 @@ interface WordRow {
   updated_at: string | Date;
 }
 
+/**
+ * DATE 字段出库后统一成 YYYY-MM-DD，避免前端和排序逻辑拿到 Date 对象。
+ */
+function toDateString(value: string | Date) {
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function mapWordRow(row: WordRow): StoredWord {
   return {
     id: Number(row.id),
@@ -27,7 +42,7 @@ function mapWordRow(row: WordRow): StoredWord {
     meanings: row.meanings,
     ease: Number(row.ease),
     interval: Number(row.interval),
-    nextReview: row.next_review,
+    nextReview: toDateString(row.next_review),
     reviewCount: Number(row.review_count),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),

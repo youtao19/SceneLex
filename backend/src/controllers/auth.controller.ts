@@ -4,7 +4,7 @@ import {
   readAuthUser,
 } from '../middlewares/auth.middleware';
 import { authService } from '../services/auth.service';
-import type { LoginPayload, RegisterPayload } from '../types/auth';
+import type { LoginPayload, RegisterPayload, UpdateProfilePayload } from '../types/auth';
 import { ok } from '../utils/response';
 
 /**
@@ -51,6 +51,24 @@ export async function getMe(
 ) {
   try {
     return res.json(ok(readAuthUser(req), '当前用户已获取'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 用户资料更新以当前 token 为准，前端不需要也不能提交 userId。
+ */
+export async function updateProfile(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req);
+    const payload = req.body as UpdateProfilePayload;
+    const result = await authService.updateProfile(authUser.id, payload);
+    return res.json(ok(result, '个人资料已更新'));
   } catch (error) {
     next(error);
   }

@@ -3,6 +3,7 @@ import {
   AUTH_STORAGE_KEY,
   type AuthSession,
   type AuthState,
+  type AuthUser,
 } from '../types/auth'
 import { readFromStorage, saveToStorage } from '../utils/storage'
 
@@ -28,6 +29,17 @@ export const useUserStore = defineStore('user', {
     setSession(session: AuthSession) {
       this.token = session.token
       this.user = session.user
+      saveToStorage(AUTH_STORAGE_KEY, {
+        token: this.token,
+        user: this.user,
+      })
+    },
+
+    /**
+     * 资料页保存后只更新用户信息，不能替换 token，否则会把当前会话弄丢。
+     */
+    setUser(user: AuthUser) {
+      this.user = user
       saveToStorage(AUTH_STORAGE_KEY, {
         token: this.token,
         user: this.user,

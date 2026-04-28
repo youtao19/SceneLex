@@ -42,14 +42,81 @@
           
           <button class="utility-circle soft-pill" aria-label="Locale">CN</button>
           <template v-if="showNavigation">
-            <span class="user-chip soft-pill">{{ userStore.nickname }}</span>
             <button
-              class="utility-circle soft-pill profile-btn"
-              aria-label="Logout"
-              @click="handleLogout"
+              class="avatar-button soft-pill"
+              type="button"
+              aria-label="打开账号菜单"
+              :aria-expanded="isProfileMenuOpen"
+              aria-haspopup="menu"
+              @click.stop="toggleProfileMenu"
+              @keydown.esc="closeProfileMenu"
             >
-              退出
+              <span class="profile-avatar" aria-hidden="true">
+                <span class="avatar-shadow"></span>
+                <span class="avatar-highlight"></span>
+              </span>
             </button>
+
+            <div
+              v-if="isProfileMenuOpen"
+              class="profile-menu surface-card"
+              role="menu"
+              aria-label="账号菜单"
+              @click.stop
+              @keydown.esc="closeProfileMenu"
+            >
+              <div class="profile-summary">
+                <span class="profile-avatar avatar-large" aria-hidden="true">
+                  <span class="avatar-shadow"></span>
+                  <span class="avatar-highlight"></span>
+                </span>
+                <div class="profile-copy">
+                  <strong>{{ userStore.nickname }}</strong>
+                  <p>{{ userStore.user?.email }}</p>
+                  <span>{{ accessText }}</span>
+                </div>
+              </div>
+
+              <div class="profile-menu-section">
+                <RouterLink
+                  to="/profile"
+                  class="profile-menu-item"
+                  role="menuitem"
+                  @click="closeProfileMenu"
+                >
+                  <span class="menu-icon icon-profile" aria-hidden="true"></span>
+                  <span>个人资料</span>
+                </RouterLink>
+                <RouterLink
+                  to="/settings"
+                  class="profile-menu-item"
+                  role="menuitem"
+                  @click="closeProfileMenu"
+                >
+                  <span class="menu-icon icon-settings" aria-hidden="true"></span>
+                  <span>更多设置</span>
+                </RouterLink>
+                <RouterLink
+                  to="/history"
+                  class="profile-menu-item"
+                  role="menuitem"
+                  @click="closeProfileMenu"
+                >
+                  <span class="menu-icon icon-library" aria-hidden="true"></span>
+                  <span>我的词库</span>
+                </RouterLink>
+              </div>
+
+              <button
+                class="profile-menu-item sign-out-item"
+                type="button"
+                role="menuitem"
+                @click="handleLogout"
+              >
+                <span class="menu-icon icon-signout" aria-hidden="true"></span>
+                <span>退出登录</span>
+              </button>
+            </div>
           </template>
           <RouterLink
             v-else
@@ -70,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMe, logout } from './services/auth.service'
 import { useUserStore } from './stores/user'
@@ -79,10 +146,28 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const isDark = ref(false)
+const isProfileMenuOpen = ref(false)
 const brandTarget = computed(() => (userStore.isAuthenticated ? '/dashboard' : '/'))
 const showNavigation = computed(
   () => userStore.isAuthenticated && route.name !== 'landing'
 )
+const accessText = computed(() => {
+  const status = userStore.user?.accessStatus
+
+  if (status === 'active') {
+    return '账号可用'
+  }
+
+  if (status === 'suspended') {
+    return '账号已暂停'
+  }
+
+  if (status === 'expired') {
+    return '访问已过期'
+  }
+
+  return '账号信息'
+})
 
 const navigationItems = [
   { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
@@ -90,6 +175,20 @@ const navigationItems = [
   { to: '/history', label: '归档册', icon: 'history' },
   { to: '/settings', label: '更多', icon: 'more' },
 ]
+
+/**
+ * 菜单只作为账号入口，状态放在 App 顶层能避免跨路由后残留展开层。
+ */
+function toggleProfileMenu() {
+  isProfileMenuOpen.value = !isProfileMenuOpen.value
+}
+
+/**
+ * 路由跳转、退出和键盘关闭都走同一个收口，避免菜单遮住下一页。
+ */
+function closeProfileMenu() {
+  isProfileMenuOpen.value = false
+}
 
 /**
  * 切换黑夜/白天模式
@@ -110,6 +209,7 @@ function toggleTheme() {
  */
 async function handleLogout() {
   try {
+    closeProfileMenu()
     await logout()
   } catch (error) {
     console.warn('logout failed:', error)
@@ -117,6 +217,13 @@ async function handleLogout() {
     userStore.clearSession()
     await router.push('/')
   }
+}
+
+/**
+ * 点击菜单外部时关闭，保持和常见账号菜单一致的操作预期。
+ */
+function handleDocumentClick() {
+  closeProfileMenu()
 }
 
 onMounted(() => {
@@ -146,6 +253,12 @@ onMounted(() => {
         }
       })
   }
+
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 
@@ -286,16 +399,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.user-chip {
-  min-height: 40px;
-  padding: 0 16px;
-  display: inline-flex;
-  align-items: center;
-  color: var(--sl-text-soft);
-  font-size: 13px;
-  font-weight: 700;
+  position: relative;
 }
 
 .header-toggle-wrap {
@@ -324,12 +428,252 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-.profile-btn {
+.avatar-button {
+  width: 48px;
+  height: 48px;
+  padding: 3px;
+  border: 1px solid var(--sl-glass-border-strong);
+  cursor: pointer;
+}
+
+.avatar-button:hover,
+.avatar-button[aria-expanded="true"] {
+  border-color: rgba(255, 90, 113, 0.42);
+  box-shadow: 0 12px 28px rgba(255, 90, 113, 0.16);
+  transform: translateY(-1px);
+}
+
+.avatar-button:focus-visible,
+.profile-menu-item:focus-visible {
+  outline: 3px solid rgba(255, 90, 113, 0.32);
+  outline-offset: 3px;
+}
+
+.profile-avatar {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 46% 38%, #f3d6ce 0 21%, transparent 22%),
+    linear-gradient(135deg, #f8f7f5 0%, #ffffff 56%, #101014 57% 100%);
+  border: 1px solid var(--sl-glass-border-strong);
+}
+
+.avatar-shadow {
+  position: absolute;
+  top: 7px;
+  left: 10px;
+  width: 24px;
+  height: 17px;
+  border-radius: 58% 46% 50% 42%;
+  background: #1d1d22;
+  transform: rotate(-20deg);
+}
+
+.avatar-highlight {
+  position: absolute;
+  right: 7px;
+  bottom: 3px;
+  width: 15px;
+  height: 24px;
+  border-radius: 999px 999px 0 0;
+  background: #101014;
+  transform: rotate(28deg);
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 300;
+  width: min(360px, calc(100vw - 24px));
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 70px rgba(40, 22, 28, 0.16);
+}
+
+.dark-theme .profile-menu {
+  background: rgba(30, 25, 38, 0.96);
+}
+
+.profile-summary {
+  padding: 10px 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--sl-glass-border);
+}
+
+.avatar-large {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+}
+
+.avatar-large .avatar-shadow {
+  top: 9px;
+  left: 16px;
+  width: 31px;
+  height: 21px;
+}
+
+.avatar-large .avatar-highlight {
+  right: 10px;
+  bottom: 5px;
+  width: 21px;
+  height: 34px;
+}
+
+.profile-copy {
+  min-width: 0;
+}
+
+.profile-copy strong {
+  display: block;
+  color: var(--sl-text-main);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.profile-copy p {
+  margin: 4px 0;
+  overflow: hidden;
+  color: var(--sl-text-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-copy span {
+  color: var(--sl-peach-500);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.profile-menu-section {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--sl-glass-border);
+}
+
+.profile-menu-item {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--sl-text-main);
+  background: transparent;
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profile-menu-item:hover {
   background: var(--sl-peach-50);
   color: var(--sl-peach-500);
-  width: auto;
-  padding: 0 16px;
-  border-radius: 999px;
+}
+
+.menu-icon {
+  width: 22px;
+  height: 22px;
+  position: relative;
+  flex: 0 0 auto;
+  color: var(--sl-text-soft);
+}
+
+.icon-settings::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.icon-settings::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.icon-profile::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 7px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.icon-profile::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  width: 14px;
+  height: 9px;
+  border: 2px solid currentColor;
+  border-radius: 999px 999px 4px 4px;
+}
+
+.icon-library::before {
+  content: "";
+  position: absolute;
+  inset: 3px 4px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+}
+
+.icon-library::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  bottom: 2px;
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+}
+
+.icon-signout::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 4px;
+  width: 10px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right: none;
+  border-radius: 3px 0 0 3px;
+}
+
+.icon-signout::after {
+  content: "→";
+  position: absolute;
+  right: 0;
+  top: -2px;
+  color: currentColor;
+  font-size: 21px;
+  line-height: 22px;
+}
+
+.sign-out-item {
+  margin-top: 10px;
+  color: #b42318;
 }
 
 .auth-entry {
@@ -390,9 +734,24 @@ onMounted(() => {
     gap: 6px;
   }
 
-  .utility-row .user-chip,
   .utility-row [aria-label="Locale"] {
     display: none;
+  }
+
+  .avatar-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .profile-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .profile-menu {
+    position: fixed;
+    top: 72px;
+    right: 12px;
   }
 }
 </style>
