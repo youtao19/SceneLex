@@ -1,5 +1,5 @@
 import { buildWordPrompt } from '../prompts/word.prompt';
-import { generateWithOllama } from './llm.service';
+import { generateWithLocalModel } from './llm.service';
 import {
   findWordById,
   listTodayWords,
@@ -182,7 +182,7 @@ export const wordService = {
     }
 
     const prompt = buildWordPrompt(cleanWord);
-    const rawText = await generateWithOllama(prompt);
+    const rawText = await generateWithLocalModel(prompt);
 
     try {
       const parsed = JSON.parse(rawText);

@@ -11,6 +11,14 @@ interface OllamaGenerateResponse {
   eval_count?: number
 }
 
+interface OmlxChatCompletionResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | null
+    }
+  }>
+}
+
 // 用 schema 约束输出，减少小模型漏字段或乱改结构。
 const jsonFormat = {
   type: 'object',
@@ -34,17 +42,84 @@ const jsonFormat = {
   required: ['word', 'meanings']
 }
 
+function hasWordMeanings(value: object) {
+  return 'word' in value && 'meanings' in value
+}
+
+function findLastJsonObjectText(text: string) {
+  const candidates: string[] = []
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '"') {
+        inString = false
+      }
+
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      continue
+    }
+
+    if (char === '{') {
+      if (depth === 0) {
+        start = i
+      }
+
+      depth += 1
+      continue
+    }
+
+    if (char === '}' && depth > 0) {
+      depth -= 1
+
+      if (depth === 0 && start >= 0) {
+        candidates.push(text.slice(start, i + 1))
+        start = -1
+      }
+    }
+  }
+
+  for (let i = candidates.length - 1; i >= 0; i -= 1) {
+    try {
+      const data = JSON.parse(candidates[i])
+
+      if (data && typeof data === 'object' && hasWordMeanings(data)) {
+        return candidates[i]
+      }
+    } catch {
+      // 这里只是在筛选候选 JSON，解析失败说明它不是目标输出。
+    }
+  }
+
+  return ''
+}
+
 /**
  * 调用 Ollama 生成单词义项和记忆提示。
  */
 export async function generateWithOllama(prompt: string): Promise<string> {
-  const response = await fetch(`${aiConfig.baseURL}/generate`, {
+  const config = aiConfig.ollama
+
+  const response = await fetch(`${config.baseURL}/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: aiConfig.model,
+      model: config.model,
       prompt,
       // Qwen3 在 Ollama 中默认会输出 thinking，关掉后 response 才稳定可解析。
       think: false,
@@ -58,7 +133,7 @@ export async function generateWithOllama(prompt: string): Promise<string> {
         num_predict: 320
       }
     }),
-    signal: AbortSignal.timeout(aiConfig.timeout)
+    signal: AbortSignal.timeout(config.timeout)
   })
 
   if (!response.ok) {
@@ -82,4 +157,75 @@ export async function generateWithOllama(prompt: string): Promise<string> {
   }
 
   throw new Error('Ollama 返回了空 response')
+}
+
+/**
+ * 调用 oMLX 的 OpenAI-compatible 接口。
+ */
+export async function generateWithOmlx(prompt: string): Promise<string> {
+  const config = aiConfig.omlx
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+
+  if (config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`
+  }
+
+  const response = await fetch(`${config.baseURL}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a JSON API. Return only valid JSON. Do not include reasoning, markdown, or explanations.'
+        },
+        {
+          role: 'user',
+          content: `/no_think\n${prompt}`
+        }
+      ],
+      // oMLX 走 OpenAI-compatible 协议，这里只要求 JSON object，不绑定某个厂商的 schema 扩展。
+      response_format: {
+        type: 'json_object'
+      },
+      chat_template_kwargs: {
+        enable_thinking: false
+      },
+      temperature: 0.6,
+      max_tokens: 800,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
+  }
+
+  const data = (await response.json()) as OmlxChatCompletionResponse
+  const content = data.choices?.[0]?.message?.content
+
+  if (content && content.trim()) {
+    const cleanContent = content.trim()
+    const jsonText = findLastJsonObjectText(cleanContent)
+
+    return jsonText || cleanContent
+  }
+
+  throw new Error('oMLX 未返回 message.content')
+}
+
+/**
+ * 根据 AI_PROVIDER 选择本地模型服务，业务层不需要知道具体部署方式。
+ */
+export async function generateWithLocalModel(prompt: string): Promise<string> {
+  if (aiConfig.provider === 'omlx') {
+    return generateWithOmlx(prompt)
+  }
+
+  return generateWithOllama(prompt)
 }
