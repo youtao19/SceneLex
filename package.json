@@ -8,8 +8,12 @@
   ],
   "scripts": {
     "dev": "npm run dev:frontend & npm run dev:backend",
+    "dev:ollama": "npm run dev:frontend & AI_PROVIDER=ollama npm run dev:backend",
+    "dev:omlx": "npm run dev:frontend & AI_PROVIDER=omlx npm run dev:backend",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
+    "dev:backend:ollama": "AI_PROVIDER=ollama npm --prefix backend run dev",
+    "dev:backend:omlx": "AI_PROVIDER=omlx npm --prefix backend run dev",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
