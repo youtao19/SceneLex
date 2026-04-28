@@ -75,6 +75,35 @@ export async function updateProfile(
 }
 
 /**
+ * 头像更新。
+ * 由 multer 中间件处理文件上传，控制器只负责将保存后的 URL 更新到数据库。
+ */
+export async function updateAvatar(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req);
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: '请选择要上传的头像图片',
+      });
+    }
+
+    // 构建可访问的公开 URL
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const result = await authService.updateAvatar(authUser.id, avatarUrl);
+    return res.json(ok(result, '头像已更新'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * 退出只需要删除当前会话，不需要前端再带额外 userId。
  */
 export async function logout(

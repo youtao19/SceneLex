@@ -6,6 +6,7 @@ interface UserRow {
   id: string;
   email: string;
   nickname: string;
+  avatar_url: string | null;
   access_status: 'active' | 'suspended' | 'expired';
   access_expires_at: string | Date;
   password_salt: string;
@@ -26,6 +27,7 @@ function mapUserRow(row: UserRow): AuthUser {
     id: Number(row.id),
     email: row.email,
     nickname: row.nickname,
+    avatarUrl: row.avatar_url,
     accessStatus: row.access_status,
     accessExpiresAt: new Date(row.access_expires_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
@@ -54,6 +56,7 @@ export async function findUserByEmail(email: string) {
         id,
         email,
         nickname,
+        avatar_url,
         access_status,
         access_expires_at,
         password_salt,
@@ -99,6 +102,7 @@ export async function createUser(
         id,
         email,
         nickname,
+        avatar_url,
         access_status,
         access_expires_at,
         password_salt,
@@ -144,6 +148,7 @@ export async function findUserByTokenHash(tokenHash: string) {
         u.id,
         u.email,
         u.nickname,
+        u.avatar_url,
         u.access_status,
         u.access_expires_at,
         u.password_salt,
@@ -196,6 +201,7 @@ export async function updateUserProfile(userId: number, nickname: string) {
         id,
         email,
         nickname,
+        avatar_url,
         access_status,
         access_expires_at,
         password_salt,
@@ -204,6 +210,39 @@ export async function updateUserProfile(userId: number, nickname: string) {
         updated_at
     `,
     [userId, nickname],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return mapUserRow(result.rows[0]);
+}
+
+/**
+ * 更新用户头像。
+ */
+export async function updateUserAvatar(userId: number, avatarUrl: string) {
+  const result = await query<UserRow>(
+    `
+      UPDATE users
+      SET
+        avatar_url = $2,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING
+        id,
+        email,
+        nickname,
+        avatar_url,
+        access_status,
+        access_expires_at,
+        password_salt,
+        password_hash,
+        created_at,
+        updated_at
+    `,
+    [userId, avatarUrl],
   );
 
   if (result.rowCount === 0) {

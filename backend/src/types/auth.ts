@@ -4,6 +4,7 @@ export interface AuthUser {
   id: number;
   email: string;
   nickname: string;
+  avatarUrl?: string | null;
   accessStatus: AccessStatus;
   accessExpiresAt: string;
   createdAt: string;
