@@ -196,7 +196,11 @@ export const wordService = {
   /**
    * 直接持久化用户刚刚看到的预览结果，避免预览和入库内容不一致。
    */
-  async addWordToReview(word: string, meaningsInput: unknown): Promise<SaveWordResult> {
+  async addWordToReview(
+    userId: number,
+    word: string,
+    meaningsInput: unknown,
+  ): Promise<SaveWordResult> {
     const cleanWord = normalizeWord(word);
 
     if (!cleanWord) {
@@ -206,20 +210,24 @@ export const wordService = {
     const meanings = normalizeIncomingMeanings(meaningsInput);
     const primaryMeaning = buildPrimaryMeaning(meanings);
 
-    return saveWordCard(cleanWord, primaryMeaning, meanings);
+    return saveWordCard(userId, cleanWord, primaryMeaning, meanings);
   },
 
   /**
    * 今日复习队列只返回到期单词，保证前端按单词逐张推进。
    */
-  async getTodayReviewWords(): Promise<StoredWord[]> {
-    return listTodayWords(getTodayDateString());
+  async getTodayReviewWords(userId: number): Promise<StoredWord[]> {
+    return listTodayWords(userId, getTodayDateString());
   },
 
   /**
    * 评分只更新最简 SRS 字段，不动教学内容。
    */
-  async reviewWord(wordId: number, rating: ReviewRating): Promise<StoredWord> {
+  async reviewWord(
+    userId: number,
+    wordId: number,
+    rating: ReviewRating,
+  ): Promise<StoredWord> {
     if (!Number.isInteger(wordId) || wordId <= 0) {
       throw new HttpError(400, 'wordId 非法');
     }
@@ -230,7 +238,7 @@ export const wordService = {
       throw new HttpError(400, 'rating 非法');
     }
 
-    const current = await findWordById(wordId);
+    const current = await findWordById(userId, wordId);
 
     if (!current) {
       throw new HttpError(404, '单词不存在');
@@ -239,6 +247,6 @@ export const wordService = {
     const nextInterval = getNextInterval(current.interval, rating);
     const nextReview = addDays(getTodayDateString(), nextInterval);
 
-    return updateReviewSchedule(wordId, nextInterval, nextReview);
+    return updateReviewSchedule(userId, wordId, nextInterval, nextReview);
   },
 };

@@ -3,7 +3,7 @@
     <header class="shell-header">
       <div class="header-content">
         <!-- Logo Section -->
-        <RouterLink to="/" class="brand-link">
+        <RouterLink :to="brandTarget" class="brand-link">
           <div class="brand-icon">
             <span class="brand-fruit"></span>
             <span class="fruit-crease"></span>
@@ -16,7 +16,7 @@
         </RouterLink>
 
         <!-- Navigation Pill -->
-        <nav class="nav-pill soft-pill">
+        <nav v-if="showNavigation" class="nav-pill soft-pill">
           <RouterLink
             v-for="item in navigationItems"
             :key="item.to"
@@ -31,7 +31,6 @@
 
         <!-- Utility Row -->
         <div class="utility-row">
-          
           <!-- Theme Toggle Button: 切换黑夜模式 -->
           <button 
             class="utility-circle soft-pill" 
@@ -42,7 +41,24 @@
           </button>
           
           <button class="utility-circle soft-pill" aria-label="Locale">CN</button>
-          <button class="utility-circle soft-pill profile-btn" aria-label="User">👤</button>
+          <template v-if="showNavigation">
+            <span class="user-chip soft-pill">{{ userStore.nickname }}</span>
+            <button
+              class="utility-circle soft-pill profile-btn"
+              aria-label="Logout"
+              @click="handleLogout"
+            >
+              退出
+            </button>
+          </template>
+          <RouterLink
+            v-else
+            to="/"
+            class="utility-circle soft-pill auth-entry"
+            aria-label="Login"
+          >
+            登录
+          </RouterLink>
         </div>
       </div>
     </header>
@@ -54,11 +70,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useWordStore } from './stores/word'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getMe, logout } from './services/auth.service'
+import { useUserStore } from './stores/user'
 
-const wordStore = useWordStore()
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
 const isDark = ref(false)
+const brandTarget = computed(() => (userStore.isAuthenticated ? '/dashboard' : '/'))
+const showNavigation = computed(
+  () => userStore.isAuthenticated && route.name !== 'landing'
+)
 
 const navigationItems = [
   { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
@@ -81,12 +105,46 @@ function toggleTheme() {
   }
 }
 
+/**
+ * 前端本地态一定要清掉，即使接口暂时不可达也不能让旧 token 继续污染请求。
+ */
+async function handleLogout() {
+  try {
+    await logout()
+  } catch (error) {
+    console.warn('logout failed:', error)
+  } finally {
+    userStore.clearSession()
+    await router.push('/')
+  }
+}
+
 onMounted(() => {
   // 初始化主题
   const savedTheme = localStorage.getItem('sl-theme')
   if (savedTheme === 'dark') {
     isDark.value = true
     document.documentElement.classList.add('dark-theme')
+  }
+
+  /**
+   * 刷新后先校验一次本地 token，避免前端把过期登录态当成有效状态继续放行。
+   */
+  if (userStore.token) {
+    void getMe()
+      .then((response) => {
+        userStore.setSession({
+          token: userStore.token,
+          user: response.data,
+        })
+      })
+      .catch(async () => {
+        userStore.clearSession()
+
+        if (route.name !== 'landing') {
+          await router.push('/')
+        }
+      })
   }
 })
 </script>
@@ -230,6 +288,16 @@ onMounted(() => {
   gap: 12px;
 }
 
+.user-chip {
+  min-height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--sl-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .header-toggle-wrap {
   transform: scale(0.8);
   transform-origin: right center;
@@ -259,6 +327,16 @@ onMounted(() => {
 .profile-btn {
   background: var(--sl-peach-50);
   color: var(--sl-peach-500);
+  width: auto;
+  padding: 0 16px;
+  border-radius: 999px;
+}
+
+.auth-entry {
+  text-decoration: none;
+  width: auto;
+  padding: 0 16px;
+  border-radius: 999px;
 }
 
 .shell-main {

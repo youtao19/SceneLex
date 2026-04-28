@@ -1,14 +1,46 @@
-import { defineStore } from 'pinia';
+import { defineStore } from 'pinia'
+import {
+  AUTH_STORAGE_KEY,
+  type AuthSession,
+  type AuthState,
+} from '../types/auth'
+import { readFromStorage, saveToStorage } from '../utils/storage'
+
+function readInitialAuthState(): AuthState {
+  return (
+    readFromStorage<AuthState>(AUTH_STORAGE_KEY) ?? {
+      token: '',
+      user: null,
+    }
+  )
+}
 
 export const useUserStore = defineStore('user', {
-  state: () => ({
-    nickname: 'Guest',
-    token: '',
-  }),
+  state: (): AuthState => readInitialAuthState(),
+  getters: {
+    isAuthenticated: (state) => Boolean(state.token && state.user),
+    nickname: (state) => state.user?.nickname ?? 'Guest',
+  },
   actions: {
-    setToken(token: string) {
-      this.token = token;
+    /**
+     * 登录结果统一在 store 持久化，刷新后路由守卫才能继续识别当前用户。
+     */
+    setSession(session: AuthSession) {
+      this.token = session.token
+      this.user = session.user
+      saveToStorage(AUTH_STORAGE_KEY, {
+        token: this.token,
+        user: this.user,
+      })
+    },
+
+    /**
+     * 退出时同时清掉内存和本地缓存，避免过期 token 在下次启动时继续被带上。
+     */
+    clearSession() {
+      this.token = ''
+      this.user = null
+      localStorage.removeItem(AUTH_STORAGE_KEY)
     },
   },
-});
-
+})

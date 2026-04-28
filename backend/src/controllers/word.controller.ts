@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
+import { readAuthUser } from '../middlewares/auth.middleware'
 import { wordService } from '../services/word.service'
 import { ok } from '../utils/response'
 import type { ReviewRating, WordMeaningItem } from '../types/word'
@@ -12,6 +13,7 @@ export async function generateWordContent(
   next: NextFunction
 ) {
   try {
+    readAuthUser(req)
     const { word } = req.body as { word?: string }
     const result = await wordService.generateWordContent(word ?? '')
     return res.json(ok(result, 'Word preview generated'))
@@ -29,11 +31,12 @@ export async function addWord(
   next: NextFunction
 ) {
   try {
+    const authUser = readAuthUser(req)
     const { word, meanings } = req.body as {
       word?: string
       meanings?: WordMeaningItem[]
     }
-    const result = await wordService.addWordToReview(word ?? '', meanings)
+    const result = await wordService.addWordToReview(authUser.id, word ?? '', meanings)
     const message = result.wasUpdated ? 'Word updated' : 'Word added'
 
     return res.json(ok(result.card, message))
@@ -46,12 +49,13 @@ export async function addWord(
  * 今日任务页按到期时间拉取整张单词卡，前端逐张消费。
  */
 export async function getTodayWords(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const result = await wordService.getTodayReviewWords()
+    const authUser = readAuthUser(req)
+    const result = await wordService.getTodayReviewWords(authUser.id)
     return res.json(ok(result, 'Today words fetched'))
   } catch (error) {
     next(error)
@@ -67,11 +71,16 @@ export async function reviewWord(
   next: NextFunction
 ) {
   try {
+    const authUser = readAuthUser(req)
     const { wordId, rating } = req.body as {
       wordId?: number
       rating?: ReviewRating
     }
-    const result = await wordService.reviewWord(Number(wordId), rating as ReviewRating)
+    const result = await wordService.reviewWord(
+      authUser.id,
+      Number(wordId),
+      rating as ReviewRating
+    )
     return res.json(ok(result, 'Word review updated'))
   } catch (error) {
     next(error)

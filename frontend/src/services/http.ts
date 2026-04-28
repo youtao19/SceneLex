@@ -1,4 +1,12 @@
+import { AUTH_STORAGE_KEY, type AuthState } from '../types/auth'
+import { readFromStorage } from '../utils/storage'
+
 const BASE_URL = 'http://localhost:3003/api'
+
+function readAuthToken() {
+  const authState = readFromStorage<AuthState>(AUTH_STORAGE_KEY)
+  return authState?.token ?? ''
+}
 
 async function readErrorMessage(response: Response) {
   try {
@@ -11,7 +19,17 @@ async function readErrorMessage(response: Response) {
 }
 
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE_URL}${url}`, init)
+  const headers = new Headers(init?.headers)
+  const token = readAuthToken()
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(`${BASE_URL}${url}`, {
+    ...init,
+    headers,
+  })
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response))

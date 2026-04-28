@@ -4,17 +4,36 @@ import HomeView from '../views/HomeView.vue';
 import HistoryView from '../views/HistoryView.vue';
 import ReviewView from '../views/ReviewView.vue';
 import SettingsView from '../views/SettingsView.vue';
+import { AUTH_STORAGE_KEY, type AuthState } from '../types/auth';
+import { readFromStorage } from '../utils/storage';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'landing', component: LandingView },
-    { path: '/dashboard', name: 'dashboard', component: HomeView },
-    { path: '/review', name: 'review', component: ReviewView },
-    { path: '/history', name: 'history', component: HistoryView },
-    { path: '/settings', name: 'settings', component: SettingsView },
+    { path: '/', name: 'landing', component: LandingView, meta: { guestOnly: true } },
+    { path: '/dashboard', name: 'dashboard', component: HomeView, meta: { requiresAuth: true } },
+    { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },
+    { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
+    { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
+});
+
+router.beforeEach((to) => {
+  const authState = readFromStorage<AuthState>(AUTH_STORAGE_KEY);
+  const isAuthenticated = Boolean(authState?.token && authState.user);
+  const requiresAuth = Boolean(to.meta.requiresAuth);
+  const guestOnly = Boolean(to.meta.guestOnly);
+
+  if (requiresAuth && !isAuthenticated) {
+    return { name: 'landing' };
+  }
+
+  if (guestOnly && isAuthenticated) {
+    return { name: 'dashboard' };
+  }
+
+  return true;
 });
 
 export default router;
