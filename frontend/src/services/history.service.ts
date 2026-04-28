@@ -1,8 +1,7 @@
 import { request } from './http';
 import type { ApiResponse } from '../types/api';
-import type { HistoryItem } from '../types/history';
+import type { HistoryArchive } from '../types/history';
 
 export function fetchHistoryList() {
-  return request<ApiResponse<HistoryItem[]>>('/history');
+  return request<ApiResponse<HistoryArchive>>('/history');
 }
-

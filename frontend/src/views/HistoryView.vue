@@ -1,88 +1,108 @@
 <template>
-  <div class="history-view">
-    <!-- Hero Section -->
-    <section class="hero-section surface-card">
-      <div class="hero-content">
-        <p class="card-label">归档记录</p>
-        <h2 class="section-title">收纳每一次查询、保存与复习。</h2>
-        <p class="hero-desc">追踪你的记忆轨迹，让知识的沉淀清晰可见。</p>
+  <div class="archive-page">
+    <header class="archive-hero surface-card">
+      <div>
+        <p class="card-label">ARCHIVE</p>
+        <h2 class="section-title">归档册</h2>
+        <p class="hero-desc">查看已经进入系统的单词，以及最近自动或手动保存的词卡。</p>
       </div>
-      <div class="hero-status">
-        <span class="status-chip">数据同步中</span>
-      </div>
+      <button class="peach-button-secondary sync-btn" :disabled="loading" @click="loadArchive">
+        {{ loading ? '同步中...' : '同步词库' }}
+      </button>
+    </header>
+
+    <section class="summary-grid" aria-label="词库概览">
+      <article class="summary-card surface-card">
+        <span class="metric-mark mark-total" aria-hidden="true">Aa</span>
+        <div>
+          <strong>{{ archive?.summary.totalWords ?? 0 }}</strong>
+          <p>系统已有单词</p>
+        </div>
+      </article>
+      <article class="summary-card surface-card">
+        <span class="metric-mark mark-review" aria-hidden="true">R</span>
+        <div>
+          <strong>{{ archive?.summary.dueToday ?? 0 }}</strong>
+          <p>今日待复习</p>
+        </div>
+      </article>
+      <article class="summary-card surface-card">
+        <span class="metric-mark mark-done" aria-hidden="true">OK</span>
+        <div>
+          <strong>{{ archive?.summary.reviewedWords ?? 0 }}</strong>
+          <p>已经复习过</p>
+        </div>
+      </article>
     </section>
 
-    <!-- Summary Overview -->
-    <section class="summary-grid">
-      <div class="summary-card surface-card">
-        <div class="summary-icon icon-primary">🔍</div>
-        <div class="summary-info">
-          <h4 class="summary-value">Lookup</h4>
-          <p class="summary-label">近期查询轨迹</p>
-        </div>
-      </div>
-      <div class="summary-card surface-card">
-        <div class="summary-icon icon-secondary">💾</div>
-        <div class="summary-info">
-          <h4 class="summary-value">Saved</h4>
-          <p class="summary-label">记忆库入库记录</p>
-        </div>
-      </div>
-      <div class="summary-card surface-card">
-        <div class="summary-icon icon-success">📈</div>
-        <div class="summary-info">
-          <h4 class="summary-value">Review</h4>
-          <p class="summary-label">复习历史表现</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- History Tables/Lists -->
-    <section class="history-grid">
-      <article class="history-panel surface-card">
-        <div class="panel-header">
-          <h3 class="panel-title">近期查询流</h3>
-          <button class="ghost-btn">查看全部</button>
-        </div>
-        <div class="mock-list">
-          <div v-for="i in 3" :key="i" class="mock-item">
-            <div class="mock-item-main">
-              <strong>ephemeral</strong>
-              <span>2026/04/13 14:20</span>
-            </div>
-            <span class="badge-mini">已加入</span>
+    <section class="archive-layout">
+      <article class="recent-panel surface-card">
+        <div class="panel-head">
+          <div>
+            <p class="card-label">RECENT</p>
+            <h3>最近添加</h3>
           </div>
+          <span class="panel-count">{{ recentWords.length }} 个</span>
+        </div>
+
+        <div v-if="loading" class="state-block">正在读取词库...</div>
+        <div v-else-if="errorMessage" class="state-block is-error">
+          {{ errorMessage }}
+        </div>
+        <div v-else-if="recentWords.length === 0" class="state-block">
+          还没有保存过单词。
+        </div>
+        <div v-else class="recent-list">
+          <article v-for="item in recentWords" :key="item.id" class="recent-card">
+            <div class="word-topline">
+              <h4>{{ item.word }}</h4>
+              <span>{{ formatDate(item.createdAt) }}</span>
+            </div>
+            <p>{{ item.primaryMeaning }}</p>
+            <div class="word-meta">
+              <span>{{ item.meanings.length }} 个义项</span>
+              <span>下次 {{ formatDate(item.nextReview) }}</span>
+            </div>
+          </article>
         </div>
       </article>
 
-      <article class="history-panel surface-card">
-        <div class="panel-header">
-          <h3 class="panel-title">入库动作日志</h3>
-          <button class="ghost-btn">导出日志</button>
-        </div>
-        <div class="mock-list">
-          <div v-for="i in 3" :key="i" class="mock-item">
-            <div class="mock-item-main">
-              <strong>记忆库更新</strong>
-              <span>新增 1 个单词，包含 3 个义项</span>
-            </div>
-            <span class="badge-mini success">成功</span>
+      <article class="library-panel surface-card">
+        <div class="panel-head library-head">
+          <div>
+            <p class="card-label">LIBRARY</p>
+            <h3>全部单词</h3>
           </div>
+          <label class="search-box">
+            <span class="search-glyph" aria-hidden="true"></span>
+            <input
+              v-model="keyword"
+              type="search"
+              placeholder="搜索单词或释义"
+              aria-label="搜索单词或释义"
+            />
+          </label>
         </div>
-      </article>
 
-      <article class="history-panel surface-card">
-        <div class="panel-header">
-          <h3 class="panel-title">复习时间线</h3>
-          <button class="ghost-btn">分析</button>
+        <div v-if="loading" class="state-block">正在整理归档...</div>
+        <div v-else-if="errorMessage" class="state-block is-error">
+          {{ errorMessage }}
         </div>
-        <div class="timeline">
-          <div v-for="i in 3" :key="i" class="timeline-item">
-            <div class="timeline-dot"></div>
-            <div class="timeline-content">
-              <strong>Good 评分命中</strong>
-              <p>巩固了 12 个单词，平均间隔提升至 8.4 天。</p>
-            </div>
+        <div v-else-if="filteredWords.length === 0" class="state-block">
+          没有匹配的单词。
+        </div>
+        <div v-else class="word-table" role="table" aria-label="全部单词">
+          <div class="table-row table-header" role="row">
+            <span role="columnheader">单词</span>
+            <span role="columnheader">主要释义</span>
+            <span role="columnheader">复习</span>
+            <span role="columnheader">添加时间</span>
+          </div>
+          <div v-for="item in filteredWords" :key="item.id" class="table-row" role="row">
+            <span class="word-name" role="cell">{{ item.word }}</span>
+            <span class="meaning-cell" role="cell">{{ item.primaryMeaning }}</span>
+            <span role="cell">{{ item.reviewCount }} 次</span>
+            <span role="cell">{{ formatDate(item.createdAt) }}</span>
           </div>
         </div>
       </article>
@@ -90,176 +110,379 @@
   </div>
 </template>
 
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { fetchHistoryList } from '../services/history.service'
+import type { HistoryArchive } from '../types/history'
+import type { StoredWord } from '../types/word'
+
+const archive = ref<HistoryArchive | null>(null)
+const keyword = ref('')
+const loading = ref(false)
+const errorMessage = ref('')
+
+const recentWords = computed(() => archive.value?.recentWords ?? [])
+const filteredWords = computed(() => {
+  const words = archive.value?.words ?? []
+  const query = keyword.value.trim().toLowerCase()
+
+  if (!query) {
+    return words
+  }
+
+  const result: StoredWord[] = []
+
+  for (const item of words) {
+    const searchableText = `${item.word} ${item.primaryMeaning}`.toLowerCase()
+
+    if (searchableText.includes(query)) {
+      result.push(item)
+    }
+  }
+
+  return result
+})
+
+// 归档页只需要短日期，避免表格在移动端被完整时间挤宽。
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value))
+}
+
+// 手动同步和首次进入复用同一条请求链，保证错误状态表现一致。
+async function loadArchive() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const response = await fetchHistoryList()
+    archive.value = response.data
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = '归档数据读取失败，请稍后重试。'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadArchive)
+</script>
+
 <style scoped>
-.history-view {
+.archive-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 20px 72px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding-bottom: 60px;
 }
 
-.hero-section {
-  padding: 32px;
+.archive-hero {
+  padding: 28px 32px;
   border-radius: var(--sl-radius-lg);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 24px;
+}
+
+.section-title {
+  margin: 0;
+}
+
+.hero-desc {
+  max-width: 560px;
+  margin: 8px 0 0;
+  color: var(--sl-text-soft);
+  line-height: 1.7;
+}
+
+.sync-btn {
+  min-width: 132px;
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .summary-card {
-  padding: 24px;
+  min-height: 104px;
+  padding: 22px;
   border-radius: var(--sl-radius-lg);
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
-.summary-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  display: flex;
+.metric-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-}
-
-.icon-primary { background: #fee2e2; color: #ef4444; }
-.icon-secondary { background: #fff7ed; color: #f97316; }
-.icon-success { background: #ecfdf5; color: #10b981; }
-
-.summary-value {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--sl-ink-900);
-  margin: 0;
-}
-
-.summary-label {
+  flex: 0 0 auto;
   font-size: 13px;
-  color: var(--sl-ink-500);
-  margin: 2px 0 0;
+  font-weight: 900;
 }
 
-.history-grid {
+.mark-total {
+  color: var(--sl-peach-500);
+  background: var(--sl-peach-50);
+}
+
+.mark-review {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.mark-done {
+  color: #047857;
+  background: rgba(4, 120, 87, 0.1);
+}
+
+.summary-card strong {
+  display: block;
+  color: var(--sl-text-main);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.summary-card p {
+  margin: 6px 0 0;
+  color: var(--sl-text-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.archive-layout {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.55fr);
   gap: 24px;
+  align-items: start;
 }
 
-.history-panel {
+.recent-panel,
+.library-panel {
   padding: 24px;
   border-radius: var(--sl-radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 
-.panel-header {
+.panel-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.panel-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--sl-ink-900);
+.panel-head h3 {
   margin: 0;
+  color: var(--sl-text-main);
+  font-size: 20px;
 }
 
-.ghost-btn {
-  background: none;
-  border: none;
+.panel-count {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
   color: var(--sl-peach-500);
+  background: var(--sl-peach-50);
   font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
+  font-weight: 800;
 }
 
-.mock-list {
+.recent-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.mock-item {
+.recent-card {
   padding: 16px;
-  background: rgba(255, 90, 113, 0.03);
   border-radius: var(--sl-radius-md);
+  background: rgba(255, 255, 255, 0.42);
   border: 1px solid var(--sl-glass-border);
+}
+
+.word-topline,
+.word-meta {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  gap: 12px;
+  align-items: baseline;
 }
 
-.mock-item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.word-topline h4 {
+  margin: 0;
+  color: var(--sl-text-main);
+  font-size: 18px;
 }
 
-.mock-item-main strong { font-size: 15px; color: var(--sl-ink-900); }
-.mock-item-main span { font-size: 12px; color: var(--sl-ink-500); }
-
-.badge-mini {
-  font-size: 10px;
-  padding: 4px 8px;
-  background: var(--sl-peach-50);
-  color: var(--sl-peach-600);
-  border-radius: 999px;
+.word-topline span,
+.word-meta {
+  color: var(--sl-text-mute);
+  font-size: 12px;
   font-weight: 700;
 }
 
-.badge-mini.success {
-  background: #ecfdf5;
-  color: #10b981;
+.recent-card p {
+  margin: 8px 0 14px;
+  color: var(--sl-text-soft);
+  line-height: 1.6;
 }
 
-.timeline {
+.library-head {
+  align-items: flex-start;
+}
+
+.search-box {
+  width: min(320px, 100%);
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--sl-glass-bg);
+  border: 1px solid var(--sl-glass-border-strong);
+}
+
+.search-glyph {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--sl-text-mute);
+  border-radius: 50%;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.search-glyph::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 2px;
+  right: -6px;
+  bottom: -3px;
+  border-radius: 999px;
+  background: var(--sl-text-mute);
+  transform: rotate(45deg);
+}
+
+.search-box input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--sl-text-main);
+  font-size: 15px;
+}
+
+.word-table {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  border-radius: var(--sl-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--sl-glass-border);
 }
 
-.timeline-item {
+.table-row {
+  min-height: 58px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.9fr) minmax(180px, 1.5fr) 82px 82px;
+  gap: 16px;
+  align-items: center;
+  color: var(--sl-text-soft);
+  font-size: 14px;
+  border-bottom: 1px solid var(--sl-glass-border);
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-header {
+  min-height: 44px;
+  color: var(--sl-text-mute);
+  background: rgba(255, 90, 113, 0.05);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.word-name {
+  color: var(--sl-text-main);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.meaning-cell {
+  line-height: 1.6;
+}
+
+.state-block {
+  min-height: 160px;
+  border-radius: var(--sl-radius-md);
   display: flex;
-  gap: 16px;
-  position: relative;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: var(--sl-text-soft);
+  background: rgba(255, 255, 255, 0.32);
+  border: 1px dashed var(--sl-glass-border-strong);
 }
 
-.timeline-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--sl-peach-500);
-  margin-top: 6px;
-  flex-shrink: 0;
+.state-block.is-error {
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.08);
 }
 
-.timeline-content strong { display: block; font-size: 14px; color: var(--sl-ink-900); margin-bottom: 4px; }
-.timeline-content p { font-size: 12px; color: var(--sl-ink-500); margin: 0; line-height: 1.6; }
-
-@media (max-width: 1200px) {
-  .history-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
+@media (max-width: 980px) {
+  .archive-layout,
   .summary-grid {
     grid-template-columns: 1fr;
   }
-  .hero-section {
+
+  .library-head {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .archive-page {
+    padding: 24px 12px 56px;
+  }
+
+  .archive-hero {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 24px;
+  }
+
+  .sync-btn {
+    width: 100%;
+  }
+
+  .table-header {
+    display: none;
+  }
+
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }
 </style>
