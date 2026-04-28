@@ -363,4 +363,36 @@ onMounted(() => {
   .nav-label { display: none; }
   .utility-row { gap: 8px; }
 }
+
+@media (max-width: 600px) {
+  .shell-header {
+    padding: 12px;
+  }
+
+  .header-content {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+  }
+
+  .nav-pill {
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .nav-item {
+    min-width: 34px;
+    min-height: 34px;
+    justify-content: center;
+    padding: 6px 8px;
+  }
+
+  .utility-row {
+    gap: 6px;
+  }
+
+  .utility-row .user-chip,
+  .utility-row [aria-label="Locale"] {
+    display: none;
+  }
+}
 </style>

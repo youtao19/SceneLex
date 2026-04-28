@@ -1,5 +1,13 @@
-export interface HistoryItem {
-  id: string
-  word: string
-  createdAt: string
+import type { StoredWord } from './word'
+
+export interface HistorySummary {
+  totalWords: number
+  dueToday: number
+  reviewedWords: number
+}
+
+export interface HistoryArchive {
+  summary: HistorySummary
+  recentWords: StoredWord[]
+  words: StoredWord[]
 }
