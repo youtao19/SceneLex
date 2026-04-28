@@ -8,6 +8,8 @@ export interface WordMeaningItem {
 export interface WordGenerateResult {
   word: string;
   meanings: WordMeaningItem[];
+  source: 'database' | 'generated';
+  saved: boolean;
 }
 
 export interface WordPayload {

@@ -34,11 +34,23 @@
               <!-- 操作栏 -->
               <footer class="card-action-footer">
                 <div class="footer-info">
-                  <span class="count-tag">已准备 {{ preview.meanings.length }} 个义项</span>
+                  <span class="count-tag">{{ previewStatusText }}</span>
                 </div>
                 <div class="footer-actions">
-                  <button class="peach-button-secondary save-btn" :disabled="saveLoading" @click="handleAddWord">
-                    {{ saveLoading ? 'Saving...' : '确认加入' }}
+                  <button
+                    class="peach-button-secondary save-btn"
+                    :disabled="previewLoading || saveLoading"
+                    @click="handleRegenerate"
+                  >
+                    {{ previewLoading ? 'Regenerating...' : '重新生成' }}
+                  </button>
+                  <button
+                    v-if="showManualSave"
+                    class="peach-button save-btn"
+                    :disabled="saveLoading"
+                    @click="handleAddWord"
+                  >
+                    {{ saveLoading ? 'Saving...' : '确认保存' }}
                   </button>
                 </div>
               </footer>
@@ -59,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import WordMeaningsPanel from '../components/WordMeaningsPanel.vue'
 import { addWord, generateWord } from '../services/word.service'
 import { useWordStore } from '../stores/word'
@@ -70,6 +82,23 @@ const word = ref('')
 const preview = ref<WordGenerateData | null>(null)
 const previewLoading = ref(false)
 const saveLoading = ref(false)
+
+const showManualSave = computed(() => preview.value?.saved === false)
+const previewStatusText = computed(() => {
+  if (!preview.value) return ''
+
+  const countText = `已准备 ${preview.value.meanings.length} 个义项`
+
+  if (preview.value.source === 'database') {
+    return `${countText} · 来自数据库`
+  }
+
+  if (preview.value.saved) {
+    return `${countText} · 已自动保存`
+  }
+
+  return `${countText} · 待确认保存`
+})
 
 async function handlePreview() {
   if (!word.value.trim()) return
@@ -95,6 +124,23 @@ async function handleAddWord() {
     console.error(error)
   } finally {
     saveLoading.value = false
+  }
+}
+
+// 重新生成可能产生不稳定内容，所以先让用户确认，再覆盖数据库里的词卡。
+async function handleRegenerate() {
+  const targetWord = preview.value?.word || word.value
+
+  if (!targetWord.trim()) return
+  previewLoading.value = true
+  try {
+    const response = await generateWord(targetWord.trim(), true)
+    preview.value = response.data
+    word.value = response.data.word
+  } catch (error) {
+    console.error(error)
+  } finally {
+    previewLoading.value = false
   }
 }
 </script>
@@ -193,6 +239,14 @@ async function handleAddWord() {
   font-size: 13px;
   font-weight: 700;
   color: var(--sl-ink-500);
+}
+
+.footer-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .save-btn {

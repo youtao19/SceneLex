@@ -5,7 +5,7 @@ import { ok } from '../utils/response'
 import type { ReviewRating, WordMeaningItem } from '../types/word'
 
 /**
- * 生成预览内容时仍走当前 prompt，这里只负责接住请求并返回统一响应。
+ * 生成接口需要带上用户身份，因为词卡缓存按用户隔离。
  */
 export async function generateWordContent(
   req: Request,
@@ -13,9 +13,16 @@ export async function generateWordContent(
   next: NextFunction
 ) {
   try {
-    readAuthUser(req)
-    const { word } = req.body as { word?: string }
-    const result = await wordService.generateWordContent(word ?? '')
+    const authUser = readAuthUser(req)
+    const { word, forceRegenerate } = req.body as {
+      word?: string
+      forceRegenerate?: boolean
+    }
+    const result = await wordService.generateWordContent(
+      authUser.id,
+      word ?? '',
+      forceRegenerate === true
+    )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {
     next(error)
