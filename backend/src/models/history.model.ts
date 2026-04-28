@@ -8,6 +8,7 @@ export interface HistorySummary {
 
 export interface HistoryArchive {
   summary: HistorySummary;
+  dueWords: StoredWord[];
   recentWords: StoredWord[];
   words: StoredWord[];
 }

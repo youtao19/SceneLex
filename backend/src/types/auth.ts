@@ -33,6 +33,10 @@ export interface LoginPayload {
   password?: string;
 }
 
+export interface UpdateProfilePayload {
+  nickname?: string;
+}
+
 export interface AccessKeyGrant {
   id: number;
   grantedDays: number;

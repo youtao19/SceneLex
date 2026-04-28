@@ -12,20 +12,30 @@
     </header>
 
     <section class="summary-grid" aria-label="词库概览">
-      <article class="summary-card surface-card">
+      <button
+        class="summary-card surface-card"
+        :class="{ 'is-selected': activeFilter === 'all' }"
+        type="button"
+        @click="setFilter('all')"
+      >
         <span class="metric-mark mark-total" aria-hidden="true">Aa</span>
         <div>
           <strong>{{ archive?.summary.totalWords ?? 0 }}</strong>
           <p>系统已有单词</p>
         </div>
-      </article>
-      <article class="summary-card surface-card">
+      </button>
+      <button
+        class="summary-card surface-card"
+        :class="{ 'is-selected': activeFilter === 'due' }"
+        type="button"
+        @click="setFilter('due')"
+      >
         <span class="metric-mark mark-review" aria-hidden="true">R</span>
         <div>
           <strong>{{ archive?.summary.dueToday ?? 0 }}</strong>
           <p>今日待复习</p>
         </div>
-      </article>
+      </button>
       <article class="summary-card surface-card">
         <span class="metric-mark mark-done" aria-hidden="true">OK</span>
         <div>
@@ -71,7 +81,7 @@
         <div class="panel-head library-head">
           <div>
             <p class="card-label">LIBRARY</p>
-            <h3>全部单词</h3>
+            <h3>{{ libraryTitle }}</h3>
           </div>
           <label class="search-box">
             <span class="search-glyph" aria-hidden="true"></span>
@@ -89,7 +99,7 @@
           {{ errorMessage }}
         </div>
         <div v-else-if="filteredWords.length === 0" class="state-block">
-          没有匹配的单词。
+          {{ emptyText }}
         </div>
         <div v-else class="word-table" role="table" aria-label="全部单词">
           <div class="table-row table-header" role="row">
@@ -120,10 +130,20 @@ const archive = ref<HistoryArchive | null>(null)
 const keyword = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
+const activeFilter = ref<'all' | 'due'>('all')
 
+const dueWords = computed(() => archive.value?.dueWords ?? [])
 const recentWords = computed(() => archive.value?.recentWords ?? [])
+const libraryTitle = computed(() => (activeFilter.value === 'due' ? '今日待复习' : '全部单词'))
+const emptyText = computed(() => {
+  if (activeFilter.value === 'due') {
+    return keyword.value.trim() ? '待复习单词中没有匹配结果。' : '今天没有需要复习的单词。'
+  }
+
+  return '没有匹配的单词。'
+})
 const filteredWords = computed(() => {
-  const words = archive.value?.words ?? []
+  const words = activeFilter.value === 'due' ? dueWords.value : archive.value?.words ?? []
   const query = keyword.value.trim().toLowerCase()
 
   if (!query) {
@@ -142,6 +162,10 @@ const filteredWords = computed(() => {
 
   return result
 })
+
+function setFilter(filter: 'all' | 'due') {
+  activeFilter.value = filter
+}
 
 // 归档页只需要短日期，避免表格在移动端被完整时间挤宽。
 function formatDate(value: string) {
@@ -217,6 +241,22 @@ onMounted(loadArchive)
   display: flex;
   align-items: center;
   gap: 16px;
+  width: 100%;
+  text-align: left;
+}
+
+button.summary-card {
+  cursor: pointer;
+}
+
+button.summary-card:focus-visible {
+  outline: 3px solid rgba(255, 90, 113, 0.3);
+  outline-offset: 3px;
+}
+
+.summary-card.is-selected {
+  border-color: rgba(255, 90, 113, 0.32);
+  box-shadow: 0 16px 42px rgba(255, 90, 113, 0.16);
 }
 
 .metric-mark {
@@ -271,6 +311,11 @@ onMounted(loadArchive)
 .library-panel {
   padding: 24px;
   border-radius: var(--sl-radius-lg);
+}
+
+.library-panel {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .panel-head {
@@ -450,6 +495,11 @@ onMounted(loadArchive)
   .archive-layout,
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .library-panel {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .library-head {

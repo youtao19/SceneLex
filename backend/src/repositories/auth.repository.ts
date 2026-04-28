@@ -182,6 +182,38 @@ export async function touchSession(tokenHash: string) {
 }
 
 /**
+ * 个人资料先只开放昵称编辑，避免邮箱变更影响登录唯一键和通知链路。
+ */
+export async function updateUserProfile(userId: number, nickname: string) {
+  const result = await query<UserRow>(
+    `
+      UPDATE users
+      SET
+        nickname = $2,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING
+        id,
+        email,
+        nickname,
+        access_status,
+        access_expires_at,
+        password_salt,
+        password_hash,
+        created_at,
+        updated_at
+    `,
+    [userId, nickname],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return mapUserRow(result.rows[0]);
+}
+
+/**
  * 退出登录只需要删当前会话，不影响同账号的其他设备。
  */
 export async function deleteSessionByTokenHash(tokenHash: string) {

@@ -22,9 +22,26 @@ interface HistorySummaryRow {
 }
 
 /**
+ * pg 的 DATE 运行时可能是 Date，也可能是字符串；前端统一只需要日期部分。
+ */
+function toDateString(value: string | Date) {
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * 归档页和复习页复用同一种词卡结构，前端不用维护两套字段名。
  */
 function mapWordRow(row: WordRow): StoredWord {
+  const nextReview = toDateString(row.next_review);
+
   return {
     id: Number(row.id),
     word: row.word,
@@ -32,7 +49,7 @@ function mapWordRow(row: WordRow): StoredWord {
     meanings: row.meanings,
     ease: Number(row.ease),
     interval: Number(row.interval),
-    nextReview: row.next_review,
+    nextReview,
     reviewCount: Number(row.review_count),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
@@ -87,10 +104,24 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
   );
 
   const words = wordsResult.rows.map(mapWordRow);
+  const dueWords = words
+    .filter((word) => isDueToday(word.nextReview))
+    .sort((left, right) => left.nextReview.localeCompare(right.nextReview));
 
   return {
     summary: mapSummary(summaryResult.rows[0]),
+    dueWords,
     recentWords: words.slice(0, 6),
     words,
   };
+}
+
+/**
+ * 归档页只需要按日期判断是否到期，不能让本地时分秒影响今天的结果。
+ */
+function isDueToday(nextReview: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  const reviewDate = new Date(nextReview).toISOString().slice(0, 10);
+
+  return reviewDate <= today;
 }

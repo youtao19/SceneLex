@@ -1,10 +1,11 @@
-import { get, post } from './http'
+import { get, patch, post } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   AuthSession,
   AuthUser,
   LoginPayload,
   RegisterPayload,
+  UpdateProfilePayload,
 } from '../types/auth'
 
 export async function register(payload: RegisterPayload) {
@@ -17,6 +18,10 @@ export async function login(payload: LoginPayload) {
 
 export async function getMe() {
   return get<ApiResponse<AuthUser>>('/auth/me')
+}
+
+export async function updateProfile(payload: UpdateProfilePayload) {
+  return patch<ApiResponse<AuthUser>>('/auth/me', payload)
 }
 
 export async function logout() {
