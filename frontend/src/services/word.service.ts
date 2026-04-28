@@ -7,8 +7,11 @@ import type {
   WordMeaningItem,
 } from '../types/word'
 
-export async function generateWord(word: string) {
-  return post<ApiResponse<WordGenerateData>>('/words/generate', { word })
+export async function generateWord(word: string, forceRegenerate = false) {
+  return post<ApiResponse<WordGenerateData>>('/words/generate', {
+    word,
+    forceRegenerate,
+  })
 }
 
 export async function addWord(word: string, meanings: WordMeaningItem[]) {

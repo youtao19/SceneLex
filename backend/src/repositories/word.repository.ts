@@ -122,6 +122,40 @@ export async function listTodayWords(
   return result.rows.map(mapWordRow);
 }
 
+/**
+ * 缓存命中必须按用户查，避免不同用户的词卡内容互相串用。
+ */
+export async function findWordByText(
+  userId: number,
+  word: string,
+): Promise<StoredWord | null> {
+  const result = await query<WordRow>(
+    `
+      SELECT
+        id,
+        word,
+        primary_meaning,
+        meanings,
+        ease,
+        interval,
+        next_review,
+        review_count,
+        created_at,
+        updated_at
+      FROM words
+      WHERE user_id = $1
+        AND word = $2
+    `,
+    [userId, word],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return mapWordRow(result.rows[0]);
+}
+
 export async function findWordById(
   userId: number,
   id: number,

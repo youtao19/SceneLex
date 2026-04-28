@@ -1,6 +1,7 @@
 import { buildWordPrompt } from '../prompts/word.prompt';
 import { generateWithLocalModel } from './llm.service';
 import {
+  findWordByText,
   findWordById,
   listTodayWords,
   saveWordCard,
@@ -26,6 +27,8 @@ function buildFallback(word: string): WordGenerateResult {
         tip: `${word} 的使用场景`,
       },
     ],
+    source: 'generated',
+    saved: false,
   };
 }
 
@@ -129,6 +132,8 @@ function normalizeGeneratedResult(
   return {
     word,
     meanings,
+    source: 'generated',
+    saved: false,
   };
 }
 
@@ -146,6 +151,18 @@ function buildPrimaryMeaning(meanings: WordMeaningItem[]) {
   const primary = meanings[0];
 
   return `${primary.partOfSpeech} ${primary.meaning}`.trim();
+}
+
+/**
+ * 查询缓存时只返回词卡预览需要的字段，避免前端误把复习进度当成可编辑内容。
+ */
+function toGenerateResultFromStoredWord(word: StoredWord): WordGenerateResult {
+  return {
+    word: word.word,
+    meanings: word.meanings,
+    source: 'database',
+    saved: true,
+  };
 }
 
 function getTodayDateString() {
@@ -172,25 +189,66 @@ function getNextInterval(interval: number, rating: ReviewRating) {
 
 export const wordService = {
   /**
-   * 生成预览内容时沿用当前 prompt，只负责把模型结果整理成稳定结构。
+   * 默认先查库，避免同一个用户重复查同一个词时反复消耗本地模型。
    */
-  async generateWordContent(word: string): Promise<WordGenerateResult> {
+  async generateWordContent(
+    userId: number,
+    word: string,
+    forceRegenerate = false,
+  ): Promise<WordGenerateResult> {
     const cleanWord = normalizeWord(word);
 
     if (!cleanWord) {
       throw new HttpError(400, 'word 不能为空');
     }
 
+    if (!forceRegenerate) {
+      const storedWord = await findWordByText(userId, cleanWord);
+
+      if (storedWord) {
+        return toGenerateResultFromStoredWord(storedWord);
+      }
+    }
+
     const prompt = buildWordPrompt(cleanWord);
     const rawText = await generateWithLocalModel(prompt);
+    let parsed: unknown;
 
     try {
-      const parsed = JSON.parse(rawText);
-      return normalizeGeneratedResult(parsed, cleanWord);
+      parsed = JSON.parse(rawText);
     } catch {
       console.error('模型返回非 JSON：', rawText);
       throw new Error('模型输出解析失败');
     }
+
+    const normalized = normalizeGeneratedResult(parsed, cleanWord);
+    const generated = {
+      ...normalized,
+      word: cleanWord,
+    };
+
+    if (forceRegenerate) {
+      return {
+        ...generated,
+        source: 'generated',
+        saved: false,
+      };
+    }
+
+    const primaryMeaning = buildPrimaryMeaning(generated.meanings);
+    const saved = await saveWordCard(
+      userId,
+      generated.word,
+      primaryMeaning,
+      generated.meanings,
+    );
+
+    return {
+      word: saved.card.word,
+      meanings: saved.card.meanings,
+      source: 'generated',
+      saved: true,
+    };
   },
 
   /**
