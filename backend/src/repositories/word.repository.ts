@@ -36,6 +36,7 @@ function mapWordRow(row: WordRow): StoredWord {
 
 function runUpsertWord(
   client: PoolClient,
+  userId: number,
   word: string,
   primaryMeaning: string,
   meanings: WordMeaningItem[],
@@ -43,12 +44,13 @@ function runUpsertWord(
   return client.query<WordRow>(
     `
       INSERT INTO words (
+        user_id,
         word,
         primary_meaning,
         meanings
       )
-      VALUES ($1, $2, $3::jsonb)
-      ON CONFLICT (word)
+      VALUES ($1, $2, $3, $4::jsonb)
+      ON CONFLICT (user_id, word)
       DO UPDATE SET
         primary_meaning = EXCLUDED.primary_meaning,
         meanings = EXCLUDED.meanings,
@@ -65,7 +67,7 @@ function runUpsertWord(
         created_at,
         updated_at
     `,
-    [word, primaryMeaning, JSON.stringify(meanings)],
+    [userId, word, primaryMeaning, JSON.stringify(meanings)],
   );
 }
 
@@ -73,16 +75,17 @@ function runUpsertWord(
  * 查重后再 upsert，是为了明确告诉前端本次是新增还是更新。
  */
 export async function saveWordCard(
+  userId: number,
   word: string,
   primaryMeaning: string,
   meanings: WordMeaningItem[],
 ): Promise<SaveWordResult> {
   return withTransaction(async (client) => {
     const existing = await client.query<{ id: string }>(
-      'SELECT id FROM words WHERE word = $1',
-      [word],
+      'SELECT id FROM words WHERE user_id = $1 AND word = $2',
+      [userId, word],
     );
-    const saved = await runUpsertWord(client, word, primaryMeaning, meanings);
+    const saved = await runUpsertWord(client, userId, word, primaryMeaning, meanings);
 
     return {
       card: mapWordRow(saved.rows[0]),
@@ -91,7 +94,10 @@ export async function saveWordCard(
   });
 }
 
-export async function listTodayWords(today: string): Promise<StoredWord[]> {
+export async function listTodayWords(
+  userId: number,
+  today: string,
+): Promise<StoredWord[]> {
   const result = await query<WordRow>(
     `
       SELECT
@@ -106,16 +112,20 @@ export async function listTodayWords(today: string): Promise<StoredWord[]> {
         created_at,
         updated_at
       FROM words
-      WHERE next_review <= $1::date
+      WHERE user_id = $1
+        AND next_review <= $2::date
       ORDER BY next_review ASC, updated_at ASC, word ASC
     `,
-    [today],
+    [userId, today],
   );
 
   return result.rows.map(mapWordRow);
 }
 
-export async function findWordById(id: number): Promise<StoredWord | null> {
+export async function findWordById(
+  userId: number,
+  id: number,
+): Promise<StoredWord | null> {
   const result = await query<WordRow>(
     `
       SELECT
@@ -130,9 +140,10 @@ export async function findWordById(id: number): Promise<StoredWord | null> {
         created_at,
         updated_at
       FROM words
-      WHERE id = $1
+      WHERE user_id = $1
+        AND id = $2
     `,
-    [id],
+    [userId, id],
   );
 
   if (result.rowCount === 0) {
@@ -143,6 +154,7 @@ export async function findWordById(id: number): Promise<StoredWord | null> {
 }
 
 export async function updateReviewSchedule(
+  userId: number,
   id: number,
   interval: number,
   nextReview: string,
@@ -151,11 +163,12 @@ export async function updateReviewSchedule(
     `
       UPDATE words
       SET
-        interval = $2,
-        next_review = $3::date,
+        interval = $3,
+        next_review = $4::date,
         review_count = review_count + 1,
         updated_at = NOW()
-      WHERE id = $1
+      WHERE user_id = $1
+        AND id = $2
       RETURNING
         id,
         word,
@@ -168,7 +181,7 @@ export async function updateReviewSchedule(
         created_at,
         updated_at
     `,
-    [id, interval, nextReview],
+    [userId, id, interval, nextReview],
   );
 
   return mapWordRow(result.rows[0]);

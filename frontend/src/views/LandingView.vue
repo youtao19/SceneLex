@@ -51,7 +51,12 @@
               <span class="input-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
               </span>
-              <input type="email" placeholder="请输入邮箱地址" required />
+              <input
+                v-model.trim="email"
+                type="email"
+                placeholder="请输入邮箱地址"
+                required
+              />
             </div>
           </div>
 
@@ -61,8 +66,13 @@
               <span class="input-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </span>
-              <input type="password" placeholder="请输入密码" required />
-              <button type="button" class="action-icon">
+              <input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="请输入密码"
+                required
+              />
+              <button type="button" class="action-icon" @click="showPassword = !showPassword">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
@@ -75,26 +85,40 @@
                 <span class="input-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </span>
-                <input type="password" placeholder="请再次输入新密码" required />
-                <button type="button" class="action-icon">
+                <input
+                  v-model="confirmPassword"
+                  :type="showConfirmPassword ? 'text' : 'password'"
+                  placeholder="请再次输入新密码"
+                  required
+                />
+                <button
+                  type="button"
+                  class="action-icon"
+                  @click="showConfirmPassword = !showConfirmPassword"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
             </div>
 
             <div class="form-group">
-              <label>密钥注册 <span class="optional">(选填)</span></label>
+              <label>访问密钥 <span class="required">*</span></label>
               <div class="input-wrapper">
                 <span class="input-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
                 </span>
-                <input type="text" placeholder="请输入您的密钥" />
+                <input
+                  v-model.trim="inviteCode"
+                  type="text"
+                  placeholder="请输入管理员发放的访问密钥"
+                  required
+                />
               </div>
             </div>
 
             <div class="form-options">
               <label class="checkbox-label">
-                <input type="checkbox" required />
+                <input v-model="acceptedTerms" type="checkbox" required />
                 <span class="checkbox-custom"></span>
                 <span>我已阅读并同意 <a href="#" class="link">服务条款</a> <span class="required">*</span></span>
               </label>
@@ -104,7 +128,7 @@
           <template v-else>
             <div class="form-options">
               <label class="checkbox-label">
-                <input type="checkbox" />
+                <input v-model="rememberMe" type="checkbox" />
                 <span class="checkbox-custom"></span>
                 <span>记住我</span>
               </label>
@@ -112,13 +136,16 @@
             </div>
           </template>
 
-          <button type="submit" class="peach-button submit-btn">
-            {{ isRegistering ? '创建账户' : '登录' }} <span>→</span>
+          <p v-if="submitError" class="form-feedback is-error">{{ submitError }}</p>
+          <p v-else-if="submitSuccess" class="form-feedback is-success">{{ submitSuccess }}</p>
+
+          <button type="submit" class="peach-button submit-btn" :disabled="isSubmitting">
+            {{ isSubmitting ? '提交中...' : isRegistering ? '创建账户' : '登录' }} <span>→</span>
           </button>
 
           <div class="auth-switch">
             <span class="divider-text">{{ isRegistering ? '已有账户？' : '还没有账户？' }}</span>
-            <button type="button" class="peach-button-ghost switch-btn" @click="isRegistering = !isRegistering">
+            <button type="button" class="peach-button-ghost switch-btn" @click="toggleMode">
               {{ isRegistering ? '登录' : '创建账户' }}
             </button>
           </div>
@@ -138,10 +165,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { login, register } from '../services/auth.service'
+import { useUserStore } from '../stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const isScrolled = ref(false)
 const isRegistering = ref(false)
+const isSubmitting = ref(false)
+const email = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const inviteCode = ref('')
+const acceptedTerms = ref(false)
+const rememberMe = ref(true)
+const submitError = ref('')
+const submitSuccess = ref('')
+const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 
 function handleWheel(e: WheelEvent) {
   if (e.deltaY > 0 && !isScrolled.value) {
@@ -156,9 +197,75 @@ function scrollToLogin() {
   isScrolled.value = true
 }
 
-function handleSubmit() {
-  // 模拟登录成功，跳转到仪表盘
-  router.push('/dashboard')
+function resetFeedback() {
+  submitError.value = ''
+  submitSuccess.value = ''
+}
+
+function toggleMode() {
+  isRegistering.value = !isRegistering.value
+  password.value = ''
+  confirmPassword.value = ''
+  inviteCode.value = ''
+  acceptedTerms.value = false
+  resetFeedback()
+}
+
+/**
+ * 注册和登录都落到同一个提交入口，这样按钮态、错误态和跳转逻辑不会分叉。
+ */
+async function handleSubmit() {
+  resetFeedback()
+
+  if (!email.value) {
+    submitError.value = '请输入邮箱地址'
+    return
+  }
+
+  if (password.value.length < 8) {
+    submitError.value = '密码至少需要 8 位'
+    return
+  }
+
+  if (isRegistering.value) {
+    if (password.value !== confirmPassword.value) {
+      submitError.value = '两次输入的密码不一致'
+      return
+    }
+
+    if (!acceptedTerms.value) {
+      submitError.value = '请先同意服务条款'
+      return
+    }
+
+    if (!inviteCode.value) {
+      submitError.value = '请输入访问密钥'
+      return
+    }
+  }
+
+  isSubmitting.value = true
+
+  try {
+    const response = isRegistering.value
+      ? await register({
+          email: email.value,
+          password: password.value,
+          inviteCode: inviteCode.value,
+        })
+      : await login({
+          email: email.value,
+          password: password.value,
+        })
+
+    userStore.setSession(response.data)
+    submitSuccess.value = response.message
+    await router.push('/dashboard')
+  } catch (error) {
+    submitError.value = error instanceof Error ? error.message : '提交失败'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -544,12 +651,35 @@ function handleSubmit() {
   text-decoration: underline;
 }
 
+.form-feedback {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-feedback.is-error {
+  background: rgba(255, 90, 113, 0.12);
+  color: #b4233c;
+}
+
+.form-feedback.is-success {
+  background: rgba(43, 171, 117, 0.12);
+  color: #16794c;
+}
+
 .submit-btn {
   margin-top: 8px;
   height: 52px;
   width: 100%;
   border-radius: 12px;
   font-size: 16px;
+}
+
+.submit-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .auth-switch {

@@ -13,7 +13,11 @@
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
-    "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install"
+    "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
+    "key:create": "sh ./scripts/create-access-key.sh",
+    "user:suspend": "sh ./scripts/user-suspend.sh",
+    "user:resume": "sh ./scripts/user-resume.sh",
+    "user:renew": "sh ./scripts/user-renew.sh"
   },
   "dependencies": {
     "playwright": "^1.59.1"

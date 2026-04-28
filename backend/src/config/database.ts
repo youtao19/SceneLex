@@ -54,9 +54,92 @@ export async function initializeDatabase() {
 
   await query(
     `
+      CREATE TABLE IF NOT EXISTS users (
+        id BIGSERIAL PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        nickname TEXT NOT NULL,
+        access_status TEXT NOT NULL DEFAULT 'active',
+        access_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        password_salt TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS access_status TEXT NOT NULL DEFAULT 'active'
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS access_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    `,
+  );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS access_keys (
+        id BIGSERIAL PRIMARY KEY,
+        key_hash TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'active',
+        granted_days INTEGER NOT NULL,
+        max_uses INTEGER NOT NULL DEFAULT 1,
+        used_count INTEGER NOT NULL DEFAULT 0,
+        bound_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+        note TEXT NOT NULL DEFAULT '',
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_access_keys_status
+      ON access_keys (status)
+    `,
+  );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_user_sessions_token_hash
+      ON user_sessions (token_hash)
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id
+      ON user_sessions (user_id)
+    `,
+  );
+
+  await query(
+    `
       CREATE TABLE IF NOT EXISTS words (
         id BIGSERIAL PRIMARY KEY,
-        word TEXT NOT NULL UNIQUE,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        word TEXT NOT NULL,
         primary_meaning TEXT NOT NULL,
         meanings JSONB NOT NULL,
         ease DOUBLE PRECISION NOT NULL DEFAULT 2.5,
@@ -71,8 +154,36 @@ export async function initializeDatabase() {
 
   await query(
     `
+      ALTER TABLE words
+      ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE CASCADE
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE words
+      DROP CONSTRAINT IF EXISTS words_word_key
+    `,
+  );
+
+  await query(
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_words_user_word
+      ON words (user_id, word)
+    `,
+  );
+
+  await query(
+    `
       CREATE INDEX IF NOT EXISTS idx_words_next_review
       ON words (next_review)
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_words_user_next_review
+      ON words (user_id, next_review)
     `,
   );
 }
