@@ -51,10 +51,7 @@
               @click.stop="toggleProfileMenu"
               @keydown.esc="closeProfileMenu"
             >
-              <span class="profile-avatar" aria-hidden="true">
-                <span class="avatar-shadow"></span>
-                <span class="avatar-highlight"></span>
-              </span>
+              <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="small" />
             </button>
 
             <div
@@ -66,10 +63,7 @@
               @keydown.esc="closeProfileMenu"
             >
               <div class="profile-summary">
-                <span class="profile-avatar avatar-large" aria-hidden="true">
-                  <span class="avatar-shadow"></span>
-                  <span class="avatar-highlight"></span>
-                </span>
+                <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="medium" />
                 <div class="profile-copy">
                   <strong>{{ userStore.nickname }}</strong>
                   <p>{{ userStore.user?.email }}</p>
@@ -141,6 +135,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getMe, logout } from './services/auth.service'
 import { useUserStore } from './stores/user'
+import UserAvatar from './components/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -449,43 +444,6 @@ onBeforeUnmount(() => {
   outline-offset: 3px;
 }
 
-.profile-avatar {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  overflow: hidden;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(circle at 46% 38%, #f3d6ce 0 21%, transparent 22%),
-    linear-gradient(135deg, #f8f7f5 0%, #ffffff 56%, #101014 57% 100%);
-  border: 1px solid var(--sl-glass-border-strong);
-}
-
-.avatar-shadow {
-  position: absolute;
-  top: 7px;
-  left: 10px;
-  width: 24px;
-  height: 17px;
-  border-radius: 58% 46% 50% 42%;
-  background: #1d1d22;
-  transform: rotate(-20deg);
-}
-
-.avatar-highlight {
-  position: absolute;
-  right: 7px;
-  bottom: 3px;
-  width: 15px;
-  height: 24px;
-  border-radius: 999px 999px 0 0;
-  background: #101014;
-  transform: rotate(28deg);
-}
-
 .profile-menu {
   position: absolute;
   top: calc(100% + 12px);
@@ -508,26 +466,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 14px;
   border-bottom: 1px solid var(--sl-glass-border);
-}
-
-.avatar-large {
-  width: 58px;
-  height: 58px;
-  flex: 0 0 auto;
-}
-
-.avatar-large .avatar-shadow {
-  top: 9px;
-  left: 16px;
-  width: 31px;
-  height: 21px;
-}
-
-.avatar-large .avatar-highlight {
-  right: 10px;
-  bottom: 5px;
-  width: 21px;
-  height: 34px;
 }
 
 .profile-copy {
@@ -741,11 +679,6 @@ onBeforeUnmount(() => {
   .avatar-button {
     width: 42px;
     height: 42px;
-  }
-
-  .profile-avatar {
-    width: 34px;
-    height: 34px;
   }
 
   .profile-menu {

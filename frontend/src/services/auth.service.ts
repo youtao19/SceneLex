@@ -1,4 +1,4 @@
-import { get, patch, post } from './http'
+import { get, patch, post, request } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   AuthSession,
@@ -22,6 +22,20 @@ export async function getMe() {
 
 export async function updateProfile(payload: UpdateProfilePayload) {
   return patch<ApiResponse<AuthUser>>('/auth/me', payload)
+}
+
+/**
+ * 上传头像。
+ * 注意：FormData 请求不能手动设置 Content-Type，fetch 会自动设置带 boundary 的 header。
+ */
+export async function uploadAvatar(file: File) {
+  const formData = new FormData()
+  formData.append('avatar', file)
+
+  return request<ApiResponse<AuthUser>>('/auth/me/avatar', {
+    method: 'POST',
+    body: formData,
+  })
 }
 
 export async function logout() {

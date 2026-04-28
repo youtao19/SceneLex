@@ -2,14 +2,23 @@
   <section class="profile-page">
     <header class="profile-hero surface-card">
       <div class="hero-person">
-        <span class="profile-avatar avatar-large" aria-hidden="true">
-          <span class="avatar-shadow"></span>
-          <span class="avatar-highlight"></span>
-        </span>
+        <label class="avatar-upload-wrapper" :class="{ 'is-clickable': !savingAvatar }" aria-label="修改头像">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden-input"
+            :disabled="savingAvatar"
+            @change="handleAvatarChange"
+          />
+          <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="large" />
+          <div v-if="savingAvatar" class="avatar-loading">
+            <span class="loading-spinner"></span>
+          </div>
+        </label>
         <div>
           <p class="card-label">PROFILE</p>
           <h2 class="section-title">个人资料</h2>
-          <p class="hero-desc">查看当前账号信息，并维护会显示在顶栏和学习记录里的昵称。</p>
+          <p class="hero-desc">点击头像可更换图片。支持 JPG、PNG、WEBP，最大 2MB。</p>
         </div>
       </div>
 
@@ -19,10 +28,7 @@
     <section class="profile-layout">
       <aside class="profile-summary surface-card" aria-label="账号概览">
         <div class="summary-head">
-          <span class="profile-avatar avatar-medium" aria-hidden="true">
-            <span class="avatar-shadow"></span>
-            <span class="avatar-highlight"></span>
-          </span>
+          <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="medium" />
           <div>
             <strong>{{ userStore.nickname }}</strong>
             <p>{{ userStore.user?.email }}</p>
@@ -127,8 +133,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { updateProfile } from '../services/auth.service'
+import { updateProfile, uploadAvatar } from '../services/auth.service'
 import { useUserStore } from '../stores/user'
+import UserAvatar from '../components/UserAvatar.vue'
 
 const userStore = useUserStore()
 const nickname = ref(userStore.nickname)
@@ -136,6 +143,7 @@ const nicknameError = ref('')
 const saveMessage = ref('')
 const saveError = ref('')
 const saving = ref(false)
+const savingAvatar = ref(false)
 
 const isDirty = computed(() => nickname.value.trim() !== userStore.nickname)
 const accessText = computed(() => {
@@ -175,6 +183,35 @@ watch(
     nickname.value = value
   },
 )
+
+async function handleAvatarChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  // 限制 2MB
+  if (file.size > 2 * 1024 * 1024) {
+    saveError.value = '图片超过 2MB 限制'
+    return
+  }
+
+  try {
+    savingAvatar.value = true
+    saveError.value = ''
+    const response = await uploadAvatar(file)
+    userStore.setUser(response.data)
+    saveMessage.value = '头像更新成功'
+  } catch (err: any) {
+    saveError.value = err.message || '头像上传失败'
+  } finally {
+    savingAvatar.value = false
+    // 重置 input 以便同一个文件可以再次触发 change
+    target.value = ''
+  }
+}
 
 // 日期在资料页只用于人工识别，不展示秒数能减少视觉噪音。
 function formatDateTime(value?: string) {
@@ -475,18 +512,48 @@ async function handleSubmit() {
   line-height: 1.7;
 }
 
-.profile-avatar {
+.avatar-upload-wrapper {
   position: relative;
-  overflow: hidden;
-  border-radius: 50%;
   display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.avatar-upload-wrapper.is-clickable {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.avatar-upload-wrapper.is-clickable:hover {
+  transform: scale(1.05);
+}
+
+.hidden-input {
+  display: none;
+}
+
+.avatar-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at 46% 38%, #f3d6ce 0 21%, transparent 22%),
-    linear-gradient(135deg, #f8f7f5 0%, #ffffff 56%, #101014 57% 100%);
-  border: 1px solid var(--sl-glass-border-strong);
-  flex: 0 0 auto;
+  border-radius: 50%;
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .avatar-large {

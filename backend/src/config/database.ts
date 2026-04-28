@@ -62,6 +62,7 @@ export async function initializeDatabase() {
         access_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         password_salt TEXT NOT NULL,
         password_hash TEXT NOT NULL,
+        avatar_url TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
@@ -79,6 +80,13 @@ export async function initializeDatabase() {
     `
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS access_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS avatar_url TEXT
     `,
   );
 

@@ -10,6 +10,7 @@ import {
   findUserByEmail,
   findUserByTokenHash,
   touchSession,
+  updateUserAvatar,
   updateUserProfile,
 } from '../repositories/auth.repository';
 import type {
@@ -272,6 +273,19 @@ export const authService = {
     validateNickname(nickname);
 
     const user = await updateUserProfile(userId, nickname);
+
+    if (!user) {
+      throw new HttpError(404, '用户不存在');
+    }
+
+    return user;
+  },
+
+  /**
+   * 更新用户头像。
+   */
+  async updateAvatar(userId: number, avatarUrl: string): Promise<AuthUser> {
+    const user = await updateUserAvatar(userId, avatarUrl);
 
     if (!user) {
       throw new HttpError(404, '用户不存在');

@@ -4,6 +4,7 @@
  */
 
 import express from 'express'
+import path from 'path'
 import cors from 'cors'
 import routes from './routes'
 import { errorMiddleware } from './middlewares/error.middleware'
@@ -20,6 +21,12 @@ app.use(cors())
  * 解析 JSON 请求体。
  */
 app.use(express.json())
+
+/**
+ * 静态资源访问。
+ * 用于访问上传的用户头像等文件。
+ */
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
 /**
  * 注册统一路由。
