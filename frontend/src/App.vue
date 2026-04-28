@@ -164,7 +164,14 @@ const accessText = computed(() => {
   return '账号信息'
 })
 
-const navigationItems = [
+interface NavItem {
+  to: string
+  label: string
+  icon: string
+  badge?: string | number
+}
+
+const navigationItems: NavItem[] = [
   { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
   { to: '/review', label: '复习舱', icon: 'review' },
   { to: '/history', label: '归档册', icon: 'history' },
