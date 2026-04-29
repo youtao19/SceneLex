@@ -1,5 +1,7 @@
 import type { PoolClient } from 'pg';
 import { query, withTransaction } from '../config/database';
+import { addWordToBooks, ensureDefaultWordBook } from './word-book.repository';
+import { HttpError } from '../utils/http-error';
 import type {
   SaveWordResult,
   StoredWord,
@@ -101,16 +103,24 @@ export async function saveWordCard(
   phonetic: string,
   primaryMeaning: string,
   meanings: WordMeaningItem[],
+  bookIds: number[] = [],
 ): Promise<SaveWordResult> {
   return withTransaction(async (client) => {
+    await ensureDefaultWordBook(client, userId);
     const existing = await client.query<{ id: string }>(
       'SELECT id FROM words WHERE user_id = $1 AND word = $2',
       [userId, word],
     );
     const saved = await runUpsertWord(client, userId, word, phonetic, primaryMeaning, meanings);
+    const card = mapWordRow(saved.rows[0]);
+    const linkedCount = await addWordToBooks(client, userId, card.id, bookIds);
+
+    if (bookIds.length > 0 && linkedCount !== bookIds.length) {
+      throw new HttpError(404, '单词本不存在');
+    }
 
     return {
-      card: mapWordRow(saved.rows[0]),
+      card,
       wasUpdated: (existing.rowCount ?? 0) > 0,
     };
   });

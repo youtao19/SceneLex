@@ -166,6 +166,28 @@ function buildPrimaryMeaning(meanings: WordMeaningItem[]) {
   return `${primary.partOfSpeech} ${primary.meaning}`.trim();
 }
 
+function normalizeBookIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: number[] = [];
+
+  for (const item of value) {
+    const bookId = Number(item);
+
+    if (!Number.isInteger(bookId) || bookId <= 0) {
+      throw new HttpError(400, 'bookIds 包含非法单词本');
+    }
+
+    if (!result.includes(bookId)) {
+      result.push(bookId);
+    }
+  }
+
+  return result;
+}
+
 /**
  * 查询缓存时只返回词卡预览需要的字段，避免前端误把复习进度当成可编辑内容。
  */
@@ -272,6 +294,7 @@ export const wordService = {
     word: string,
     phoneticInput: unknown,
     meaningsInput: unknown,
+    bookIdsInput: unknown,
   ): Promise<SaveWordResult> {
     const cleanWord = normalizeWord(word);
 
@@ -282,8 +305,9 @@ export const wordService = {
     const meanings = normalizeIncomingMeanings(meaningsInput);
     const phonetic = normalizePhonetic(phoneticInput);
     const primaryMeaning = buildPrimaryMeaning(meanings);
+    const bookIds = normalizeBookIds(bookIdsInput);
 
-    return saveWordCard(userId, cleanWord, phonetic, primaryMeaning, meanings);
+    return saveWordCard(userId, cleanWord, phonetic, primaryMeaning, meanings, bookIds);
   },
 
   /**
