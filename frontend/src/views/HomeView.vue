@@ -22,6 +22,9 @@
 
         <!-- 内容区域 -->
         <div class="card-content-area">
+          <p v-if="errorMessage" class="dashboard-error" role="alert">
+            {{ errorMessage }}
+          </p>
           <transition name="expand-fade">
             <div v-if="preview" class="result-body">
               <div class="result-scroll-pane">
@@ -83,6 +86,7 @@ const word = ref('')
 const preview = ref<WordGenerateData | null>(null)
 const previewLoading = ref(false)
 const saveLoading = ref(false)
+const errorMessage = ref('')
 
 const showManualSave = computed(() => preview.value?.saved === false)
 const previewStatusText = computed(() => {
@@ -104,11 +108,15 @@ const previewStatusText = computed(() => {
 async function handlePreview() {
   if (!word.value.trim()) return
   previewLoading.value = true
+  errorMessage.value = ''
   try {
     const response = await generateWord(word.value.trim())
     preview.value = response.data
   } catch (error) {
     console.error(error)
+    errorMessage.value = error instanceof Error && error.message
+      ? error.message
+      : '词卡生成失败，请稍后重试。'
   } finally {
     previewLoading.value = false
   }
@@ -117,12 +125,16 @@ async function handlePreview() {
 async function handleAddWord() {
   if (!preview.value) return
   saveLoading.value = true
+  errorMessage.value = ''
   try {
     await addWord(preview.value.word, preview.value.phonetic, preview.value.meanings)
     preview.value = null
     word.value = ''
   } catch (error) {
     console.error(error)
+    errorMessage.value = error instanceof Error && error.message
+      ? error.message
+      : '词卡保存失败，请稍后重试。'
   } finally {
     saveLoading.value = false
   }
@@ -134,12 +146,16 @@ async function handleRegenerate() {
 
   if (!targetWord.trim()) return
   previewLoading.value = true
+  errorMessage.value = ''
   try {
     const response = await generateWord(targetWord.trim(), true)
     preview.value = response.data
     word.value = response.data.word
   } catch (error) {
     console.error(error)
+    errorMessage.value = error instanceof Error && error.message
+      ? error.message
+      : '词卡重新生成失败，请稍后重试。'
   } finally {
     previewLoading.value = false
   }
@@ -186,6 +202,16 @@ async function handleRegenerate() {
   gap: 20px;
   border-bottom: 1px solid var(--sl-glass-border);
   background: var(--sl-glass-bg); /* 修改为使用主题变量 */
+}
+
+.dashboard-error {
+  margin: 0;
+  padding: 14px 32px;
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.08);
+  border-bottom: 1px solid rgba(180, 35, 24, 0.14);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .search-input-group {

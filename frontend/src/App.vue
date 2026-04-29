@@ -5,12 +5,9 @@
         <!-- Logo Section -->
         <RouterLink :to="brandTarget" class="brand-link">
           <div class="brand-icon">
-            <span class="brand-fruit"></span>
-            <span class="fruit-crease"></span>
-            <span class="brand-leaf"></span>
+            <img src="/favicon.png" alt="" aria-hidden="true" />
           </div>
           <div class="brand-copy">
-            <p class="brand-kicker">Peach Link</p>
             <h1>SceneLex</h1>
           </div>
         </RouterLink>
@@ -40,7 +37,6 @@
             {{ isDark ? '☼' : '☾' }}
           </button>
           
-          <button class="utility-circle soft-pill" aria-label="Locale">CN</button>
           <template v-if="showNavigation">
             <button
               class="avatar-button soft-pill"
@@ -275,8 +271,8 @@ onBeforeUnmount(() => {
   z-index: 100;
   padding: 16px 20px;
   background: var(--sl-glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border-bottom: 1px solid var(--sl-glass-border);
   transition: all 0.4s ease;
 }
@@ -299,39 +295,16 @@ onBeforeUnmount(() => {
 }
 
 .brand-icon {
-  position: relative;
   width: 42px;
   height: 42px;
   flex-shrink: 0;
 }
 
-.brand-fruit {
-  position: absolute;
-  inset: 2px;
-  border-radius: 54% 46% 42% 58% / 55% 56% 44% 45%;
-  background: linear-gradient(145deg, #f9c7c2 0%, #f09aa7 76%);
-  box-shadow: inset -4px -4px 10px rgba(206, 116, 130, 0.2);
-}
-
-.fruit-crease {
-  position: absolute;
-  top: 11px;
-  left: 20px;
-  width: 2px;
-  height: 18px;
-  background: rgba(205, 102, 117, 0.3);
-  border-radius: 999px;
-}
-
-.brand-leaf {
-  position: absolute;
-  top: -2px;
-  left: 14px;
-  width: 16px;
-  height: 9px;
-  background: linear-gradient(135deg, #a6c8a8, #7fa181);
-  border-radius: 999px 999px 0 999px;
-  transform: rotate(-24deg);
+.brand-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .brand-kicker {

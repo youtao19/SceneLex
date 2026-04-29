@@ -12,12 +12,9 @@
     <main class="landing-content" :class="{ 'fade-out': isScrolled }">
       <div class="hero-brand">
         <div class="brand-icon">
-          <span class="brand-fruit"></span>
-          <span class="fruit-crease"></span>
-          <span class="brand-leaf"></span>
+          <img src="/favicon.png" alt="" aria-hidden="true" />
         </div>
         <div class="brand-text">
-          <span class="kicker">Peach Link</span>
           <h1 class="title">SceneLex</h1>
         </div>
       </div>
@@ -36,9 +33,7 @@
       <article class="auth-card surface-card">
         <div class="auth-header">
           <div class="brand-icon small">
-            <span class="brand-fruit"></span>
-            <span class="fruit-crease"></span>
-            <span class="brand-leaf"></span>
+            <img src="/favicon.png" alt="" aria-hidden="true" />
           </div>
           <h2 class="auth-title">{{ isRegistering ? '创建账户' : '登录账户' }}</h2>
           <p class="auth-subtitle">{{ isRegistering ? '助力冲浪，探索英语世界的无限可能' : '请输入您的凭据继续' }}</p>
@@ -327,7 +322,6 @@ async function handleSubmit() {
 }
 
 .brand-icon {
-  position: relative;
   width: 60px;
   height: 60px;
 }
@@ -338,47 +332,11 @@ async function handleSubmit() {
   margin: 0 auto;
 }
 
-.brand-fruit {
-  position: absolute;
-  inset: 2px;
-  border-radius: 54% 46% 42% 58% / 55% 56% 44% 45%;
-  background: linear-gradient(145deg, #f9c7c2 0%, #f09aa7 76%);
-  box-shadow: inset -4px -4px 10px rgba(206, 116, 130, 0.2);
-}
-
-.fruit-crease {
-  position: absolute;
-  top: 14px;
-  left: 28px;
-  width: 3px;
-  height: 24px;
-  background: rgba(205, 102, 117, 0.3);
-  border-radius: 999px;
-}
-
-.brand-icon.small .fruit-crease {
-  top: 11px;
-  left: 22px;
-  width: 2px;
-  height: 18px;
-}
-
-.brand-leaf {
-  position: absolute;
-  top: -4px;
-  left: 20px;
-  width: 22px;
-  height: 14px;
-  background: linear-gradient(135deg, #a6c8a8, #7fa181);
-  border-radius: 999px 999px 0 999px;
-  transform: rotate(-24deg);
-}
-
-.brand-icon.small .brand-leaf {
-  top: -3px;
-  left: 16px;
-  width: 17px;
-  height: 11px;
+.brand-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .brand-text {

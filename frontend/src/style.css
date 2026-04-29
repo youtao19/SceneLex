@@ -15,13 +15,13 @@
   --sl-peach-100: #ffe9ec;
   --sl-peach-50: #fff5f6;
 
-  --sl-glass-bg: rgba(255, 255, 255, 0.85); /* 增加不透明度 */
-  --sl-glass-bg-hover: rgba(255, 255, 255, 0.95);
-  --sl-glass-border: rgba(255, 255, 255, 0.5);
-  --sl-glass-border-strong: rgba(255, 255, 255, 0.8);
+  --sl-glass-bg: rgba(255, 255, 255, 0.55); /* 降低不透明度以增强透明感 */
+  --sl-glass-bg-hover: rgba(255, 255, 255, 0.75);
+  --sl-glass-border: rgba(255, 255, 255, 0.8); /* 边缘稍微清晰一点 */
+  --sl-glass-border-strong: rgba(255, 255, 255, 0.9);
   
-  --sl-shadow: 0 12px 40px rgba(255, 110, 130, 0.08);
-  --sl-shadow-lg: 0 20px 60px rgba(255, 90, 113, 0.12);
+  --sl-shadow: 0 12px 40px rgba(255, 110, 130, 0.12);
+  --sl-shadow-lg: 0 20px 60px rgba(255, 90, 113, 0.18);
   
   --sl-radius-xl: 32px;
   --sl-radius-lg: 24px;
@@ -43,13 +43,13 @@
   --sl-peach-100: rgba(255, 90, 113, 0.25);
   --sl-peach-50: rgba(255, 90, 113, 0.12);
 
-  --sl-glass-bg: rgba(30, 25, 38, 0.8); /* 提高黑夜模式卡片不透明度 */
-  --sl-glass-bg-hover: rgba(40, 34, 50, 0.9);
-  --sl-glass-border: rgba(255, 255, 255, 0.1);
-  --sl-glass-border-strong: rgba(255, 255, 255, 0.2);
+  --sl-glass-bg: rgba(24, 20, 30, 0.55); /* 降低不透明度 */
+  --sl-glass-bg-hover: rgba(34, 28, 42, 0.75);
+  --sl-glass-border: rgba(255, 255, 255, 0.15);
+  --sl-glass-border-strong: rgba(255, 255, 255, 0.25);
   
-  --sl-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-  --sl-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --sl-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  --sl-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.55);
 }
 
 *,
@@ -88,8 +88,8 @@ input, button, textarea {
 .surface-card {
   position: relative;
   background: var(--sl-glass-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(32px); /* 增加模糊度 */
+  -webkit-backdrop-filter: blur(32px);
   border: 1px solid var(--sl-glass-border);
   box-shadow: var(--sl-shadow);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -104,8 +104,8 @@ input, button, textarea {
 /* Pill/Navigation Style */
 .soft-pill {
   background: var(--sl-glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--sl-glass-border);
   box-shadow: var(--sl-shadow);
   border-radius: 999px;
