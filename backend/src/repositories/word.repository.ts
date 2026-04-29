@@ -9,6 +9,7 @@ import type {
 interface WordRow {
   id: string;
   word: string;
+  phonetic: string;
   primary_meaning: string;
   meanings: WordMeaningItem[];
   ease: number;
@@ -38,6 +39,7 @@ function mapWordRow(row: WordRow): StoredWord {
   return {
     id: Number(row.id),
     word: row.word,
+    phonetic: row.phonetic,
     primaryMeaning: row.primary_meaning,
     meanings: row.meanings,
     ease: Number(row.ease),
@@ -53,6 +55,7 @@ function runUpsertWord(
   client: PoolClient,
   userId: number,
   word: string,
+  phonetic: string,
   primaryMeaning: string,
   meanings: WordMeaningItem[],
 ) {
@@ -61,18 +64,21 @@ function runUpsertWord(
       INSERT INTO words (
         user_id,
         word,
+        phonetic,
         primary_meaning,
         meanings
       )
-      VALUES ($1, $2, $3, $4::jsonb)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
       ON CONFLICT (user_id, word)
       DO UPDATE SET
+        phonetic = EXCLUDED.phonetic,
         primary_meaning = EXCLUDED.primary_meaning,
         meanings = EXCLUDED.meanings,
         updated_at = NOW()
       RETURNING
         id,
         word,
+        phonetic,
         primary_meaning,
         meanings,
         ease,
@@ -82,7 +88,7 @@ function runUpsertWord(
         created_at,
         updated_at
     `,
-    [userId, word, primaryMeaning, JSON.stringify(meanings)],
+    [userId, word, phonetic, primaryMeaning, JSON.stringify(meanings)],
   );
 }
 
@@ -92,6 +98,7 @@ function runUpsertWord(
 export async function saveWordCard(
   userId: number,
   word: string,
+  phonetic: string,
   primaryMeaning: string,
   meanings: WordMeaningItem[],
 ): Promise<SaveWordResult> {
@@ -100,7 +107,7 @@ export async function saveWordCard(
       'SELECT id FROM words WHERE user_id = $1 AND word = $2',
       [userId, word],
     );
-    const saved = await runUpsertWord(client, userId, word, primaryMeaning, meanings);
+    const saved = await runUpsertWord(client, userId, word, phonetic, primaryMeaning, meanings);
 
     return {
       card: mapWordRow(saved.rows[0]),
@@ -118,6 +125,7 @@ export async function listTodayWords(
       SELECT
         id,
         word,
+        phonetic,
         primary_meaning,
         meanings,
         ease,
@@ -149,6 +157,7 @@ export async function findWordByText(
       SELECT
         id,
         word,
+        phonetic,
         primary_meaning,
         meanings,
         ease,
@@ -180,6 +189,7 @@ export async function findWordById(
       SELECT
         id,
         word,
+        phonetic,
         primary_meaning,
         meanings,
         ease,
@@ -221,6 +231,7 @@ export async function updateReviewSchedule(
       RETURNING
         id,
         word,
+        phonetic,
         primary_meaning,
         meanings,
         ease,

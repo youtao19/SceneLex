@@ -148,6 +148,7 @@ export async function initializeDatabase() {
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         word TEXT NOT NULL,
+        phonetic TEXT NOT NULL DEFAULT '',
         primary_meaning TEXT NOT NULL,
         meanings JSONB NOT NULL,
         ease DOUBLE PRECISION NOT NULL DEFAULT 2.5,
@@ -164,6 +165,13 @@ export async function initializeDatabase() {
     `
       ALTER TABLE words
       ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE CASCADE
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE words
+      ADD COLUMN IF NOT EXISTS phonetic TEXT NOT NULL DEFAULT ''
     `,
   );
 

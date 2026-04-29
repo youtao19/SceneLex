@@ -19,6 +19,7 @@ import type {
 function buildFallback(word: string): WordGenerateResult {
   return {
     word,
+    phonetic: '',
     meanings: [
       {
         partOfSpeech: '词性',
@@ -100,12 +101,21 @@ function normalizeWord(word: string) {
   return word.trim().toLowerCase();
 }
 
+function normalizePhonetic(value: unknown) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim();
+}
+
 function normalizeGeneratedResult(
   raw: unknown,
   fallbackWord: string,
 ): WordGenerateResult {
   const fallback = buildFallback(fallbackWord);
   let word = fallbackWord;
+  let phonetic = fallback.phonetic;
   let meanings = fallback.meanings;
 
   if (raw && typeof raw === 'object') {
@@ -115,6 +125,8 @@ function normalizeGeneratedResult(
     if (typeof rawWord === 'string' && rawWord.trim()) {
       word = normalizeWord(rawWord);
     }
+
+    phonetic = normalizePhonetic(data.phonetic);
 
     const meaningItems = readMeaningItems(data.meanings);
 
@@ -131,6 +143,7 @@ function normalizeGeneratedResult(
 
   return {
     word,
+    phonetic,
     meanings,
     source: 'generated',
     saved: false,
@@ -159,6 +172,7 @@ function buildPrimaryMeaning(meanings: WordMeaningItem[]) {
 function toGenerateResultFromStoredWord(word: StoredWord): WordGenerateResult {
   return {
     word: word.word,
+    phonetic: word.phonetic,
     meanings: word.meanings,
     source: 'database',
     saved: true,
@@ -239,12 +253,14 @@ export const wordService = {
     const saved = await saveWordCard(
       userId,
       generated.word,
+      generated.phonetic,
       primaryMeaning,
       generated.meanings,
     );
 
     return {
       word: saved.card.word,
+      phonetic: saved.card.phonetic,
       meanings: saved.card.meanings,
       source: 'generated',
       saved: true,
@@ -257,6 +273,7 @@ export const wordService = {
   async addWordToReview(
     userId: number,
     word: string,
+    phoneticInput: unknown,
     meaningsInput: unknown,
   ): Promise<SaveWordResult> {
     const cleanWord = normalizeWord(word);
@@ -266,9 +283,10 @@ export const wordService = {
     }
 
     const meanings = normalizeIncomingMeanings(meaningsInput);
+    const phonetic = normalizePhonetic(phoneticInput);
     const primaryMeaning = buildPrimaryMeaning(meanings);
 
-    return saveWordCard(userId, cleanWord, primaryMeaning, meanings);
+    return saveWordCard(userId, cleanWord, phonetic, primaryMeaning, meanings);
   },
 
   /**

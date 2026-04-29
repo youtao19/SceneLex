@@ -167,6 +167,7 @@
         <div class="modal-scroll">
           <WordMeaningsPanel
             :word="selectedWord.word"
+            :phonetic="selectedWord.phonetic"
             :meanings="selectedWord.meanings"
           />
         </div>
@@ -265,6 +266,7 @@ function buildMockReviewWords(): StoredWord[] {
     {
       id: -1,
       word: 'resilient',
+      phonetic: '/rɪˈzɪliənt/',
       primaryMeaning: '有韧性的；能恢复的',
       meanings: [
         {
@@ -290,6 +292,7 @@ function buildMockReviewWords(): StoredWord[] {
     {
       id: -2,
       word: 'elaborate',
+      phonetic: '/ɪˈlæbərət/',
       primaryMeaning: '详细说明；复杂精致的',
       meanings: [
         {
@@ -315,6 +318,7 @@ function buildMockReviewWords(): StoredWord[] {
     {
       id: -3,
       word: 'subtle',
+      phonetic: '/ˈsʌtəl/',
       primaryMeaning: '微妙的；不易察觉的',
       meanings: [
         {
