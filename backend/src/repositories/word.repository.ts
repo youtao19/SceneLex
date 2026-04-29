@@ -118,7 +118,6 @@ export async function saveWordCard(
 
 export async function listTodayWords(
   userId: number,
-  today: string,
 ): Promise<StoredWord[]> {
   const result = await query<WordRow>(
     `
@@ -136,10 +135,10 @@ export async function listTodayWords(
         updated_at
       FROM words
       WHERE user_id = $1
-        AND next_review <= $2::date
+        AND next_review <= CURRENT_DATE
       ORDER BY next_review ASC, updated_at ASC, word ASC
     `,
-    [userId, today],
+    [userId],
   );
 
   return result.rows.map(mapWordRow);
@@ -216,14 +215,13 @@ export async function updateReviewSchedule(
   userId: number,
   id: number,
   interval: number,
-  nextReview: string,
 ): Promise<StoredWord> {
   const result = await query<WordRow>(
     `
       UPDATE words
       SET
         interval = $3,
-        next_review = $4::date,
+        next_review = CURRENT_DATE + $3::integer,
         review_count = review_count + 1,
         updated_at = NOW()
       WHERE user_id = $1
@@ -241,7 +239,7 @@ export async function updateReviewSchedule(
         created_at,
         updated_at
     `,
-    [userId, id, interval, nextReview],
+    [userId, id, interval],
   );
 
   return mapWordRow(result.rows[0]);

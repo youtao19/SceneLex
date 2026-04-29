@@ -194,7 +194,7 @@ const submittingWordIds = ref<Set<number>>(new Set())
 const reviewResults = ref<Record<number, ReviewRating>>({})
 const selectedWord = ref<StoredWord | null>(null)
 
-const displayWords = computed(() => archive.value?.words ?? queue.value)
+const displayWords = computed(() => queue.value)
 const remainingCount = computed(() => displayWords.value.length)
 const reviewedCount = computed(() => revealedWordIds.value.size)
 const progress = computed(() => {

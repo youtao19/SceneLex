@@ -179,14 +179,11 @@ function toGenerateResultFromStoredWord(word: StoredWord): WordGenerateResult {
   };
 }
 
-function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(dateString: string, days: number) {
-  const baseDate = new Date(`${dateString}T00:00:00.000Z`);
-  baseDate.setUTCDate(baseDate.getUTCDate() + days);
-  return baseDate.toISOString().slice(0, 10);
+/**
+ * 老词卡是在音标字段加入前保存的，空音标时继续生成一次用于补齐展示字段。
+ */
+function canUseStoredWord(word: StoredWord) {
+  return word.phonetic.trim().length > 0;
 }
 
 function getNextInterval(interval: number, rating: ReviewRating) {
@@ -219,7 +216,7 @@ export const wordService = {
     if (!forceRegenerate) {
       const storedWord = await findWordByText(userId, cleanWord);
 
-      if (storedWord) {
+      if (storedWord && canUseStoredWord(storedWord)) {
         return toGenerateResultFromStoredWord(storedWord);
       }
     }
@@ -293,7 +290,7 @@ export const wordService = {
    * 今日复习队列只返回到期单词，保证前端按单词逐张推进。
    */
   async getTodayReviewWords(userId: number): Promise<StoredWord[]> {
-    return listTodayWords(userId, getTodayDateString());
+    return listTodayWords(userId);
   },
 
   /**
@@ -321,8 +318,7 @@ export const wordService = {
     }
 
     const nextInterval = getNextInterval(current.interval, rating);
-    const nextReview = addDays(getTodayDateString(), nextInterval);
 
-    return updateReviewSchedule(userId, wordId, nextInterval, nextReview);
+    return updateReviewSchedule(userId, wordId, nextInterval);
   },
 };
