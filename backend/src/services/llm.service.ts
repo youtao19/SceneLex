@@ -131,7 +131,7 @@ export async function generateWithOllama(prompt: string): Promise<string> {
       keep_alive: '10m',
       options: {
         temperature: 0.6,
-        num_predict: 320
+        num_predict: 800
       }
     }),
     signal: AbortSignal.timeout(config.timeout)
