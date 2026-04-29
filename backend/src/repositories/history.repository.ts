@@ -5,6 +5,7 @@ import type { StoredWord, WordMeaningItem } from '../types/word';
 interface WordRow {
   id: string;
   word: string;
+  phonetic: string;
   primary_meaning: string;
   meanings: WordMeaningItem[];
   ease: number;
@@ -45,6 +46,7 @@ function mapWordRow(row: WordRow): StoredWord {
   return {
     id: Number(row.id),
     word: row.word,
+    phonetic: row.phonetic,
     primaryMeaning: row.primary_meaning,
     meanings: row.meanings,
     ease: Number(row.ease),
@@ -88,6 +90,7 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
       SELECT
         id,
         word,
+        phonetic,
         primary_meaning,
         meanings,
         ease,

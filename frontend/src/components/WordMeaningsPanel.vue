@@ -3,7 +3,10 @@
     <!-- 头部 -->
     <header class="panel-header">
       <div class="word-info">
-        <h2 class="display-word">{{ word }}</h2>
+        <div class="word-title">
+          <h2 class="display-word">{{ word }}</h2>
+          <p v-if="phonetic" class="phonetic-text">{{ phonetic }}</p>
+        </div>
         <button
           class="speak-button"
           type="button"
@@ -57,6 +60,7 @@ import type { WordMeaningItem } from '../types/word'
 
 const props = defineProps<{
   word: string
+  phonetic?: string
   meanings: WordMeaningItem[]
 }>()
 
@@ -93,9 +97,21 @@ function handleSpeakWord() {
 
 .word-info {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-width: 0;
+}
+
+.word-title {
+  min-width: 0;
+}
+
+.phonetic-text {
+  margin: 5px 0 0;
+  color: var(--sl-text-soft);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .speak-button {

@@ -39,11 +39,12 @@ export async function addWord(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const { word, meanings } = req.body as {
+    const { word, phonetic, meanings } = req.body as {
       word?: string
+      phonetic?: string
       meanings?: WordMeaningItem[]
     }
-    const result = await wordService.addWordToReview(authUser.id, word ?? '', meanings)
+    const result = await wordService.addWordToReview(authUser.id, word ?? '', phonetic, meanings)
     const message = result.wasUpdated ? 'Word updated' : 'Word added'
 
     return res.json(ok(result.card, message))

@@ -27,6 +27,7 @@
               <div class="result-scroll-pane">
                 <WordMeaningsPanel
                   :word="preview.word"
+                  :phonetic="preview.phonetic"
                   :meanings="preview.meanings"
                 />
               </div>
@@ -117,7 +118,7 @@ async function handleAddWord() {
   if (!preview.value) return
   saveLoading.value = true
   try {
-    await addWord(preview.value.word, preview.value.meanings)
+    await addWord(preview.value.word, preview.value.phonetic, preview.value.meanings)
     preview.value = null
     word.value = ''
   } catch (error) {

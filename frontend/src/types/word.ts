@@ -7,6 +7,7 @@ export interface WordMeaningItem {
 
 export interface WordGenerateData {
   word: string
+  phonetic: string
   meanings: WordMeaningItem[]
   source: 'database' | 'generated'
   saved: boolean
@@ -15,6 +16,7 @@ export interface WordGenerateData {
 export interface StoredWord {
   id: number
   word: string
+  phonetic: string
   primaryMeaning: string
   meanings: WordMeaningItem[]
   ease: number

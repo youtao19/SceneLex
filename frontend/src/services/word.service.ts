@@ -14,8 +14,8 @@ export async function generateWord(word: string, forceRegenerate = false) {
   })
 }
 
-export async function addWord(word: string, meanings: WordMeaningItem[]) {
-  return post<ApiResponse<StoredWord>>('/word/add', { word, meanings })
+export async function addWord(word: string, phonetic: string, meanings: WordMeaningItem[]) {
+  return post<ApiResponse<StoredWord>>('/word/add', { word, phonetic, meanings })
 }
 
 export async function getTodayWords() {

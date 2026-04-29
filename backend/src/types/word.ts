@@ -7,6 +7,7 @@ export interface WordMeaningItem {
 
 export interface WordGenerateResult {
   word: string;
+  phonetic: string;
   meanings: WordMeaningItem[];
   source: 'database' | 'generated';
   saved: boolean;
@@ -17,6 +18,7 @@ export interface WordPayload {
 }
 
 export interface AddWordPayload extends WordPayload {
+  phonetic?: string;
   meanings: WordMeaningItem[];
 }
 
@@ -30,6 +32,7 @@ export interface ReviewWordPayload {
 export interface StoredWord {
   id: number;
   word: string;
+  phonetic: string;
   primaryMeaning: string;
   meanings: WordMeaningItem[];
   ease: number;

@@ -24,6 +24,7 @@ const jsonFormat = {
   type: 'object',
   properties: {
     word: { type: 'string' },
+    phonetic: { type: 'string' },
     meanings: {
       type: 'array',
       minItems: 1,
@@ -39,7 +40,7 @@ const jsonFormat = {
       }
     }
   },
-  required: ['word', 'meanings']
+  required: ['word', 'phonetic', 'meanings']
 }
 
 function hasWordMeanings(value: object) {

@@ -27,12 +27,14 @@ export function buildWordPrompt(word: string): string {
 8. example 要短、准、常见，一眼就能看出 "${word}" 在真实场景里怎么用；不要堆砌生词。
 9. tip 不要只是翻译 example；要变成脑中能看到的画面、动作、人物或场景。
 10. tip 必须非常短，像联想标签，不要写完整句，最好控制在 4 到 12 个字。
-11. 不要输出任何解释说明，不要输出多余文字。
-12. 必须严格按照下面的 JSON 格式返回，并且所有内容必须完全针对单词 "${word}"！
+11. phonetic 必须输出美式 IPA 音标，包含前后斜杠，例如 /rɪˈzɪliənt/；如果是短语，只输出核心单词的音标。
+12. 不要输出任何解释说明，不要输出多余文字。
+13. 必须严格按照下面的 JSON 格式返回，并且所有内容必须完全针对单词 "${word}"！
 
 返回格式样例：
 {
   "word": "${word}",
+  "phonetic": "/${word} 的美式 IPA 音标/",
   "meanings": [
     {
       "partOfSpeech": "v.",
