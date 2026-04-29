@@ -4,6 +4,15 @@
     <header class="panel-header">
       <div class="word-info">
         <h2 class="display-word">{{ word }}</h2>
+        <button
+          class="speak-button"
+          type="button"
+          aria-label="朗读单词"
+          title="朗读单词"
+          @click="handleSpeakWord"
+        >
+          🔊
+        </button>
       </div>
     </header>
 
@@ -43,12 +52,20 @@
 </template>
 
 <script setup lang="ts">
+import { speakEnglishText } from '../utils/speech'
 import type { WordMeaningItem } from '../types/word'
 
-defineProps<{
+const props = defineProps<{
   word: string
   meanings: WordMeaningItem[]
 }>()
+
+/**
+ * 朗读只依赖当前词面，避免例句或释义混入时打断背词节奏。
+ */
+function handleSpeakWord() {
+  speakEnglishText(props.word)
+}
 </script>
 
 <style scoped>
@@ -72,6 +89,31 @@ defineProps<{
   margin: 0;
   font-family: var(--sl-display-font);
   line-height: 1.1;
+}
+
+.word-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.speak-button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid var(--sl-glass-border);
+  border-radius: 999px;
+  background: var(--sl-glass-bg);
+  color: var(--sl-text-main);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.speak-button:hover {
+  border-color: var(--sl-peach-200);
+  background: var(--sl-peach-50);
 }
 
 /* 列表容器 */
