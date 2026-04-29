@@ -35,6 +35,31 @@
                 />
               </div>
 
+              <section class="book-picker" aria-label="保存到单词本">
+                <div class="book-picker-head">
+                  <div>
+                    <p class="book-picker-title">保存到单词本</p>
+                    <span>{{ selectedBookIds.length }} 个已选择</span>
+                  </div>
+                  <RouterLink to="/word-books" class="book-manage-link">管理</RouterLink>
+                </div>
+                <div v-if="bookLoading" class="book-state">正在读取单词本...</div>
+                <div v-else-if="wordBooks.length === 0" class="book-state">暂无单词本，将保存到默认单词本。</div>
+                <div v-else class="book-options">
+                  <label v-for="book in wordBooks" :key="book.id" class="book-option">
+                    <input
+                      v-model="selectedBookIds"
+                      type="checkbox"
+                      :value="book.id"
+                    />
+                    <span>
+                      <strong>{{ book.name }}</strong>
+                      <small>{{ book.wordCount }} 个单词</small>
+                    </span>
+                  </label>
+                </div>
+              </section>
+
               <!-- 操作栏 -->
               <footer class="card-action-footer">
                 <div class="footer-info">
@@ -49,12 +74,11 @@
                     {{ previewLoading ? 'Regenerating...' : '重新生成' }}
                   </button>
                   <button
-                    v-if="showManualSave"
                     class="peach-button save-btn"
                     :disabled="saveLoading"
                     @click="handleAddWord"
                   >
-                    {{ saveLoading ? 'Saving...' : '确认保存' }}
+                    {{ saveLoading ? 'Saving...' : saveButtonText }}
                   </button>
                 </div>
               </footer>
@@ -75,20 +99,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import WordMeaningsPanel from '../components/WordMeaningsPanel.vue'
+import { fetchWordBooks } from '../services/word-book.service'
 import { addWord, generateWord } from '../services/word.service'
-import { useWordStore } from '../stores/word'
+import type { WordBook } from '../types/word-book'
 import type { WordGenerateData } from '../types/word'
 
-const wordStore = useWordStore()
 const word = ref('')
 const preview = ref<WordGenerateData | null>(null)
+const wordBooks = ref<WordBook[]>([])
+const selectedBookIds = ref<number[]>([])
 const previewLoading = ref(false)
+const bookLoading = ref(false)
 const saveLoading = ref(false)
 const errorMessage = ref('')
 
 const showManualSave = computed(() => preview.value?.saved === false)
+const saveButtonText = computed(() => (showManualSave.value ? '确认保存' : '保存到单词本'))
 const previewStatusText = computed(() => {
   if (!preview.value) return ''
 
@@ -105,6 +133,27 @@ const previewStatusText = computed(() => {
   return `${countText} · 待确认保存`
 })
 
+function selectDefaultBook() {
+  const defaultBook = wordBooks.value.find((book) => book.isDefault)
+
+  selectedBookIds.value = defaultBook ? [defaultBook.id] : []
+}
+
+async function loadWordBooks() {
+  bookLoading.value = true
+
+  try {
+    const response = await fetchWordBooks()
+    wordBooks.value = response.data
+    selectDefaultBook()
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = '单词本读取失败，将保存到默认单词本。'
+  } finally {
+    bookLoading.value = false
+  }
+}
+
 async function handlePreview() {
   if (!word.value.trim()) return
   previewLoading.value = true
@@ -112,6 +161,9 @@ async function handlePreview() {
   try {
     const response = await generateWord(word.value.trim())
     preview.value = response.data
+    if (wordBooks.value.length === 0) {
+      await loadWordBooks()
+    }
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error && error.message
@@ -127,9 +179,15 @@ async function handleAddWord() {
   saveLoading.value = true
   errorMessage.value = ''
   try {
-    await addWord(preview.value.word, preview.value.phonetic, preview.value.meanings)
+    await addWord(
+      preview.value.word,
+      preview.value.phonetic,
+      preview.value.meanings,
+      selectedBookIds.value
+    )
     preview.value = null
     word.value = ''
+    await loadWordBooks()
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error && error.message
@@ -151,6 +209,7 @@ async function handleRegenerate() {
     const response = await generateWord(targetWord.trim(), true)
     preview.value = response.data
     word.value = response.data.word
+    selectDefaultBook()
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error && error.message
@@ -160,6 +219,8 @@ async function handleRegenerate() {
     previewLoading.value = false
   }
 }
+
+onMounted(loadWordBooks)
 </script>
 
 <style scoped>
@@ -253,6 +314,76 @@ async function handleRegenerate() {
   overflow-y: auto;
 }
 
+.book-picker {
+  margin: 0 32px 24px;
+  padding: 18px;
+  border: 1px solid var(--sl-glass-border);
+  border-radius: var(--sl-radius-md);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.book-picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.book-picker-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.book-picker-head span,
+.book-option small {
+  color: var(--sl-text-soft);
+  font-size: 12px;
+}
+
+.book-manage-link {
+  color: var(--sl-peach-500);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.book-state {
+  color: var(--sl-text-soft);
+  font-size: 13px;
+}
+
+.book-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.book-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--sl-glass-border-strong);
+  border-radius: 999px;
+  background: var(--sl-glass-bg);
+  cursor: pointer;
+}
+
+.book-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--sl-peach-500);
+}
+
+.book-option span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
 .card-action-footer {
   padding: 24px 32px;
   background: rgba(255, 255, 255, 0.5);
@@ -317,5 +448,6 @@ async function handleRegenerate() {
   .card-search-header { flex-direction: column; align-items: stretch; gap: 16px; padding: 20px; }
   .inline-input { font-size: 18px; }
   .card-action-footer { flex-direction: column; gap: 16px; text-align: center; }
+  .book-picker { margin: 0 20px 20px; }
 }
 </style>

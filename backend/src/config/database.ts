@@ -202,4 +202,50 @@ export async function initializeDatabase() {
       ON words (user_id, next_review)
     `,
   );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS word_books (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        is_default BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_word_books_user_name
+      ON word_books (user_id, name)
+    `,
+  );
+
+  await query(
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_word_books_default
+      ON word_books (user_id)
+      WHERE is_default = TRUE
+    `,
+  );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS word_book_items (
+        book_id BIGINT NOT NULL REFERENCES word_books(id) ON DELETE CASCADE,
+        word_id BIGINT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+        added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (book_id, word_id)
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_word_book_items_word_id
+      ON word_book_items (word_id)
+    `,
+  );
 }

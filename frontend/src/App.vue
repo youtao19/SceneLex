@@ -170,6 +170,7 @@ interface NavItem {
 const navigationItems: NavItem[] = [
   { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
   { to: '/review', label: '复习舱', icon: 'review' },
+  { to: '/word-books', label: '单词本', icon: 'books' },
   { to: '/history', label: '归档册', icon: 'history' },
   { to: '/settings', label: '更多', icon: 'more' },
 ]
@@ -609,6 +610,7 @@ onBeforeUnmount(() => {
 .nav-icon { font-size: 16px; }
 .icon-dashboard::before { content: "⊞"; }
 .icon-review::before { content: "↻"; }
+.icon-books::before { content: "▤"; }
 .icon-history::before { content: "📋"; }
 .icon-more::before { content: "⋯"; }
 
