@@ -1,5 +1,6 @@
 import { buildWordPrompt } from '../prompts/word.prompt';
 import { generateWithLocalModel } from './llm.service';
+import { dictionaryService } from './dictionary.service';
 import {
   findWordByText,
   findWordById,
@@ -15,6 +16,7 @@ import type {
   WordGenerateResult,
   WordMeaningItem,
 } from '../types/word';
+import type { DictionaryEntry } from '../types/dictionary';
 
 function buildFallback(word: string): WordGenerateResult {
   return {
@@ -150,6 +152,39 @@ function normalizeGeneratedResult(
   };
 }
 
+/**
+ * 模型只负责 example/tip，词性和中文释义最终以词库为准。
+ */
+function applyDictionaryFacts(
+  result: WordGenerateResult,
+  dictionaryEntry: DictionaryEntry | null,
+): WordGenerateResult {
+  if (!dictionaryEntry) {
+    return result;
+  }
+
+  const meanings: WordMeaningItem[] = [];
+
+  for (let i = 0; i < dictionaryEntry.meanings.length; i += 1) {
+    const dictionaryMeaning = dictionaryEntry.meanings[i];
+    const generatedMeaning = result.meanings[i];
+
+    meanings.push({
+      partOfSpeech: dictionaryMeaning.partOfSpeech,
+      meaning: dictionaryMeaning.meaning,
+      example: generatedMeaning?.example || `a ${result.word} scene`,
+      tip: generatedMeaning?.tip || `${result.word} 场景`,
+    });
+  }
+
+  return {
+    ...result,
+    word: dictionaryEntry.word,
+    phonetic: dictionaryEntry.phonetic || result.phonetic,
+    meanings,
+  };
+}
+
 function normalizeIncomingMeanings(value: unknown) {
   const meanings = readMeaningItems(value);
 
@@ -243,7 +278,8 @@ export const wordService = {
       }
     }
 
-    const prompt = buildWordPrompt(cleanWord);
+    const dictionaryEntry = dictionaryService.findByWord(cleanWord);
+    const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined);
     const rawText = await generateWithLocalModel(prompt);
     let parsed: unknown;
 
@@ -254,7 +290,10 @@ export const wordService = {
       throw new Error('模型输出解析失败');
     }
 
-    const normalized = normalizeGeneratedResult(parsed, cleanWord);
+    const normalized = applyDictionaryFacts(
+      normalizeGeneratedResult(parsed, cleanWord),
+      dictionaryEntry,
+    );
     const generated = {
       ...normalized,
       word: cleanWord,

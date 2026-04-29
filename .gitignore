@@ -8,5 +8,8 @@ coverage
 frontend/.vite
 backend/dist
 backend/.tmp
+backend/data/*.csv
+backend/data/*.csv.gz
+backend/data/*.zip
 
 output

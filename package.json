@@ -17,6 +17,7 @@
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
+    "dict:download": "npm --prefix backend run dict:download",
     "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
     "key:create": "sh ./scripts/create-access-key.sh",
     "user:suspend": "sh ./scripts/user-suspend.sh",
