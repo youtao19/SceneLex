@@ -6,5 +6,6 @@ export interface DictionaryMeaning {
 export interface DictionaryEntry {
   word: string;
   phonetic: string;
+  definitions: string[];
   meanings: DictionaryMeaning[];
 }

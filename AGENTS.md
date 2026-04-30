@@ -32,8 +32,7 @@ PRs should include a clear summary, verification steps, related issue links if a
 
 ## Development Specifications
 + The code should be simple and easy to understand.
-
-开发使用必须使用skills: Karpathy Guidelines
+始终遵守skills: Karpathy Guidelines
 
 ## 注释要求
 + 注释要解释“为什么”，不是只解释“做什么”，短，但准确

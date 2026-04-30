@@ -17,9 +17,13 @@
           🔊
         </button>
       </div>
+      <div v-if="coreFeeling" class="core-feeling">
+        <span>核心感觉</span>
+        <p>{{ coreFeeling }}</p>
+      </div>
     </header>
 
-    <!-- 义项列表 -->
+    <!-- 场景列表 -->
     <div class="meanings-list">
       <article
         v-for="(item, index) in meanings"
@@ -28,7 +32,9 @@
       >
         <div class="meaning-header">
           <span class="pos-label">{{ item.partOfSpeech }}</span>
-          <h3 class="meaning-text">{{ item.meaning }}</h3>
+          <div>
+            <h3 class="meaning-text">{{ item.meaning }}</h3>
+          </div>
         </div>
 
         <!-- 场景例句与联想卡片结构 -->
@@ -36,19 +42,27 @@
           <div class="teaching-block example-block">
             <div class="block-icon">💬</div>
             <div class="block-body">
-              <span class="block-title">场景例句</span>
-              <p class="block-text">“{{ item.example }}”</p>
+              <span class="block-title">场景短语</span>
+              <ul class="example-list">
+                <li v-for="example in displayExamples(item)" :key="example">
+                  {{ example }}
+                </li>
+              </ul>
             </div>
           </div>
           
-          <div v-if="item.tip" class="teaching-block tip-block">
+          <div v-if="memoryHint(item)" class="teaching-block tip-block">
             <div class="block-icon">💡</div>
             <div class="block-body">
-              <span class="block-title">联想记忆</span>
-              <p class="block-text">{{ item.tip }}</p>
+              <span class="block-title">联想</span>
+              <p class="block-text">{{ memoryHint(item) }}</p>
             </div>
           </div>
         </div>
+
+        <p v-if="item.explanation" class="scene-explanation">
+          <span>解释：</span>{{ item.explanation }}
+        </p>
       </article>
     </div>
   </section>
@@ -61,6 +75,7 @@ import type { WordMeaningItem } from '../types/word'
 const props = defineProps<{
   word: string
   phonetic?: string
+  coreFeeling?: string
   meanings: WordMeaningItem[]
 }>()
 
@@ -69,6 +84,21 @@ const props = defineProps<{
  */
 function handleSpeakWord() {
   speakEnglishText(props.word)
+}
+
+function displayExamples(item: WordMeaningItem) {
+  if (item.examples?.length > 0) {
+    return item.examples
+  }
+
+  return [item.example]
+}
+
+/**
+ * 优先展示更短的联想词，避免场景标题和解释重复同一个画面。
+ */
+function memoryHint(item: WordMeaningItem) {
+  return item.tip || item.sceneTitle
 }
 </script>
 
@@ -79,8 +109,10 @@ function handleSpeakWord() {
 
 .panel-header {
   display: flex;
+  flex-direction: column;
+  gap: 14px;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: stretch;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--sl-glass-border);
@@ -132,6 +164,29 @@ function handleSpeakWord() {
   background: var(--sl-peach-50);
 }
 
+.core-feeling {
+  padding: 12px 14px;
+  border-left: 3px solid var(--sl-peach-500);
+  border-radius: 10px;
+  background: rgba(255, 90, 113, 0.06);
+}
+
+.core-feeling span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sl-peach-500);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.core-feeling p {
+  margin: 0;
+  color: var(--sl-text-main);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
 /* 列表容器 */
 .meanings-list {
   display: flex;
@@ -142,12 +197,12 @@ function handleSpeakWord() {
 .meaning-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .meaning-header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 10px;
 }
 
@@ -167,6 +222,13 @@ function handleSpeakWord() {
   line-height: 1.3;
 }
 
+.meaning-subtitle {
+  margin: 3px 0 0;
+  color: var(--sl-text-soft);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
 /* 卡片样式 */
 .teaching-content {
   margin-top: 4px;
@@ -179,8 +241,8 @@ function handleSpeakWord() {
 .teaching-block {
   display: flex;
   gap: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
   border: 1px solid transparent;
 }
 
@@ -190,8 +252,8 @@ function handleSpeakWord() {
 }
 
 .tip-block {
-  background: var(--sl-peach-50);
-  border-color: var(--sl-peach-100);
+  background: rgba(255, 90, 113, 0.05);
+  border-color: rgba(255, 90, 113, 0.12);
 }
 
 .block-icon {
@@ -223,6 +285,27 @@ function handleSpeakWord() {
   line-height: 1.4;
   color: var(--sl-text-main);
   margin: 0;
+}
+
+.example-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--sl-text-main);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.scene-explanation {
+  margin: 0;
+  padding-left: 24px;
+  color: var(--sl-text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.scene-explanation span {
+  color: var(--sl-text-mute);
+  font-weight: 800;
 }
 
 @media (min-width: 768px) {

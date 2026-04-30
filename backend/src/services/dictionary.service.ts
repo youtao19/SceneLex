@@ -6,6 +6,7 @@ import type { DictionaryEntry, DictionaryMeaning } from '../types/dictionary';
 interface EcdictRow {
   word: string;
   phonetic: string;
+  definition: string;
   translation: string;
   pos: string;
 }
@@ -20,7 +21,7 @@ function getDictionaryCsvPath() {
     return path.resolve(env.dictionaryCsvPath);
   }
 
-  return path.resolve(process.cwd(), 'data', 'ecdict.csv');
+  return path.resolve(__dirname, '..', '..', 'data', 'ecdict.csv');
 }
 
 /**
@@ -77,7 +78,7 @@ function parseCsv(text: string) {
 }
 
 /**
- * ECDICT 的 pos 可能是 n/vt/vi，这里统一成前端现有的短标签。
+ * ECDICT 的 pos 可能是 n/vt/vi，这里保留及物/不及物区别，避免义项来源失真。
  */
 function normalizePartOfSpeech(value: string) {
   const text = value.trim().toLowerCase().replace(/\.$/, '');
@@ -89,8 +90,8 @@ function normalizePartOfSpeech(value: string) {
     n: 'n.',
     noun: 'n.',
     v: 'v.',
-    vi: 'v.',
-    vt: 'v.',
+    vi: 'vi.',
+    vt: 'vt.',
     verb: 'v.',
     adj: 'adj.',
     a: 'adj.',
@@ -186,9 +187,17 @@ function mapEcdictRow(headers: string[], values: string[]): EcdictRow | null {
   return {
     word,
     phonetic: getValue('phonetic'),
+    definition: getValue('definition'),
     translation,
     pos: getValue('pos'),
   };
+}
+
+function buildDefinitions(row: EcdictRow) {
+  return row.definition
+    .split(/\\n|\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -226,6 +235,7 @@ function loadDictionary() {
     dictionary.set(row.word, {
       word: row.word,
       phonetic: row.phonetic,
+      definitions: buildDefinitions(row),
       meanings,
     });
   }

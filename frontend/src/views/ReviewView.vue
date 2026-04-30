@@ -168,6 +168,7 @@
           <WordMeaningsPanel
             :word="selectedWord.word"
             :phonetic="selectedWord.phonetic"
+            :core-feeling="selectedWord.coreFeeling"
             :meanings="selectedWord.meanings"
           />
         </div>

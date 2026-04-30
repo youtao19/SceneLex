@@ -1,0 +1,142 @@
+<svg viewBox="0 0 1180 820" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+    </marker>
+    <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/>
+    </marker>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap');
+      text { font-family: 'JetBrains Mono', 'Noto Sans SC', 'PingFang SC', sans-serif; }
+      .title { fill: #f8fafc; font-size: 18px; font-weight: 700; }
+      .subtitle { fill: #94a3b8; font-size: 10px; }
+      .box-title { fill: #f8fafc; font-size: 12px; font-weight: 700; text-anchor: middle; }
+      .box-sub { fill: #cbd5e1; font-size: 9px; text-anchor: middle; }
+      .label { fill: #cbd5e1; font-size: 9px; text-anchor: middle; }
+      .note { fill: #94a3b8; font-size: 9px; }
+      .region { fill: none; stroke: #334155; stroke-width: 1; stroke-dasharray: 8 5; }
+      .region-label { fill: #94a3b8; font-size: 10px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1180" height="820" fill="#0f172a"/>
+  <rect width="1180" height="820" fill="url(#grid)"/>
+
+  <text x="34" y="38" class="title">SceneLex 单词查询数据流程</text>
+  <text x="34" y="58" class="subtitle">用户输入一个单词后，请求会先查缓存，再查词库，最后才调用本地模型生成场景。</text>
+
+  <rect x="30" y="90" width="300" height="640" rx="12" class="region"/>
+  <text x="46" y="112" class="region-label">前端 Vue</text>
+
+  <rect x="400" y="90" width="340" height="640" rx="12" class="region"/>
+  <text x="416" y="112" class="region-label">后端 Express</text>
+
+  <rect x="810" y="90" width="320" height="640" rx="12" class="region"/>
+  <text x="826" y="112" class="region-label">数据源</text>
+
+  <rect x="80" y="145" width="200" height="60" rx="7" fill="#0f172a"/>
+  <rect x="80" y="145" width="200" height="60" rx="7" fill="rgba(8,51,68,0.45)" stroke="#22d3ee" stroke-width="1.5"/>
+  <text x="180" y="169" class="box-title">HomeView.handlePreview</text>
+  <text x="180" y="188" class="box-sub">拿到输入框里的 word</text>
+
+  <rect x="80" y="245" width="200" height="60" rx="7" fill="#0f172a"/>
+  <rect x="80" y="245" width="200" height="60" rx="7" fill="rgba(8,51,68,0.45)" stroke="#22d3ee" stroke-width="1.5"/>
+  <text x="180" y="269" class="box-title">generateWord</text>
+  <text x="180" y="288" class="box-sub">POST /api/words/generate</text>
+
+  <rect x="470" y="145" width="200" height="60" rx="7" fill="#0f172a"/>
+  <rect x="470" y="145" width="200" height="60" rx="7" fill="rgba(6,78,59,0.45)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="570" y="169" class="box-title">word.routes.ts</text>
+  <text x="570" y="188" class="box-sub">把请求交给 controller</text>
+
+  <rect x="470" y="245" width="200" height="60" rx="7" fill="#0f172a"/>
+  <rect x="470" y="245" width="200" height="60" rx="7" fill="rgba(6,78,59,0.45)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="570" y="269" class="box-title">generateWordContent</text>
+  <text x="570" y="288" class="box-sub">读用户身份和请求参数</text>
+
+  <rect x="470" y="345" width="200" height="70" rx="7" fill="#0f172a"/>
+  <rect x="470" y="345" width="200" height="70" rx="7" fill="rgba(6,78,59,0.45)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="570" y="372" class="box-title">wordService.generate</text>
+  <text x="570" y="391" class="box-sub">清洗单词，决定走哪条路</text>
+
+  <g transform="translate(570,500)">
+    <polygon points="0,-44 72,0 0,44 -72,0" fill="#0f172a"/>
+    <polygon points="0,-44 72,0 0,44 -72,0" fill="rgba(120,53,15,0.35)" stroke="#fbbf24" stroke-width="1.5"/>
+    <text y="-5" class="box-title">用户词卡</text>
+    <text y="13" class="box-sub">已保存且音标不空？</text>
+  </g>
+
+  <g transform="translate(570,625)">
+    <polygon points="0,-44 72,0 0,44 -72,0" fill="#0f172a"/>
+    <polygon points="0,-44 72,0 0,44 -72,0" fill="rgba(120,53,15,0.35)" stroke="#fbbf24" stroke-width="1.5"/>
+    <text y="-5" class="box-title">ECDICT</text>
+    <text y="13" class="box-sub">词库命中？</text>
+  </g>
+
+  <g transform="translate(910,155)">
+    <rect x="0" y="12" width="170" height="54" rx="2" fill="#0f172a"/>
+    <ellipse cx="85" cy="12" rx="85" ry="14" fill="#0f172a"/>
+    <ellipse cx="85" cy="66" rx="85" ry="14" fill="#0f172a"/>
+    <rect x="0" y="12" width="170" height="54" fill="rgba(76,29,149,0.4)"/>
+    <ellipse cx="85" cy="12" rx="85" ry="14" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <ellipse cx="85" cy="66" rx="85" ry="14" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <line x1="0" y1="12" x2="0" y2="66" stroke="#a78bfa" stroke-width="1.5"/>
+    <line x1="170" y1="12" x2="170" y2="66" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="85" y="36" class="box-title">PostgreSQL words</text>
+    <text x="85" y="54" class="box-sub">用户已保存词卡</text>
+  </g>
+
+  <rect x="895" y="345" width="200" height="70" rx="7" fill="#0f172a"/>
+  <rect x="895" y="345" width="200" height="70" rx="7" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="995" y="372" class="box-title">dictionaryService</text>
+  <text x="995" y="391" class="box-sub">查内存 Map / ecdict.csv</text>
+
+  <rect x="895" y="505" width="200" height="70" rx="7" fill="#0f172a"/>
+  <rect x="895" y="505" width="200" height="70" rx="7" fill="rgba(6,78,59,0.45)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="995" y="532" class="box-title">buildWordPrompt</text>
+  <text x="995" y="551" class="box-sub">词库版或普通版 prompt</text>
+
+  <rect x="895" y="640" width="200" height="60" rx="7" fill="#0f172a"/>
+  <rect x="895" y="640" width="200" height="60" rx="7" fill="rgba(30,41,59,0.55)" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="995" y="664" class="box-title">generateWithLocalModel</text>
+  <text x="995" y="683" class="box-sub">Ollama / oMLX 生成场景</text>
+
+  <rect x="470" y="735" width="200" height="54" rx="7" fill="#0f172a"/>
+  <rect x="470" y="735" width="200" height="54" rx="7" fill="rgba(6,78,59,0.45)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="570" y="758" class="box-title">normalize + save</text>
+  <text x="570" y="776" class="box-sub">整理 JSON，保存并返回</text>
+
+  <path d="M180 205 L180 245" stroke="#22d3ee" stroke-width="1.7" marker-end="url(#arrow-cyan)"/>
+  <path d="M280 275 C355 275 390 175 470 175" stroke="#22d3ee" stroke-width="1.7" fill="none" marker-end="url(#arrow-cyan)"/>
+  <path d="M570 205 L570 245" stroke="#34d399" stroke-width="1.7" marker-end="url(#arrow-green)"/>
+  <path d="M570 305 L570 345" stroke="#34d399" stroke-width="1.7" marker-end="url(#arrow-green)"/>
+  <path d="M640 360 C750 310 820 195 910 185" stroke="#a78bfa" stroke-width="1.5" fill="none" marker-end="url(#arrow-violet)"/>
+  <text x="775" y="265" class="label">findWordByText</text>
+  <path d="M570 415 L570 456" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M498 500 C390 500 340 340 280 292" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="392" y="426" class="label">命中：直接返回</text>
+  <path d="M570 544 L570 581" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="610" y="566" class="label">未命中</text>
+  <path d="M642 625 C760 625 825 390 895 380" stroke="#a78bfa" stroke-width="1.5" fill="none" marker-end="url(#arrow-violet)"/>
+  <text x="762" y="520" class="label">findByWord</text>
+  <path d="M995 415 L995 505" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+  <text x="1045" y="462" class="label">命中：带词库义项</text>
+  <path d="M642 640 C760 660 830 545 895 540" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="770" y="602" class="label">未命中：普通 prompt</text>
+  <path d="M995 575 L995 640" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M895 670 C785 700 720 755 670 762" stroke="#34d399" stroke-width="1.5" fill="none" marker-end="url(#arrow-green)"/>
+  <path d="M470 762 C310 760 215 335 180 305" stroke="#22d3ee" stroke-width="1.7" fill="none" marker-end="url(#arrow-cyan)"/>
+
+  <rect x="36" y="760" width="350" height="36" rx="6" fill="rgba(30,41,59,0.65)" stroke="#475569" stroke-width="1"/>
+  <text x="50" y="782" class="note">关键点：词库命中时，词性和中文意思以 ECDICT 为准；模型只写 example 和 tip。</text>
+</svg>
