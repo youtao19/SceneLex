@@ -25,6 +25,7 @@ const jsonFormat = {
   properties: {
     word: { type: 'string' },
     phonetic: { type: 'string' },
+    coreFeeling: { type: 'string' },
     meanings: {
       type: 'array',
       minItems: 1,
@@ -33,14 +34,28 @@ const jsonFormat = {
         properties: {
           partOfSpeech: { type: 'string' },
           meaning: { type: 'string' },
+          sceneTitle: { type: 'string' },
+          examples: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 3,
+            items: { type: 'string' }
+          },
+          explanation: { type: 'string' },
+          imageQueries: {
+            type: 'array',
+            minItems: 3,
+            maxItems: 4,
+            items: { type: 'string' }
+          },
           example: { type: 'string' },
           tip: { type: 'string' }
         },
-        required: ['partOfSpeech', 'meaning', 'example', 'tip']
+        required: ['partOfSpeech', 'meaning', 'sceneTitle', 'examples', 'explanation', 'imageQueries', 'example', 'tip']
       }
     }
   },
-  required: ['word', 'phonetic', 'meanings']
+  required: ['word', 'phonetic', 'coreFeeling', 'meanings']
 }
 
 function hasWordMeanings(value: object) {

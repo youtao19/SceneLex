@@ -1,103 +1,109 @@
 import type { DictionaryEntry } from '../types/dictionary'
 
-/**
- * 让模型优先输出“义项 + 典型短语化场景”，而不是松散的完整例句。
- */
 export function buildWordPrompt(word: string, dictionaryEntry?: DictionaryEntry): string {
-  if (dictionaryEntry) {
-    return buildDictionaryWordPrompt(word, dictionaryEntry)
-  }
+  const dictionaryContext = dictionaryEntry ? buildDictionaryContext(dictionaryEntry) : ''
 
   return `
 你是一个英语单词记忆助手。
 
 任务：
-围绕单词 "${word}"，按英语六级里常见、常考的意思生成记忆材料。
+当用户给你英文单词 "${word}" 时，你必须用“核心感觉 + 场景拆分”的方式帮用户记忆，而不是罗列词典意思。
 
-要求：
-1. 先判断单词 "${word}" 在英语六级中的高频常用义项，再决定输出几组内容
-2. 只输出 "${word}" 的高频、常用、容易混淆或值得记的义项，不要硬编冷僻义项
-4. 每组都必须包含：
-   - partOfSpeech：词性，使用标准缩写，例如 n., v., adj., adv.
-   - meaning：该义项的标准中文释义，要像词典里的常见义项，短、准、规范
-   - example：必须包含单词 "${word}" 的典型、好记的英文短语或短场景
-   - tip：与 example 对应的中文联想短语，帮助用户立刻形成画面感或动作感
-5. partOfSpeech 必须符合这些要求：
-   - 只写最贴切的一个词性
-   - 使用标准英语词性缩写，例如 n., v., adj., adv., prep.
-   - 词性必须属于单词 "${word}" 本身，不能因为 example 里出现动作词就把 "${word}" 标成动词
-   - 例如 "give instruction" 里的动词是 give，instruction 仍然是 n.
-6. meaning 必须符合这些要求：
-   - 尽量用标准义项表达，不要写成解释句或长描述
-   - 控制在 2 到 8 个字，不要啰嗦
-7. example 尽量写包含 "${word}" 的短语化表达（如动宾搭配、主谓搭配、简短场景等），而不是冗长的完整句子。
-8. example 要短、准、常见，一眼就能看出 "${word}" 在真实场景里怎么用；不要堆砌生词。
-9. tip 不要只是翻译 example；要变成脑中能看到的画面、动作、人物或场景。
-10. tip 必须非常短，像联想标签，不要写完整句，最好控制在 4 到 12 个字。
-11. phonetic 必须输出美式 IPA 音标，包含前后斜杠，例如 /rɪˈzɪliənt/；如果是短语，只输出核心单词的音标。
-12. 不要输出任何解释说明，不要输出多余文字。
-13. 必须严格按照下面的 JSON 格式返回，并且所有内容必须完全针对单词 "${word}"！
-14. 不要出现重复义项；如果有多个义项，必须保证它们之间的意思不重复。
+${dictionaryContext}
 
-返回格式样例：
+一、核心感觉
+- coreFeeling 先用一句中文总结 "${word}" 的统一核心感觉
+- coreFeeling 必须能串起所有常见意思
+- coreFeeling 要简单、有画面感，不能是抽象解释
+- 禁止写“表示一种状态”“表示一种动作”这类空话
+
+二、场景拆分
+- meanings 只保留 2 到 5 个最常见、最实用的用法场景
+- 不要为了凑数输出冷僻场景
+- 如果有词库上下文，场景必须来自词库中文义项或英文释义参考
+- meaning 必须写词典里的中文释义，不允许写成场景标题、联想短语或例句总结
+- sceneTitle 才写当前场景的中文标题，不要和 meaning 混用
+- 每个场景都必须能让用户脑补画面
+- sceneTitle：简短中文场景标题，例如“用力搬东西”
+- examples：2 到 3 个英文短语或小例子，必须包含 "${word}"
+- explanation：一句中文解释，强调“这个场景和核心感觉的关系”
+- meaning：优先照抄词库中文义项里的标准释义，例如“慢性地, 长期地, 习惯性地”
+- partOfSpeech：只写一个 n. / v. / adj. / adv. / prep.，必须属于 "${word}"
+- tip：不超过 8 字，作为当前场景的记忆钩子
+
+三、图像辅助
+- 每个场景必须有 imageQueries
+- imageQueries 就是 image_group.query
+- imageQueries 必须是 3 到 4 个英文关键词
+- 每个 query 都要描述该场景的具体画面，能直接搜出图
+- 不要抽象词，不要 concept / abstract / meaning / definition
+
+四、限制
+- 不要讲语法
+- 不要废话
+- 不要超过 5 个场景
+- 不要输出 markdown
+- 不要输出“【核心感觉】”这类标题
+- 所有内容必须针对 "${word}"
+
+五、音标
+- 美式 IPA
+- 格式：/xxx/
+${dictionaryEntry?.phonetic ? `- 优先使用词库音标：${dictionaryEntry.phonetic}` : ''}
+
+六、输出
+- 不要输出解释说明
+- 必须严格 JSON
+- 下面的 JSON 字段对应目标结构：
+  - coreFeeling 对应【核心感觉】
+  - meanings 每一项对应一个【场景】
+  - sceneTitle 对应场景标题
+  - imageQueries 对应 image_group.query
+  - examples 对应示例
+  - explanation 对应解释
+
 {
   "word": "${word}",
-  "phonetic": "/${word} 的美式 IPA 音标/",
+  "phonetic": "/xxx/",
+  "coreFeeling": "一句能串起所有场景的中文画面",
   "meanings": [
     {
-      "partOfSpeech": "n.",
-      "meaning": "${word}的具体中文意思",
-      "example": "包含 ${word} 的简短英文场景",
-      "tip": "简短的中文画面感联想"
+      "partOfSpeech": "adj.",
+      "meaning": "词典中文释义",
+      "sceneTitle": "简短中文场景",
+      "imageQueries": [
+        "specific visual search query",
+        "real life scene keyword",
+        "clear object action photo"
+      ],
+      "examples": [
+        "short phrase with ${word}",
+        "small example with ${word}"
+      ],
+      "explanation": "这个场景如何体现核心感觉。",
+      "example": "short phrase with ${word}",
+      "tip": "画面钩子"
     }
   ]
 }
 `.trim()
 }
 
-/**
- * 词库已经给出事实字段，模型只负责补充场景，避免词性和释义再次漂移。
- */
-function buildDictionaryWordPrompt(word: string, dictionaryEntry: DictionaryEntry): string {
+function buildDictionaryContext(dictionaryEntry: DictionaryEntry) {
   const meanings = dictionaryEntry.meanings
     .map((item, index) => `${index + 1}. ${item.partOfSpeech} ${item.meaning}`)
     .join('\n')
+  const definitions = dictionaryEntry.definitions.length > 0
+    ? dictionaryEntry.definitions.map((item, index) => `${index + 1}. ${item}`).join('\n')
+    : '词库未提供英文释义'
 
   return `
-你是一个英语单词记忆助手。
-
-任务：
-根据下面词库给出的单词、音标、词性和中文释义，为每个义项生成好记的英文短场景和中文画面联想。
-
-单词：${word}
+词库上下文：
+单词：${dictionaryEntry.word}
 音标：${dictionaryEntry.phonetic || '词库未提供'}
-词库义项：
+中文义项：
 ${meanings}
-
-要求：
-1. 你不能新增、删除、合并或改写词库义项
-2. partOfSpeech 必须逐条照抄词库义项里的词性
-3. meaning 必须逐条照抄词库义项里的中文释义
-4. meanings 数量和顺序必须与词库义项完全一致
-5. example 必须包含单词 "${word}"，写成短语或很短的真实场景，不要冗长
-6. tip 要对应 example 的画面、动作或人物，不要只是翻译 meaning
-7. tip 必须非常短，最好控制在 4 到 12 个字
-8. phonetic 使用词库音标；如果词库未提供，再输出美式 IPA 音标
-9. 不要输出解释说明，不要输出多余文字
-10. 必须严格按照下面的 JSON 格式返回
-
-返回格式样例：
-{
-  "word": "${word}",
-  "phonetic": "${dictionaryEntry.phonetic || `/${word} 的美式 IPA 音标/`}",
-  "meanings": [
-    {
-      "partOfSpeech": "${dictionaryEntry.meanings[0]?.partOfSpeech ?? 'n.'}",
-      "meaning": "${dictionaryEntry.meanings[0]?.meaning ?? '中文释义'}",
-      "example": "包含 ${word} 的简短英文场景",
-      "tip": "简短的中文画面感联想"
-    }
-  ]
-}
+英文释义参考：
+${definitions}
 `.trim()
 }

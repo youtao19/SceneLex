@@ -31,6 +31,7 @@
                 <WordMeaningsPanel
                   :word="preview.word"
                   :phonetic="preview.phonetic"
+                  :core-feeling="preview.coreFeeling"
                   :meanings="preview.meanings"
                 />
               </div>
@@ -39,30 +40,42 @@
                 <div class="book-picker-head">
                   <div>
                     <p class="book-picker-title">保存到单词本</p>
-                    <span>{{ selectedBookIds.length }} 个已选择</span>
+                    <span>{{ selectedBookSummary }}</span>
                   </div>
-                  <RouterLink to="/word-books" class="book-manage-link">管理</RouterLink>
+                  <div class="book-picker-actions">
+                    <button
+                      type="button"
+                      class="book-toggle"
+                      @click="showBookOptions = !showBookOptions"
+                    >
+                      {{ showBookOptions ? '收起' : '更改' }}
+                    </button>
+                    <RouterLink to="/word-books" class="book-manage-link">管理</RouterLink>
+                  </div>
                 </div>
-                <div v-if="bookLoading" class="book-state">正在读取单词本...</div>
-                <div v-else-if="wordBooks.length === 0" class="book-state">暂无单词本，将保存到默认单词本。</div>
-                <div v-else class="book-options">
-                  <label v-for="book in wordBooks" :key="book.id" class="book-option">
-                    <input
-                      v-model="selectedBookIds"
-                      type="checkbox"
-                      :value="book.id"
-                    />
-                    <span>
-                      <strong>{{ book.name }}</strong>
-                      <small>{{ book.wordCount }} 个单词</small>
-                    </span>
-                  </label>
+                <div v-if="showBookOptions" class="book-options-wrap">
+                  <div v-if="bookLoading" class="book-state">正在读取单词本...</div>
+                  <div v-else-if="wordBooks.length === 0" class="book-state">暂无单词本，将保存到默认单词本。</div>
+                  <div v-else class="book-options">
+                    <label v-for="book in wordBooks" :key="book.id" class="book-option">
+                      <input
+                        v-model="selectedBookIds"
+                        type="checkbox"
+                        :value="book.id"
+                      />
+                      <span>
+                        <strong>{{ book.name }}</strong>
+                        <small>{{ book.wordCount }} 个单词</small>
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </section>
 
               <!-- 操作栏 -->
               <footer class="card-action-footer">
                 <div class="footer-info">
+                  <span class="source-tag" :class="sourceTagClass">{{ contentSourceText }}</span>
                   <span class="count-tag">{{ previewStatusText }}</span>
                 </div>
                 <div class="footer-actions">
@@ -113,10 +126,20 @@ const selectedBookIds = ref<number[]>([])
 const previewLoading = ref(false)
 const bookLoading = ref(false)
 const saveLoading = ref(false)
+const showBookOptions = ref(false)
 const errorMessage = ref('')
 
 const showManualSave = computed(() => preview.value?.saved === false)
 const saveButtonText = computed(() => (showManualSave.value ? '确认保存' : '保存到单词本'))
+const contentSourceText = computed(() => {
+  if (!preview.value) return ''
+
+  return preview.value.contentSource === 'dictionary' ? '来源：词典' : '来源：Agent'
+})
+const sourceTagClass = computed(() => ({
+  'is-dictionary': preview.value?.contentSource === 'dictionary',
+  'is-agent': preview.value?.contentSource === 'agent',
+}))
 const previewStatusText = computed(() => {
   if (!preview.value) return ''
 
@@ -131,6 +154,21 @@ const previewStatusText = computed(() => {
   }
 
   return `${countText} · 待确认保存`
+})
+const selectedBookSummary = computed(() => {
+  if (bookLoading.value) return '正在读取单词本...'
+  if (wordBooks.value.length === 0) return '默认单词本'
+  if (selectedBookIds.value.length === 0) return '未选择单词本'
+
+  const selectedNames: string[] = []
+
+  for (const book of wordBooks.value) {
+    if (selectedBookIds.value.includes(book.id)) {
+      selectedNames.push(book.name)
+    }
+  }
+
+  return selectedNames.length > 0 ? selectedNames.join('、') : '未选择单词本'
 })
 
 function selectDefaultBook() {
@@ -158,6 +196,8 @@ async function handlePreview() {
   if (!word.value.trim()) return
   previewLoading.value = true
   errorMessage.value = ''
+  preview.value = null
+  showBookOptions.value = false
   try {
     const response = await generateWord(word.value.trim())
     preview.value = response.data
@@ -182,6 +222,7 @@ async function handleAddWord() {
     await addWord(
       preview.value.word,
       preview.value.phonetic,
+      preview.value.coreFeeling,
       preview.value.meanings,
       selectedBookIds.value
     )
@@ -205,6 +246,8 @@ async function handleRegenerate() {
   if (!targetWord.trim()) return
   previewLoading.value = true
   errorMessage.value = ''
+  preview.value = null
+  showBookOptions.value = false
   try {
     const response = await generateWord(targetWord.trim(), true)
     preview.value = response.data
@@ -316,10 +359,10 @@ onMounted(loadWordBooks)
 
 .book-picker {
   margin: 0 32px 24px;
-  padding: 18px;
+  padding: 14px 16px;
   border: 1px solid var(--sl-glass-border);
   border-radius: var(--sl-radius-md);
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .book-picker-head {
@@ -327,7 +370,6 @@ onMounted(loadWordBooks)
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 14px;
 }
 
 .book-picker-title {
@@ -342,11 +384,31 @@ onMounted(loadWordBooks)
   font-size: 12px;
 }
 
+.book-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.book-toggle {
+  border: none;
+  background: transparent;
+  color: var(--sl-peach-500);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
 .book-manage-link {
   color: var(--sl-peach-500);
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;
+}
+
+.book-options-wrap {
+  margin-top: 14px;
 }
 
 .book-state {
@@ -391,6 +453,35 @@ onMounted(loadWordBooks)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.footer-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.source-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.source-tag.is-dictionary {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.24);
+}
+
+.source-tag.is-agent {
+  color: var(--sl-peach-600);
+  background: var(--sl-peach-50);
+  border: 1px solid var(--sl-peach-100);
 }
 
 .count-tag {

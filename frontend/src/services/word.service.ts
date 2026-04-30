@@ -17,10 +17,11 @@ export async function generateWord(word: string, forceRegenerate = false) {
 export async function addWord(
   word: string,
   phonetic: string,
+  coreFeeling: string,
   meanings: WordMeaningItem[],
   bookIds: number[] = []
 ) {
-  return post<ApiResponse<StoredWord>>('/word/add', { word, phonetic, meanings, bookIds })
+  return post<ApiResponse<StoredWord>>('/word/add', { word, phonetic, coreFeeling, meanings, bookIds })
 }
 
 export async function getTodayWords() {

@@ -22,15 +22,21 @@ function buildFallback(word: string): WordGenerateResult {
   return {
     word,
     phonetic: '',
+    coreFeeling: `${word} 像一个正在发生的画面`,
     meanings: [
       {
         partOfSpeech: '词性',
         meaning: '常见意思',
+        sceneTitle: '常见使用场景',
+        examples: [`I met the word ${word} in a short scene.`],
+        explanation: `这个场景先保底展示 ${word}，避免生成失败时页面没有内容。`,
+        imageQueries: [`${word} word learning scene`, `${word} example scene`, `${word} visual memory`],
         example: `I met the word ${word} in a short sentence.`,
         tip: `${word} 的使用场景`,
       },
     ],
     source: 'generated',
+    contentSource: 'agent',
     saved: false,
   };
 }
@@ -56,19 +62,51 @@ function readMeaningItems(value: unknown): WordMeaningItem[] {
     const partOfSpeech =
       typeof data.partOfSpeech === 'string' ? data.partOfSpeech.trim() : '';
     const meaning = typeof data.meaning === 'string' ? data.meaning.trim() : '';
+    const sceneTitle = typeof data.sceneTitle === 'string' ? data.sceneTitle.trim() : meaning;
+    const examples = readStringList(data.examples);
     const example = typeof data.example === 'string' ? data.example.trim() : '';
+    const finalExamples = examples.length > 0 ? examples : [example].filter(Boolean);
+    const explanation =
+      typeof data.explanation === 'string' ? data.explanation.trim() : '';
+    const imageQueries = readStringList(data.imageQueries);
     const tip = typeof data.tip === 'string' ? data.tip.trim() : '';
 
-    if (!partOfSpeech || !meaning || !example || !tip) {
+    if (!partOfSpeech || !meaning || finalExamples.length === 0 || !tip) {
       continue;
     }
 
     result.push({
       partOfSpeech,
       meaning,
-      example,
+      sceneTitle,
+      examples: finalExamples,
+      explanation: explanation || tip,
+      imageQueries,
+      example: example || finalExamples[0],
       tip,
     });
+  }
+
+  return result;
+}
+
+function readStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: string[] = [];
+
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      continue;
+    }
+
+    const text = item.trim();
+
+    if (text) {
+      result.push(text);
+    }
   }
 
   return result;
@@ -91,6 +129,10 @@ function readLegacyMeaningItems(raw: Record<string, unknown>): WordMeaningItem[]
     result.push({
       partOfSpeech: '词性',
       meaning: `义项 ${result.length + 1}`,
+      sceneTitle: `场景 ${result.length + 1}`,
+      examples: [example],
+      explanation: tip,
+      imageQueries: [],
       example,
       tip,
     });
@@ -118,6 +160,7 @@ function normalizeGeneratedResult(
   const fallback = buildFallback(fallbackWord);
   let word = fallbackWord;
   let phonetic = fallback.phonetic;
+  let coreFeeling = fallback.coreFeeling;
   let meanings = fallback.meanings;
 
   if (raw && typeof raw === 'object') {
@@ -129,11 +172,16 @@ function normalizeGeneratedResult(
     }
 
     phonetic = normalizePhonetic(data.phonetic);
+    coreFeeling =
+      typeof data.coreFeeling === 'string' && data.coreFeeling.trim()
+        ? data.coreFeeling.trim()
+        : coreFeeling;
 
     const meaningItems = readMeaningItems(data.meanings);
+    const validMeaningItems = filterMeaningsByWord(meaningItems, fallbackWord);
 
-    if (meaningItems.length > 0) {
-      meanings = meaningItems;
+    if (validMeaningItems.length > 0) {
+      meanings = validMeaningItems;
     } else {
       const legacyItems = readLegacyMeaningItems(data);
 
@@ -146,14 +194,42 @@ function normalizeGeneratedResult(
   return {
     word,
     phonetic,
+    coreFeeling,
     meanings,
     source: 'generated',
+    contentSource: 'agent',
     saved: false,
   };
 }
 
 /**
- * 模型只负责 example/tip，词性和中文释义最终以词库为准。
+ * 小模型偶尔会照搬提示词里的其他单词例句；这里直接拦掉脏场景。
+ */
+function filterMeaningsByWord(meanings: WordMeaningItem[], word: string) {
+  const normalizedWord = word.toLowerCase();
+  const result: WordMeaningItem[] = [];
+
+  for (const meaning of meanings) {
+    const examples = meaning.examples.filter((example) =>
+      example.toLowerCase().includes(normalizedWord),
+    );
+
+    if (examples.length === 0) {
+      continue;
+    }
+
+    result.push({
+      ...meaning,
+      examples,
+      example: examples[0],
+    });
+  }
+
+  return result;
+}
+
+/**
+ * 词典义项比模型更稳定；场景内容保留模型生成，词性和中文释义以词库为准。
  */
 function applyDictionaryFacts(
   result: WordGenerateResult,
@@ -165,15 +241,14 @@ function applyDictionaryFacts(
 
   const meanings: WordMeaningItem[] = [];
 
-  for (let i = 0; i < dictionaryEntry.meanings.length; i += 1) {
-    const dictionaryMeaning = dictionaryEntry.meanings[i];
-    const generatedMeaning = result.meanings[i];
+  for (let i = 0; i < result.meanings.length; i += 1) {
+    const generated = result.meanings[i];
+    const dictionaryMeaning = dictionaryEntry.meanings[i] ?? dictionaryEntry.meanings[0];
 
     meanings.push({
+      ...generated,
       partOfSpeech: dictionaryMeaning.partOfSpeech,
       meaning: dictionaryMeaning.meaning,
-      example: generatedMeaning?.example || `a ${result.word} scene`,
-      tip: generatedMeaning?.tip || `${result.word} 场景`,
     });
   }
 
@@ -198,7 +273,15 @@ function normalizeIncomingMeanings(value: unknown) {
 function buildPrimaryMeaning(meanings: WordMeaningItem[]) {
   const primary = meanings[0];
 
-  return `${primary.partOfSpeech} ${primary.meaning}`.trim();
+  return primary.explanation || `${primary.partOfSpeech} ${primary.meaning}`.trim();
+}
+
+function normalizeCoreFeeling(value: unknown, meanings: WordMeaningItem[]) {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  return buildPrimaryMeaning(meanings);
 }
 
 function normalizeBookIds(value: unknown) {
@@ -226,21 +309,23 @@ function normalizeBookIds(value: unknown) {
 /**
  * 查询缓存时只返回词卡预览需要的字段，避免前端误把复习进度当成可编辑内容。
  */
-function toGenerateResultFromStoredWord(word: StoredWord): WordGenerateResult {
+function toGenerateResultFromStoredWord(
+  word: StoredWord,
+  contentSource: WordGenerateResult['contentSource'],
+): WordGenerateResult {
   return {
     word: word.word,
     phonetic: word.phonetic,
+    coreFeeling: word.coreFeeling,
     meanings: word.meanings,
     source: 'database',
+    contentSource,
     saved: true,
   };
 }
 
-/**
- * 老词卡是在音标字段加入前保存的，空音标时继续生成一次用于补齐展示字段。
- */
 function canUseStoredWord(word: StoredWord) {
-  return word.phonetic.trim().length > 0;
+  return word.meanings.length > 0;
 }
 
 function getNextInterval(interval: number, rating: ReviewRating) {
@@ -270,15 +355,17 @@ export const wordService = {
       throw new HttpError(400, 'word 不能为空');
     }
 
+    const dictionaryEntry = dictionaryService.findByWord(cleanWord);
+
     if (!forceRegenerate) {
       const storedWord = await findWordByText(userId, cleanWord);
 
       if (storedWord && canUseStoredWord(storedWord)) {
-        return toGenerateResultFromStoredWord(storedWord);
+        const storedContentSource = dictionaryEntry ? 'dictionary' : 'agent';
+        return toGenerateResultFromStoredWord(storedWord, storedContentSource);
       }
     }
 
-    const dictionaryEntry = dictionaryService.findByWord(cleanWord);
     const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined);
     const rawText = await generateWithLocalModel(prompt);
     let parsed: unknown;
@@ -294,9 +381,13 @@ export const wordService = {
       normalizeGeneratedResult(parsed, cleanWord),
       dictionaryEntry,
     );
+    const contentSource: WordGenerateResult['contentSource'] = dictionaryEntry
+      ? 'dictionary'
+      : 'agent';
     const generated = {
       ...normalized,
       word: cleanWord,
+      contentSource,
     };
 
     if (forceRegenerate) {
@@ -307,7 +398,7 @@ export const wordService = {
       };
     }
 
-    const primaryMeaning = buildPrimaryMeaning(generated.meanings);
+    const primaryMeaning = generated.coreFeeling;
     const saved = await saveWordCard(
       userId,
       generated.word,
@@ -317,10 +408,12 @@ export const wordService = {
     );
 
     return {
-      word: saved.card.word,
-      phonetic: saved.card.phonetic,
-      meanings: saved.card.meanings,
+	      word: saved.card.word,
+	      phonetic: saved.card.phonetic,
+	      coreFeeling: saved.card.coreFeeling,
+	      meanings: saved.card.meanings,
       source: 'generated',
+      contentSource,
       saved: true,
     };
   },
@@ -332,6 +425,7 @@ export const wordService = {
     userId: number,
     word: string,
     phoneticInput: unknown,
+    coreFeelingInput: unknown,
     meaningsInput: unknown,
     bookIdsInput: unknown,
   ): Promise<SaveWordResult> {
@@ -343,7 +437,7 @@ export const wordService = {
 
     const meanings = normalizeIncomingMeanings(meaningsInput);
     const phonetic = normalizePhonetic(phoneticInput);
-    const primaryMeaning = buildPrimaryMeaning(meanings);
+    const primaryMeaning = normalizeCoreFeeling(coreFeelingInput, meanings);
     const bookIds = normalizeBookIds(bookIdsInput);
 
     return saveWordCard(userId, cleanWord, phonetic, primaryMeaning, meanings, bookIds);
