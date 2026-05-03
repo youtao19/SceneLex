@@ -229,7 +229,7 @@ function filterMeaningsByWord(meanings: WordMeaningItem[], word: string) {
 }
 
 /**
- * 词典义项比模型更稳定；场景内容保留模型生成，词性和中文释义以词库为准。
+ * 词库能对上的义项更稳定；对不上的后续场景保留模型拆分，避免宽泛义项被复制成重复卡片。
  */
 function applyDictionaryFacts(
   result: WordGenerateResult,
@@ -240,10 +240,18 @@ function applyDictionaryFacts(
   }
 
   const meanings: WordMeaningItem[] = [];
+  const usedDictionaryMeanings: string[] = [];
 
   for (let i = 0; i < result.meanings.length; i += 1) {
     const generated = result.meanings[i];
-    const dictionaryMeaning = dictionaryEntry.meanings[i] ?? dictionaryEntry.meanings[0];
+    const dictionaryMeaning = dictionaryEntry.meanings[i];
+
+    if (!dictionaryMeaning || usedDictionaryMeanings.includes(dictionaryMeaning.meaning)) {
+      meanings.push(generated);
+      continue;
+    }
+
+    usedDictionaryMeanings.push(dictionaryMeaning.meaning);
 
     meanings.push({
       ...generated,
