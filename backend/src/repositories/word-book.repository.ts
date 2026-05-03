@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { query, withTransaction } from '../config/database';
+import { buildPrimaryMeaning } from '../utils/word-meaning';
 import type { StoredWord, WordMeaningItem } from '../types/word';
 import type { WordBook, WordBookDetail } from '../types/word-book';
 
@@ -54,7 +55,7 @@ function mapWordRow(row: WordRow): StoredWord {
     id: Number(row.id),
     word: row.word,
     phonetic: row.phonetic,
-    primaryMeaning: row.primary_meaning,
+    primaryMeaning: buildPrimaryMeaning(row.meanings),
     coreFeeling: row.primary_meaning,
     meanings: row.meanings,
     ease: Number(row.ease),

@@ -1,6 +1,7 @@
 import { buildWordPrompt } from '../prompts/word.prompt';
 import { generateWithLocalModel } from './llm.service';
 import { dictionaryService } from './dictionary.service';
+import { buildPrimaryMeaning } from '../utils/word-meaning';
 import {
   findWordByText,
   findWordById,
@@ -278,12 +279,6 @@ function normalizeIncomingMeanings(value: unknown) {
   return meanings;
 }
 
-function buildPrimaryMeaning(meanings: WordMeaningItem[]) {
-  const primary = meanings[0];
-
-  return primary.explanation || `${primary.partOfSpeech} ${primary.meaning}`.trim();
-}
-
 function normalizeCoreFeeling(value: unknown, meanings: WordMeaningItem[]) {
   if (typeof value === 'string' && value.trim()) {
     return value.trim();
@@ -336,16 +331,47 @@ function canUseStoredWord(word: StoredWord) {
   return word.meanings.length > 0;
 }
 
-function getNextInterval(interval: number, rating: ReviewRating) {
+const MIN_ANKI_EASE = 1.3;
+const DEFAULT_ANKI_EASE = 2.5;
+
+interface AnkiSchedule {
+  interval: number;
+  ease: number;
+}
+
+function clampAnkiEase(ease: number) {
+  return Math.max(MIN_ANKI_EASE, Number(ease.toFixed(2)));
+}
+
+/**
+ * SceneLex 目前只有天级 next_review，所以这里采用 Anki/SM-2 的日粒度版本。
+ */
+function getNextAnkiSchedule(word: StoredWord, rating: ReviewRating): AnkiSchedule {
+  const currentInterval = Math.max(1, word.interval);
+  const currentEase = word.ease > 0 ? word.ease : DEFAULT_ANKI_EASE;
+
   if (rating === 'again') {
-    return 1;
+    return {
+      interval: 1,
+      ease: clampAnkiEase(currentEase - 0.2),
+    };
   }
 
   if (rating === 'hard') {
-    return Math.max(1, Math.round(interval * 1.5));
+    return {
+      interval: Math.max(1, Math.round(currentInterval * 1.2)),
+      ease: clampAnkiEase(currentEase - 0.15),
+    };
   }
 
-  return Math.max(1, Math.round(interval * 2));
+  const nextInterval = word.reviewCount === 0
+    ? 1
+    : Math.max(2, Math.round(currentInterval * currentEase));
+
+  return {
+    interval: nextInterval,
+    ease: clampAnkiEase(currentEase + 0.05),
+  };
 }
 
 export const wordService = {
@@ -482,8 +508,13 @@ export const wordService = {
       throw new HttpError(404, '单词不存在');
     }
 
-    const nextInterval = getNextInterval(current.interval, rating);
+    const nextSchedule = getNextAnkiSchedule(current, rating);
 
-    return updateReviewSchedule(userId, wordId, nextInterval);
+    return updateReviewSchedule(
+      userId,
+      wordId,
+      nextSchedule.interval,
+      nextSchedule.ease,
+    );
   },
 };
