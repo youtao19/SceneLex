@@ -3,16 +3,16 @@ import os from 'node:os'
 import path from 'node:path'
 import { env } from './env'
 
-export type AiProvider = 'ollama' | 'omlx'
+export type AiProvider = 'ollama' | 'omlx' | 'deepseek'
 
 function readProvider(): AiProvider {
   const provider = env.aiProvider.toLowerCase()
 
-  if (provider === 'ollama' || provider === 'omlx') {
+  if (provider === 'ollama' || provider === 'omlx' || provider === 'deepseek') {
     return provider
   }
 
-  throw new Error(`AI_PROVIDER 只支持 ollama 或 omlx，当前值是：${provider}`)
+  throw new Error(`AI_PROVIDER 只支持 ollama、omlx 或 deepseek，当前值是：${provider}`)
 }
 
 function readOmlxApiKey() {
@@ -54,5 +54,12 @@ export const aiConfig = {
     model: process.env.OMLX_MODEL ?? process.env.OLLAMA_MODEL ?? 'qwen3:4b',
     timeout: Number(process.env.OMLX_TIMEOUT ?? process.env.OLLAMA_TIMEOUT ?? 60_000),
     apiKey: readOmlxApiKey()
+  },
+  deepseek: {
+    // DeepSeek 官方 API 兼容 OpenAI chat/completions。
+    baseURL: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com',
+    model: process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash',
+    timeout: Number(process.env.DEEPSEEK_TIMEOUT ?? 60_000),
+    apiKey: process.env.DEEPSEEK_API_KEY ?? ''
   }
 }
