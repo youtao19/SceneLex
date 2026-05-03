@@ -13,6 +13,7 @@ interface OllamaGenerateResponse {
 
 interface ChatCompletionResponse {
   choices?: Array<{
+    finish_reason?: string | null
     message?: {
       content?: string | null
     }
@@ -48,10 +49,9 @@ const jsonFormat = {
             maxItems: 4,
             items: { type: 'string' }
           },
-          example: { type: 'string' },
           tip: { type: 'string' }
         },
-        required: ['partOfSpeech', 'meaning', 'sceneTitle', 'examples', 'explanation', 'imageQueries', 'example', 'tip']
+        required: ['partOfSpeech', 'meaning', 'sceneTitle', 'examples', 'explanation', 'imageQueries', 'tip']
       }
     }
   },
@@ -229,7 +229,15 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
     const cleanContent = content.trim()
     const jsonText = findLastJsonObjectText(cleanContent)
 
-    return jsonText || cleanContent
+    if (jsonText) {
+      return jsonText
+    }
+
+    if (cleanContent.startsWith('{')) {
+      throw new Error('DeepSeek 未返回完整 JSON，请调大 max_tokens 或缩短提示词')
+    }
+
+    return cleanContent
   }
 
   throw new Error('oMLX 未返回 message.content')
@@ -267,7 +275,7 @@ export async function generateWithDeepseek(prompt: string): Promise<string> {
         type: 'json_object'
       },
       temperature: 0.6,
-      max_tokens: 1200,
+      max_tokens: 2400,
       stream: false
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -279,7 +287,12 @@ export async function generateWithDeepseek(prompt: string): Promise<string> {
   }
 
   const data = (await response.json()) as ChatCompletionResponse
+  const finishReason = data.choices?.[0]?.finish_reason
   const content = data.choices?.[0]?.message?.content
+
+  if (finishReason === 'length') {
+    throw new Error('DeepSeek 输出被 max_tokens 截断，请调大 max_tokens 或缩短提示词')
+  }
 
   if (content && content.trim()) {
     const cleanContent = content.trim()

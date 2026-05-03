@@ -218,17 +218,27 @@ async function handleAddWord() {
   if (!preview.value) return
   saveLoading.value = true
   errorMessage.value = ''
+  const currentPreview = preview.value
+  const currentBookIds = [...selectedBookIds.value]
+
   try {
     await addWord(
-      preview.value.word,
-      preview.value.phonetic,
-      preview.value.coreFeeling,
-      preview.value.meanings,
+      currentPreview.word,
+      currentPreview.phonetic,
+      currentPreview.coreFeeling,
+      currentPreview.meanings,
       selectedBookIds.value
     )
-    preview.value = null
-    word.value = ''
+    preview.value = {
+      ...currentPreview,
+      saved: true,
+      source: 'database',
+    }
+    word.value = currentPreview.word
     await loadWordBooks()
+    selectedBookIds.value = currentBookIds.filter((bookId) =>
+      wordBooks.value.some((book) => book.id === bookId),
+    )
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error && error.message
