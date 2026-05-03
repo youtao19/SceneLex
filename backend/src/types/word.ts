@@ -29,7 +29,7 @@ export interface AddWordPayload extends WordPayload {
   meanings: WordMeaningItem[];
 }
 
-export type ReviewRating = 'again' | 'hard' | 'good';
+export type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
 
 export interface ReviewWordPayload {
   wordId: number;

@@ -333,6 +333,10 @@ function canUseStoredWord(word: StoredWord) {
 
 const MIN_ANKI_EASE = 1.3;
 const DEFAULT_ANKI_EASE = 2.5;
+const ANKI_HARD_INTERVAL = 1.2;
+const ANKI_EASY_BONUS = 1.3;
+const ANKI_INTERVAL_MODIFIER = 1;
+const ANKI_MAX_INTERVAL = 36_500;
 
 interface AnkiSchedule {
   interval: number;
@@ -341,6 +345,16 @@ interface AnkiSchedule {
 
 function clampAnkiEase(ease: number) {
   return Math.max(MIN_ANKI_EASE, Number(ease.toFixed(2)));
+}
+
+function clampAnkiInterval(interval: number) {
+  return Math.min(ANKI_MAX_INTERVAL, Math.max(1, interval));
+}
+
+function growAnkiInterval(currentInterval: number, nextInterval: number) {
+  const roundedInterval = Math.round(nextInterval * ANKI_INTERVAL_MODIFIER);
+
+  return clampAnkiInterval(Math.max(currentInterval + 1, roundedInterval));
 }
 
 /**
@@ -359,18 +373,25 @@ function getNextAnkiSchedule(word: StoredWord, rating: ReviewRating): AnkiSchedu
 
   if (rating === 'hard') {
     return {
-      interval: Math.max(1, Math.round(currentInterval * 1.2)),
+      interval: growAnkiInterval(currentInterval, currentInterval * ANKI_HARD_INTERVAL),
       ease: clampAnkiEase(currentEase - 0.15),
     };
   }
 
-  const nextInterval = word.reviewCount === 0
+  const goodInterval = word.reviewCount === 0
     ? 1
-    : Math.max(2, Math.round(currentInterval * currentEase));
+    : currentInterval * currentEase;
+
+  if (rating === 'easy') {
+    return {
+      interval: growAnkiInterval(currentInterval, goodInterval * ANKI_EASY_BONUS),
+      ease: clampAnkiEase(currentEase + 0.2),
+    };
+  }
 
   return {
-    interval: nextInterval,
-    ease: clampAnkiEase(currentEase + 0.05),
+    interval: growAnkiInterval(currentInterval, goodInterval),
+    ease: clampAnkiEase(currentEase),
   };
 }
 
@@ -496,7 +517,7 @@ export const wordService = {
       throw new HttpError(400, 'wordId 非法');
     }
 
-    const allowedRatings: ReviewRating[] = ['again', 'hard', 'good'];
+    const allowedRatings: ReviewRating[] = ['again', 'hard', 'good', 'easy'];
 
     if (!allowedRatings.includes(rating)) {
       throw new HttpError(400, 'rating 非法');
