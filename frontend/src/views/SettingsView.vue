@@ -50,11 +50,12 @@
             <div class="setting-row">
               <div>
                 <h4>生成服务</h4>
-                <p>预留 Ollama 与 oMLX 的切换入口，保持和后端 `AI_PROVIDER` 一致。</p>
+                <p>预留 Ollama、oMLX 与 DeepSeek 的切换入口，保持和后端 `AI_PROVIDER` 一致。</p>
               </div>
               <div class="choice-group" aria-label="模型服务">
                 <span class="choice-pill is-active">Ollama</span>
                 <span class="choice-pill">oMLX</span>
+                <span class="choice-pill">DeepSeek</span>
               </div>
             </div>
 

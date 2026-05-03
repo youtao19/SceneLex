@@ -35,15 +35,23 @@ npm run dev:ollama
 npm run dev:omlx
 ```
 
+切换到 DeepSeek API：
+
+```bash
+npm run dev:deepseek
+```
+
 也可以只启动后端：
 
 ```bash
 npm run dev:backend:ollama
 npm run dev:backend:omlx
+npm run dev:backend:deepseek
 ```
 
-后端通过 `AI_PROVIDER` 选择本地模型服务。`AI_PROVIDER=ollama` 会请求 `OLLAMA_BASE_URL`，`AI_PROVIDER=omlx` 会请求 `OMLX_BASE_URL` 的 OpenAI-compatible `/chat/completions` 接口。
+后端通过 `AI_PROVIDER` 选择模型服务。`AI_PROVIDER=ollama` 会请求 `OLLAMA_BASE_URL`，`AI_PROVIDER=omlx` 会请求 `OMLX_BASE_URL` 的 OpenAI-compatible `/chat/completions` 接口，`AI_PROVIDER=deepseek` 会请求 `DEEPSEEK_BASE_URL` 的 `/chat/completions` 接口。
 如果 `OMLX_API_KEY` 留空，后端会尝试读取本机 `~/.omlx/settings.json` 里的 oMLX key；也可以在 `.env.dev.local` 里显式填写。
+使用 DeepSeek 前，在 `backend/.env.dev.local` 中配置 `DEEPSEEK_API_KEY`，必要时用 `DEEPSEEK_MODEL` 指定模型。
 
 ## 当前状态
 

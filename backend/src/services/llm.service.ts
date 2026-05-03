@@ -11,7 +11,7 @@ interface OllamaGenerateResponse {
   eval_count?: number
 }
 
-interface OmlxChatCompletionResponse {
+interface ChatCompletionResponse {
   choices?: Array<{
     message?: {
       content?: string | null
@@ -222,7 +222,7 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
     throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
   }
 
-  const data = (await response.json()) as OmlxChatCompletionResponse
+  const data = (await response.json()) as ChatCompletionResponse
   const content = data.choices?.[0]?.message?.content
 
   if (content && content.trim()) {
@@ -236,11 +236,71 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
 }
 
 /**
- * 根据 AI_PROVIDER 选择本地模型服务，业务层不需要知道具体部署方式。
+ * 调用 DeepSeek 官方 OpenAI-compatible 接口。
+ */
+export async function generateWithDeepseek(prompt: string): Promise<string> {
+  const config = aiConfig.deepseek
+
+  if (!config.apiKey) {
+    throw new Error('DeepSeek 调用失败：请先配置 DEEPSEEK_API_KEY')
+  }
+
+  const response = await fetch(`${config.baseURL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a JSON API. Return only valid JSON. Do not include reasoning, markdown, or explanations.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      response_format: {
+        type: 'json_object'
+      },
+      temperature: 0.6,
+      max_tokens: 1200,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`DeepSeek 调用失败：${response.status} ${errorText}`)
+  }
+
+  const data = (await response.json()) as ChatCompletionResponse
+  const content = data.choices?.[0]?.message?.content
+
+  if (content && content.trim()) {
+    const cleanContent = content.trim()
+    const jsonText = findLastJsonObjectText(cleanContent)
+
+    return jsonText || cleanContent
+  }
+
+  throw new Error('DeepSeek 未返回 message.content')
+}
+
+/**
+ * 根据 AI_PROVIDER 选择模型服务，业务层不需要知道具体部署方式。
  */
 export async function generateWithLocalModel(prompt: string): Promise<string> {
   if (aiConfig.provider === 'omlx') {
     return generateWithOmlx(prompt)
+  }
+
+  if (aiConfig.provider === 'deepseek') {
+    return generateWithDeepseek(prompt)
   }
 
   return generateWithOllama(prompt)
