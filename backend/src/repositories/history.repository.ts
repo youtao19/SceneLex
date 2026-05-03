@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import { buildPrimaryMeaning } from '../utils/word-meaning';
 import type { HistoryArchive, HistorySummary } from '../models/history.model';
 import type { StoredWord, WordMeaningItem } from '../types/word';
 
@@ -47,7 +48,7 @@ function mapWordRow(row: WordRow): StoredWord {
     id: Number(row.id),
     word: row.word,
     phonetic: row.phonetic,
-    primaryMeaning: row.primary_meaning,
+    primaryMeaning: buildPrimaryMeaning(row.meanings),
     coreFeeling: row.primary_meaning,
     meanings: row.meanings,
     ease: Number(row.ease),

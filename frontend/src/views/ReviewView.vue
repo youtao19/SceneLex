@@ -194,18 +194,23 @@ const revealedWordIds = ref<Set<number>>(new Set())
 const submittingWordIds = ref<Set<number>>(new Set())
 const reviewResults = ref<Record<number, ReviewRating>>({})
 const selectedWord = ref<StoredWord | null>(null)
+const totalReviewCount = ref(0)
+const completedReviewCount = ref(0)
 
 const displayWords = computed(() => queue.value)
 const remainingCount = computed(() => displayWords.value.length)
-const reviewedCount = computed(() => revealedWordIds.value.size)
 const progress = computed(() => {
-  if (displayWords.value.length === 0) return 0
-  return (reviewedCount.value / displayWords.value.length) * 100
+  if (totalReviewCount.value === 0) return 0
+
+  return (completedReviewCount.value / totalReviewCount.value) * 100
 })
 const queueStatus = computed(() => {
-  if (displayWords.value.length === 0) return '暂无单词'
+  if (totalReviewCount.value === 0) return '暂无单词'
 
-  return `${reviewedCount.value}/${displayWords.value.length}`
+  return `${completedReviewCount.value}/${totalReviewCount.value}`
+})
+const hasCompletedCurrentQueue = computed(() => {
+  return totalReviewCount.value > 0 && completedReviewCount.value === totalReviewCount.value
 })
 const heroDescription = computed(() => {
   if (usingMockData.value) {
@@ -216,6 +221,10 @@ const heroDescription = computed(() => {
     return '今日队列会以表格展示所有单词，先回忆，再选择记得或不记得。'
   }
 
+  if (hasCompletedCurrentQueue.value) {
+    return '今日复习已完成，队列已经清空。'
+  }
+
   if ((archive.value?.summary.totalWords ?? 0) > 0) {
     return '今天没有到期卡片，但你的单词已经在词库里。'
   }
@@ -223,6 +232,8 @@ const heroDescription = computed(() => {
   return '这里会展示到期复习卡片；保存单词后，它们会按复习日期进入队列。'
 })
 const emptyTitle = computed(() => {
+  if (hasCompletedCurrentQueue.value) return '今日复习完成'
+
   if ((archive.value?.summary.totalWords ?? 0) > 0) return '今天没有到期单词'
 
   return '还没有复习卡片'
@@ -230,6 +241,10 @@ const emptyTitle = computed(() => {
 const emptyDescription = computed(() => {
   if (usingMockData.value) {
     return '点击“载入测试词”可以重新查看表格和详情弹窗。'
+  }
+
+  if (hasCompletedCurrentQueue.value) {
+    return '已提交的单词会按新的复习日期进入下一次队列。'
   }
 
   if ((archive.value?.summary.totalWords ?? 0) > 0) {
@@ -254,6 +269,8 @@ async function loadQueue() {
   submittingWordIds.value = new Set()
   reviewResults.value = {}
   selectedWord.value = null
+  totalReviewCount.value = queueResponse.data.length
+  completedReviewCount.value = 0
   usingMockData.value = false
 }
 
@@ -360,6 +377,8 @@ function loadMockReviewData() {
   submittingWordIds.value = new Set()
   reviewResults.value = {}
   selectedWord.value = null
+  totalReviewCount.value = words.length
+  completedReviewCount.value = 0
   errorMessage.value = ''
   usingMockData.value = true
 }
@@ -399,6 +418,25 @@ function getReviewResultLabel(wordId: number) {
   return '已显示意思'
 }
 
+function removeCompletedWord(wordId: number) {
+  if (!queue.value.some((item) => item.id === wordId)) return
+
+  queue.value = queue.value.filter((item) => item.id !== wordId)
+  completedReviewCount.value += 1
+
+  const nextRevealedIds = new Set(revealedWordIds.value)
+  nextRevealedIds.delete(wordId)
+  revealedWordIds.value = nextRevealedIds
+
+  const nextReviewResults = { ...reviewResults.value }
+  delete nextReviewResults[wordId]
+  reviewResults.value = nextReviewResults
+
+  if (selectedWord.value?.id === wordId) {
+    selectedWord.value = null
+  }
+}
+
 /**
  * 选择后先揭示释义，再提交真实复习评分；这样网络慢时也能立即看到答案。
  */
@@ -411,15 +449,26 @@ async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
     [word.id]: rating,
   }
 
-  if (usingMockData.value) return
+  if (usingMockData.value) {
+    removeCompletedWord(word.id)
+    return
+  }
 
   submittingWordIds.value = new Set([...submittingWordIds.value, word.id])
   errorMessage.value = ''
 
   try {
     await reviewWord(word.id, rating)
+    removeCompletedWord(word.id)
   } catch (error) {
     console.error(error)
+    const nextRevealedIds = new Set(revealedWordIds.value)
+    nextRevealedIds.delete(word.id)
+    revealedWordIds.value = nextRevealedIds
+
+    const nextReviewResults = { ...reviewResults.value }
+    delete nextReviewResults[word.id]
+    reviewResults.value = nextReviewResults
     errorMessage.value = '复习记录更新失败，请同步后再试。'
   } finally {
     const nextSubmittingIds = new Set(submittingWordIds.value)

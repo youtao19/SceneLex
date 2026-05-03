@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { query, withTransaction } from '../config/database';
 import { addWordToBooks, ensureDefaultWordBook } from './word-book.repository';
 import { HttpError } from '../utils/http-error';
+import { buildPrimaryMeaning } from '../utils/word-meaning';
 import type {
   SaveWordResult,
   StoredWord,
@@ -42,7 +43,7 @@ function mapWordRow(row: WordRow): StoredWord {
     id: Number(row.id),
     word: row.word,
     phonetic: row.phonetic,
-    primaryMeaning: row.primary_meaning,
+    primaryMeaning: buildPrimaryMeaning(row.meanings),
     coreFeeling: row.primary_meaning,
     meanings: row.meanings,
     ease: Number(row.ease),
@@ -226,12 +227,14 @@ export async function updateReviewSchedule(
   userId: number,
   id: number,
   interval: number,
+  ease: number,
 ): Promise<StoredWord> {
   const result = await query<WordRow>(
     `
       UPDATE words
       SET
         interval = $3,
+        ease = $4,
         next_review = CURRENT_DATE + $3::integer,
         review_count = review_count + 1,
         updated_at = NOW()
@@ -250,7 +253,7 @@ export async function updateReviewSchedule(
         created_at,
         updated_at
     `,
-    [userId, id, interval],
+    [userId, id, interval, ease],
   );
 
   return mapWordRow(result.rows[0]);
