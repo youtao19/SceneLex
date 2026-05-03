@@ -148,7 +148,11 @@ export async function listTodayWords(
       FROM words
       WHERE user_id = $1
         AND next_review <= CURRENT_DATE
-      ORDER BY next_review ASC, updated_at ASC, word ASC
+      ORDER BY
+        GREATEST(CURRENT_DATE - next_review, 0)::double precision / GREATEST(interval, 1) DESC,
+        next_review ASC,
+        updated_at ASC,
+        word ASC
     `,
     [userId],
   );

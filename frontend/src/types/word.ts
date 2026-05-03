@@ -34,4 +34,4 @@ export interface StoredWord {
   updatedAt: string
 }
 
-export type ReviewRating = 'again' | 'hard' | 'good'
+export type ReviewRating = 'again' | 'hard' | 'good' | 'easy'

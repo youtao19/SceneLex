@@ -105,12 +105,12 @@
               <div class="action-cell" role="cell">
                 <template v-if="!isWordRevealed(item.id)">
                   <button
-                    class="remember-btn"
+                    class="forget-btn"
                     type="button"
                     :disabled="isWordSubmitting(item.id)"
-                    @click="handleReviewChoice(item, 'good')"
+                    @click="handleReviewChoice(item, 'again')"
                   >
-                    记得
+                    不记得
                   </button>
                   <button
                     class="hard-btn"
@@ -121,12 +121,20 @@
                     模糊
                   </button>
                   <button
-                    class="forget-btn"
+                    class="remember-btn"
                     type="button"
                     :disabled="isWordSubmitting(item.id)"
-                    @click="handleReviewChoice(item, 'again')"
+                    @click="handleReviewChoice(item, 'good')"
                   >
-                    不记得
+                    记得
+                  </button>
+                  <button
+                    class="easy-btn"
+                    type="button"
+                    :disabled="isWordSubmitting(item.id)"
+                    @click="handleReviewChoice(item, 'easy')"
+                  >
+                    很轻松
                   </button>
                 </template>
                 <template v-else>
@@ -137,6 +145,13 @@
                     @click="openDetailModal(item)"
                   >
                     查看详情
+                  </button>
+                  <button
+                    class="next-btn"
+                    type="button"
+                    @click="dismissReviewedWord(item.id)"
+                  >
+                    下一词
                   </button>
                 </template>
               </div>
@@ -414,15 +429,19 @@ function getReviewResultLabel(wordId: number) {
   if (result === 'again') return '已标记不记得'
   if (result === 'hard') return '已标记模糊'
   if (result === 'good') return '已标记记得'
+  if (result === 'easy') return '已标记很轻松'
 
   return '已显示意思'
 }
 
-function removeCompletedWord(wordId: number) {
+function markReviewCompleted() {
+  completedReviewCount.value += 1
+}
+
+function dismissReviewedWord(wordId: number) {
   if (!queue.value.some((item) => item.id === wordId)) return
 
   queue.value = queue.value.filter((item) => item.id !== wordId)
-  completedReviewCount.value += 1
 
   const nextRevealedIds = new Set(revealedWordIds.value)
   nextRevealedIds.delete(wordId)
@@ -450,7 +469,7 @@ async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
   }
 
   if (usingMockData.value) {
-    removeCompletedWord(word.id)
+    markReviewCompleted()
     return
   }
 
@@ -459,7 +478,7 @@ async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
 
   try {
     await reviewWord(word.id, rating)
-    removeCompletedWord(word.id)
+    markReviewCompleted()
   } catch (error) {
     console.error(error)
     const nextRevealedIds = new Set(revealedWordIds.value)
@@ -763,8 +782,10 @@ onMounted(syncReviewData)
 
 .forget-btn,
 .hard-btn,
+.easy-btn,
 .remember-btn,
 .detail-btn,
+.next-btn,
 .modal-close {
   border: none;
   cursor: pointer;
@@ -773,8 +794,10 @@ onMounted(syncReviewData)
 
 .forget-btn,
 .hard-btn,
+.easy-btn,
 .remember-btn,
-.detail-btn {
+.detail-btn,
+.next-btn {
   min-width: 68px;
   min-height: 40px;
   border-radius: 999px;
@@ -795,8 +818,19 @@ onMounted(syncReviewData)
   background: rgba(249, 115, 22, 0.1);
 }
 
+.easy-btn {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.next-btn {
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.1);
+}
+
 .forget-btn:disabled,
 .hard-btn:disabled,
+.easy-btn:disabled,
 .remember-btn:disabled {
   cursor: wait;
   opacity: 0.7;
@@ -917,7 +951,9 @@ onMounted(syncReviewData)
 
   .forget-btn,
   .hard-btn,
+  .easy-btn,
   .remember-btn,
+  .next-btn,
   .detail-btn {
     width: 100%;
   }
