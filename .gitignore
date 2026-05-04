@@ -1,6 +1,7 @@
 node_modules
 dist
 .DS_Store
+__pycache__
 .env.local
 .env.*.local
 coverage
@@ -13,3 +14,6 @@ backend/data/*.csv.gz
 backend/data/*.zip
 
 output
+ocr-service/.venv
+ocr-service/uploads/*
+!ocr-service/uploads/.gitkeep

@@ -248,4 +248,33 @@ export async function initializeDatabase() {
       ON word_book_items (word_id)
     `,
   );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS reading_articles (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        char_count INTEGER NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_reading_articles_user_hash
+      ON reading_articles (user_id, content_hash)
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_reading_articles_user_updated
+      ON reading_articles (user_id, updated_at DESC)
+    `,
+  );
 }

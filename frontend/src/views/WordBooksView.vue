@@ -1,58 +1,70 @@
 <template>
   <div class="word-books-page">
-    <header class="books-hero surface-card">
-      <div>
-        <p class="card-label">WORD BOOKS</p>
-        <h2 class="section-title">单词本</h2>
-        <p class="hero-desc">按主题整理单词；复习进度仍然跟随主词库统一计算。</p>
-      </div>
-      <form class="create-form" @submit.prevent="handleCreate">
-        <input
-          v-model="newBookName"
-          type="text"
-          maxlength="40"
-          placeholder="新单词本名称"
-          aria-label="新单词本名称"
-        />
-        <button class="peach-button" type="submit" :disabled="creating">
-          {{ creating ? '创建中...' : '创建' }}
-        </button>
-      </form>
-    </header>
-
     <p v-if="errorMessage" class="books-error" role="alert">{{ errorMessage }}</p>
 
     <main class="books-layout">
-      <aside class="books-list surface-card" aria-label="单词本列表">
-        <div class="panel-head">
-          <div>
-            <p class="card-label">BOOKS</p>
-            <h3>全部单词本</h3>
-          </div>
-          <button class="peach-button-ghost compact-btn" type="button" @click="loadBooks">
-            刷新
-          </button>
-        </div>
+      <section class="books-overview-card surface-card" aria-label="单词本总览">
+        <div class="books-top-row">
+          <div class="books-title-block">
+            <header class="books-module-head">
+              <p class="card-label">WORD BOOKS</p>
+              <h2 class="section-title">单词本</h2>
+              <p class="hero-desc">按主题整理单词；复习进度仍然跟随主词库统一计算。</p>
+            </header>
 
-        <div v-if="loadingBooks" class="state-block">正在读取单词本...</div>
-        <div v-else-if="wordBooks.length === 0" class="state-block">暂无单词本。</div>
-        <div v-else class="book-list-items">
-          <button
-            v-for="book in wordBooks"
-            :key="book.id"
-            class="book-list-item"
-            :class="{ 'is-active': selectedBookId === book.id }"
-            type="button"
-            @click="selectBook(book.id)"
-          >
-            <span>
-              <strong>{{ book.name }}</strong>
-              <small>{{ book.isDefault ? '默认单词本' : '自定义单词本' }}</small>
-            </span>
-            <em>{{ book.wordCount }}</em>
-          </button>
+            <form class="create-form" @submit.prevent="handleCreate">
+              <input
+                v-model="newBookName"
+                type="text"
+                maxlength="40"
+                placeholder="新单词本名称"
+                aria-label="新单词本名称"
+              />
+              <button class="peach-button" type="submit" :disabled="creating">
+                {{ creating ? '创建中...' : '创建' }}
+              </button>
+            </form>
+          </div>
+
+          <div class="books-list" aria-label="单词本列表">
+            <div class="panel-head">
+              <div>
+                <p class="card-label">BOOKS</p>
+                <h3>全部单词本</h3>
+              </div>
+              <button class="peach-button-ghost compact-btn" type="button" @click="loadBooks">
+                刷新
+              </button>
+            </div>
+
+            <div v-if="loadingBooks" class="book-list-state">正在读取单词本...</div>
+            <div v-else-if="wordBooks.length === 0" class="book-list-state">暂无单词本。</div>
+            <label v-else class="book-select-field">
+              <span>当前单词本</span>
+              <div class="book-select-shell">
+                <select
+                  :value="selectedBookId ?? ''"
+                  aria-label="选择单词本"
+                  @change="handleBookSelectChange"
+                >
+                  <option
+                    v-for="book in wordBooks"
+                    :key="book.id"
+                    :value="book.id"
+                  >
+                    {{ book.name }} · {{ book.isDefault ? '默认单词本' : '自定义单词本' }} · {{ book.wordCount }} 个单词
+                  </option>
+                </select>
+                <span class="select-arrow" aria-hidden="true">⌄</span>
+              </div>
+            </label>
+            <div v-if="selectedBook" class="book-select-summary">
+              <strong>{{ selectedBook.name }}</strong>
+              <span>{{ selectedBook.isDefault ? '默认单词本' : '自定义单词本' }} · {{ selectedBook.wordCount }} 个单词</span>
+            </div>
+          </div>
         </div>
-      </aside>
+      </section>
 
       <section class="book-detail surface-card" aria-label="单词本详情">
         <div v-if="selectedBook" class="detail-head">
@@ -105,10 +117,21 @@
             <span role="columnheader">操作</span>
           </div>
           <div v-for="item in filteredWords" :key="item.id" class="table-row" role="row">
-            <span class="word-name" role="cell">{{ item.word }}</span>
+            <span role="cell">
+              <button class="word-name detail-word-link" type="button" @click="openDetailModal(item)">
+                {{ item.word }}
+              </button>
+            </span>
             <span class="meaning-cell" role="cell">{{ item.primaryMeaning }}</span>
             <span role="cell">{{ item.reviewCount }} 次</span>
-            <span role="cell">
+            <span class="book-action-cell" role="cell">
+              <button
+                class="detail-word-btn"
+                type="button"
+                @click="openDetailModal(item)"
+              >
+                查看详情
+              </button>
               <button
                 class="remove-word-btn"
                 type="button"
@@ -122,6 +145,8 @@
         </div>
       </section>
     </main>
+
+    <WordDetailModal :word="selectedWord" @close="closeDetailModal" />
   </div>
 </template>
 
@@ -135,7 +160,9 @@ import {
   removeWordFromBook,
   renameWordBook,
 } from '../services/word-book.service'
+import WordDetailModal from '../components/WordDetailModal.vue'
 import type { WordBook, WordBookDetail } from '../types/word-book'
+import type { StoredWord } from '../types/word'
 
 const wordBooks = ref<WordBook[]>([])
 const detail = ref<WordBookDetail | null>(null)
@@ -150,6 +177,7 @@ const creating = ref(false)
 const renaming = ref(false)
 const deleting = ref(false)
 const removingWordId = ref<number | null>(null)
+const selectedWord = ref<StoredWord | null>(null)
 
 const selectedBook = computed(() => detail.value)
 const filteredWords = computed(() => {
@@ -209,7 +237,16 @@ async function loadDetail() {
 async function selectBook(bookId: number) {
   selectedBookId.value = bookId
   keyword.value = ''
+  selectedWord.value = null
   await loadDetail()
+}
+
+async function handleBookSelectChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  const bookId = Number(target.value)
+
+  if (!bookId) return
+  await selectBook(bookId)
 }
 
 async function refreshCurrentBook() {
@@ -308,6 +345,14 @@ async function handleRemoveWord(wordId: number) {
   }
 }
 
+function openDetailModal(word: StoredWord) {
+  selectedWord.value = word
+}
+
+function closeDetailModal() {
+  selectedWord.value = null
+}
+
 onMounted(async () => {
   await loadBooks()
   await loadDetail()
@@ -324,15 +369,6 @@ onMounted(async () => {
   gap: 24px;
 }
 
-.books-hero {
-  padding: 28px 32px;
-  border-radius: var(--sl-radius-lg);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-}
-
 .hero-desc {
   max-width: 560px;
   margin: 8px 0 0;
@@ -343,12 +379,13 @@ onMounted(async () => {
 .create-form {
   display: flex;
   gap: 12px;
-  min-width: 360px;
+  margin-top: 22px;
 }
 
 .create-form input,
 .rename-row input,
-.search-box input {
+.search-box input,
+.book-select-field select {
   width: 100%;
   border: 1px solid var(--sl-glass-border-strong);
   border-radius: 999px;
@@ -357,6 +394,17 @@ onMounted(async () => {
   padding: 0 18px;
   outline: none;
   font-weight: 700;
+}
+
+.create-form input {
+  border-color: rgba(255, 90, 113, 0.42);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 90, 113, 0.08);
+}
+
+.create-form .peach-button {
+  min-width: 104px;
+  white-space: nowrap;
 }
 
 .books-error {
@@ -369,16 +417,30 @@ onMounted(async () => {
 }
 
 .books-layout {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
 
-.books-list,
+.books-overview-card,
 .book-detail {
   border-radius: var(--sl-radius-lg);
   padding: 22px;
+}
+
+.books-top-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(360px, 1.18fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.books-module-head {
+  max-width: 520px;
+}
+
+.books-list {
+  min-width: 0;
 }
 
 .panel-head,
@@ -399,43 +461,95 @@ onMounted(async () => {
   padding: 0 18px;
 }
 
-.book-list-items {
+.book-list-state {
+  min-height: 92px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.book-list-item {
-  width: 100%;
-  min-height: 64px;
-  border: 1px solid var(--sl-glass-border);
-  border-radius: var(--sl-radius-md);
-  background: var(--sl-glass-bg);
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  text-align: left;
-  cursor: pointer;
+  justify-content: center;
+  color: var(--sl-text-soft);
+  font-weight: 700;
+  text-align: center;
 }
 
-.book-list-item.is-active {
-  border-color: var(--sl-peach-400);
-  background: var(--sl-peach-50);
-}
-
-.book-list-item span {
+.book-select-field {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.book-select-field span {
+  color: var(--sl-text-soft);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.book-select-shell {
+  position: relative;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(255, 90, 113, 0.26);
+  box-shadow: 0 16px 34px rgba(255, 90, 113, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.dark-theme .book-select-shell {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 90, 113, 0.32);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.26);
+}
+
+.book-select-field select {
+  appearance: none;
+  color: var(--sl-text-main);
+  min-height: 62px;
+  border: none;
+  border-radius: 22px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 58px 0 18px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.book-select-field select:focus-visible {
+  outline: 3px solid rgba(255, 90, 113, 0.2);
+  outline-offset: 3px;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--sl-peach-500);
+  box-shadow: 0 12px 22px rgba(255, 90, 113, 0.24);
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.book-select-summary {
+  margin-top: 12px;
+  min-height: 58px;
+  padding: 12px 14px;
+  border-radius: var(--sl-radius-md);
+  background: var(--sl-peach-50);
+  border: 1px solid var(--sl-peach-100);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 4px;
 }
 
-.book-list-item small,
-.book-list-item em {
+.book-select-summary span {
   color: var(--sl-text-soft);
-  font-size: 12px;
-  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .rename-row {
@@ -446,7 +560,8 @@ onMounted(async () => {
 }
 
 .danger-btn,
-.remove-word-btn {
+.remove-word-btn,
+.detail-word-btn {
   border: 1px solid rgba(180, 35, 24, 0.18);
   background: rgba(180, 35, 24, 0.08);
   color: #b42318;
@@ -457,6 +572,7 @@ onMounted(async () => {
 
 .danger-btn:disabled,
 .remove-word-btn:disabled,
+.detail-word-btn:disabled,
 .peach-button:disabled,
 .peach-button-secondary:disabled {
   opacity: 0.5;
@@ -488,7 +604,7 @@ onMounted(async () => {
 
 .table-row {
   display: grid;
-  grid-template-columns: 1fr 2fr 100px 96px;
+  grid-template-columns: minmax(120px, 1fr) minmax(180px, 2fr) 100px minmax(170px, auto);
   gap: 12px;
   align-items: center;
   min-height: 58px;
@@ -509,8 +625,23 @@ onMounted(async () => {
 }
 
 .word-name {
+  color: var(--sl-text-main);
   font-size: 16px;
   font-weight: 900;
+}
+
+.detail-word-link {
+  border: none;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.detail-word-link:hover {
+  color: var(--sl-peach-500);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .meaning-cell {
@@ -520,25 +651,37 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.book-action-cell {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-word-btn,
 .remove-word-btn {
   min-height: 36px;
   padding: 0 12px;
 }
 
+.detail-word-btn {
+  border-color: var(--sl-glass-border-strong);
+  background: var(--sl-glass-bg);
+  color: var(--sl-text-soft);
+}
+
 @media (max-width: 900px) {
-  .books-hero,
+  .books-top-row {
+    grid-template-columns: 1fr;
+  }
+
   .panel-head,
   .detail-head {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .books-layout {
-    grid-template-columns: 1fr;
-  }
-
   .create-form {
-    min-width: 0;
+    flex-direction: column;
   }
 
   .rename-row {

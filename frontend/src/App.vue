@@ -1,19 +1,30 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="shellClass">
     <header class="shell-header">
-      <div class="header-content">
-        <!-- Logo Section -->
-        <RouterLink :to="brandTarget" class="brand-link">
-          <div class="brand-icon">
-            <img src="/favicon.png" alt="" aria-hidden="true" />
-          </div>
-          <div class="brand-copy">
-            <h1>SceneLex</h1>
-          </div>
-        </RouterLink>
+      <button
+        v-if="showNavigation"
+        class="sidebar-toggle"
+        type="button"
+        :aria-label="isNavigationCollapsed ? '展开导航栏' : '收起导航栏'"
+        :aria-expanded="!isNavigationCollapsed"
+        @click="toggleNavigation"
+      >
+        <span aria-hidden="true">{{ isNavigationCollapsed ? '›' : '‹' }}</span>
+      </button>
 
-        <!-- Navigation Pill -->
-        <nav v-if="showNavigation" class="nav-pill soft-pill">
+      <div class="header-content">
+        <div class="brand-row">
+          <RouterLink :to="brandTarget" class="brand-link">
+            <div class="brand-icon">
+              <img src="/favicon.png" alt="" aria-hidden="true" />
+            </div>
+            <div class="brand-copy">
+              <h1>SceneLex</h1>
+            </div>
+          </RouterLink>
+        </div>
+
+        <nav v-if="showNavigation" class="nav-rail" aria-label="主导航">
           <RouterLink
             v-for="item in navigationItems"
             :key="item.to"
@@ -25,100 +36,98 @@
             <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
           </RouterLink>
         </nav>
-
-        <!-- Utility Row -->
-        <div class="utility-row">
-          <!-- Theme Toggle Button: 切换黑夜模式 -->
-          <button 
-            class="utility-circle soft-pill" 
-            :aria-label="isDark ? 'Switch to Light' : 'Switch to Dark'"
-            @click="toggleTheme"
-          >
-            {{ isDark ? '☼' : '☾' }}
-          </button>
-          
-          <template v-if="showNavigation">
-            <button
-              class="avatar-button soft-pill"
-              type="button"
-              aria-label="打开账号菜单"
-              :aria-expanded="isProfileMenuOpen"
-              aria-haspopup="menu"
-              @click.stop="toggleProfileMenu"
-              @keydown.esc="closeProfileMenu"
-            >
-              <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="small" />
-            </button>
-
-            <div
-              v-if="isProfileMenuOpen"
-              class="profile-menu surface-card"
-              role="menu"
-              aria-label="账号菜单"
-              @click.stop
-              @keydown.esc="closeProfileMenu"
-            >
-              <div class="profile-summary">
-                <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="medium" />
-                <div class="profile-copy">
-                  <strong>{{ userStore.nickname }}</strong>
-                  <p>{{ userStore.user?.email }}</p>
-                  <span>{{ accessText }}</span>
-                </div>
-              </div>
-
-              <div class="profile-menu-section">
-                <RouterLink
-                  to="/profile"
-                  class="profile-menu-item"
-                  role="menuitem"
-                  @click="closeProfileMenu"
-                >
-                  <span class="menu-icon icon-profile" aria-hidden="true"></span>
-                  <span>个人资料</span>
-                </RouterLink>
-                <RouterLink
-                  to="/settings"
-                  class="profile-menu-item"
-                  role="menuitem"
-                  @click="closeProfileMenu"
-                >
-                  <span class="menu-icon icon-settings" aria-hidden="true"></span>
-                  <span>更多设置</span>
-                </RouterLink>
-                <RouterLink
-                  to="/history"
-                  class="profile-menu-item"
-                  role="menuitem"
-                  @click="closeProfileMenu"
-                >
-                  <span class="menu-icon icon-library" aria-hidden="true"></span>
-                  <span>我的词库</span>
-                </RouterLink>
-              </div>
-
-              <button
-                class="profile-menu-item sign-out-item"
-                type="button"
-                role="menuitem"
-                @click="handleLogout"
-              >
-                <span class="menu-icon icon-signout" aria-hidden="true"></span>
-                <span>退出登录</span>
-              </button>
-            </div>
-          </template>
-          <RouterLink
-            v-else
-            to="/"
-            class="utility-circle soft-pill auth-entry"
-            aria-label="Login"
-          >
-            登录
-          </RouterLink>
-        </div>
       </div>
     </header>
+
+    <div class="utility-row">
+      <button
+        class="utility-circle soft-pill"
+        :aria-label="isDark ? 'Switch to Light' : 'Switch to Dark'"
+        @click="toggleTheme"
+      >
+        {{ isDark ? '☼' : '☾' }}
+      </button>
+
+      <template v-if="showNavigation">
+        <button
+          class="avatar-button soft-pill"
+          type="button"
+          aria-label="打开账号菜单"
+          :aria-expanded="isProfileMenuOpen"
+          aria-haspopup="menu"
+          @click.stop="toggleProfileMenu"
+          @keydown.esc="closeProfileMenu"
+        >
+          <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="small" />
+        </button>
+
+        <div
+          v-if="isProfileMenuOpen"
+          class="profile-menu surface-card"
+          role="menu"
+          aria-label="账号菜单"
+          @click.stop
+          @keydown.esc="closeProfileMenu"
+        >
+          <div class="profile-summary">
+            <UserAvatar :avatar-url="userStore.user?.avatarUrl" size="medium" />
+            <div class="profile-copy">
+              <strong>{{ userStore.nickname }}</strong>
+              <p>{{ userStore.user?.email }}</p>
+              <span>{{ accessText }}</span>
+            </div>
+          </div>
+
+          <div class="profile-menu-section">
+            <RouterLink
+              to="/profile"
+              class="profile-menu-item"
+              role="menuitem"
+              @click="closeProfileMenu"
+            >
+              <span class="menu-icon icon-profile" aria-hidden="true"></span>
+              <span>个人资料</span>
+            </RouterLink>
+            <RouterLink
+              to="/settings"
+              class="profile-menu-item"
+              role="menuitem"
+              @click="closeProfileMenu"
+            >
+              <span class="menu-icon icon-settings" aria-hidden="true"></span>
+              <span>更多设置</span>
+            </RouterLink>
+            <RouterLink
+              to="/history"
+              class="profile-menu-item"
+              role="menuitem"
+              @click="closeProfileMenu"
+            >
+              <span class="menu-icon icon-library" aria-hidden="true"></span>
+              <span>我的词库</span>
+            </RouterLink>
+          </div>
+
+          <button
+            class="profile-menu-item sign-out-item"
+            type="button"
+            role="menuitem"
+            @click="handleLogout"
+          >
+            <span class="menu-icon icon-signout" aria-hidden="true"></span>
+            <span>退出登录</span>
+          </button>
+        </div>
+      </template>
+      <RouterLink
+        v-else
+        to="/"
+        class="utility-circle soft-pill auth-entry"
+        aria-label="Login"
+      >
+        登录
+      </RouterLink>
+    </div>
 
     <main class="shell-main">
       <RouterView />
@@ -138,10 +147,15 @@ const router = useRouter()
 const userStore = useUserStore()
 const isDark = ref(false)
 const isProfileMenuOpen = ref(false)
+const isNavigationCollapsed = ref(false)
 const brandTarget = computed(() => (userStore.isAuthenticated ? '/dashboard' : '/'))
 const showNavigation = computed(
   () => userStore.isAuthenticated && route.name !== 'landing'
 )
+const shellClass = computed(() => ({
+  'has-sidebar': showNavigation.value,
+  'sidebar-collapsed': showNavigation.value && isNavigationCollapsed.value,
+}))
 const accessText = computed(() => {
   const status = userStore.user?.accessStatus
 
@@ -169,6 +183,7 @@ interface NavItem {
 
 const navigationItems: NavItem[] = [
   { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
+  { to: '/reading', label: '阅读', icon: 'reading' },
   { to: '/review', label: '复习舱', icon: 'review' },
   { to: '/word-books', label: '单词本', icon: 'books' },
   { to: '/history', label: '归档册', icon: 'history' },
@@ -187,6 +202,14 @@ function toggleProfileMenu() {
  */
 function closeProfileMenu() {
   isProfileMenuOpen.value = false
+}
+
+/**
+ * 折叠时只改变导航宽度，页面身份和当前路由入口仍然保留在同一个侧栏里。
+ */
+function toggleNavigation() {
+  isNavigationCollapsed.value = !isNavigationCollapsed.value
+  closeProfileMenu()
 }
 
 /**
@@ -275,7 +298,7 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   border-bottom: 1px solid var(--sl-glass-border);
-  transition: all 0.4s ease;
+  transition: width 0.3s ease, background 0.3s ease, border-color 0.3s ease;
 }
 
 .header-content {
@@ -287,12 +310,45 @@ onBeforeUnmount(() => {
   gap: 24px;
 }
 
-/* Brand Section */
+.has-sidebar .shell-header {
+  position: fixed;
+  left: 20px;
+  top: 20px;
+  bottom: 20px;
+  width: 220px;
+  padding: 18px;
+  border: 1px solid var(--sl-glass-border);
+  border-radius: 28px;
+  box-shadow: var(--sl-shadow);
+}
+
+.has-sidebar .header-content {
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.has-sidebar .brand-row {
+  padding-right: 10px;
+}
+
 .brand-link {
   display: flex;
   align-items: center;
   gap: 16px;
   text-decoration: none;
+  min-width: 0;
 }
 
 .brand-icon {
@@ -325,20 +381,86 @@ onBeforeUnmount(() => {
   font-family: var(--sl-display-font);
 }
 
-/* Nav Pill Section */
-.nav-pill {
+.sidebar-toggle {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 90, 113, 0.28);
+  border-radius: 999px;
+  background: var(--sl-bg);
+  color: var(--sl-peach-500);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 30px rgba(255, 90, 113, 0.22);
+}
+
+.has-sidebar .sidebar-toggle {
+  position: absolute;
+  top: 28px;
+  right: -19px;
+  z-index: 2;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+  color: #fff;
+  background: var(--sl-peach-500);
+  transform: translateY(-1px);
+}
+
+.sidebar-toggle:focus-visible {
+  outline: 3px solid rgba(255, 90, 113, 0.32);
+  outline-offset: 3px;
+}
+
+.nav-rail {
   justify-self: center;
   display: flex;
-  padding: 6px;
-  gap: 4px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 0;
+}
+
+.sidebar-collapsed .shell-header {
+  width: 88px;
+}
+
+.sidebar-collapsed .brand-row {
+  padding-right: 0;
+}
+
+.sidebar-collapsed .brand-link,
+.sidebar-collapsed .nav-item {
+  justify-content: center;
+}
+
+.sidebar-collapsed .brand-copy,
+.sidebar-collapsed .nav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.sidebar-collapsed .nav-item {
+  padding: 0;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
+  min-height: 48px;
   gap: 10px;
-  padding: 8px 20px;
-  border-radius: 999px;
+  padding: 0 14px;
+  border-radius: 16px;
   color: var(--sl-text-soft);
   font-weight: 700;
   font-size: 14px;
@@ -348,14 +470,18 @@ onBeforeUnmount(() => {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--sl-peach-50);
   color: var(--sl-peach-500);
 }
 
 .nav-item.router-link-exact-active {
-  background: var(--sl-bg);
+  background: rgba(255, 255, 255, 0.72);
   color: var(--sl-peach-500);
-  box-shadow: var(--sl-shadow);
+  box-shadow: 0 12px 30px rgba(255, 90, 113, 0.12);
+}
+
+.dark-theme .nav-item.router-link-exact-active {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .nav-badge {
@@ -370,12 +496,25 @@ onBeforeUnmount(() => {
   font-weight: 800;
 }
 
-/* Utility Row */
 .utility-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  position: relative;
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 220;
+  justify-content: flex-end;
+}
+
+.has-sidebar .utility-row {
+  left: 260px;
+  top: 0;
+  right: 0;
+  height: 60px;
+  padding: 12px 24px 4px;
+  background: linear-gradient(180deg, var(--sl-bg) 0%, transparent 100%);
 }
 
 .header-toggle-wrap {
@@ -435,6 +574,13 @@ onBeforeUnmount(() => {
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 24px 70px rgba(40, 22, 28, 0.16);
+}
+
+.has-sidebar .profile-menu {
+  top: calc(100% + 12px);
+  right: 0;
+  bottom: auto;
+  left: auto;
 }
 
 .dark-theme .profile-menu {
@@ -603,55 +749,168 @@ onBeforeUnmount(() => {
 }
 
 .shell-main {
-  padding-top: 0;
+  min-height: 100vh;
+  padding-left: 0;
 }
 
-/* Icons */
-.nav-icon { font-size: 16px; }
+.has-sidebar .shell-main {
+  padding-left: 260px;
+  padding-top: 52px;
+}
+
+.sidebar-collapsed .shell-main {
+  padding-left: 128px;
+}
+
+.sidebar-collapsed .utility-row {
+  left: 128px;
+}
+
+.nav-icon {
+  width: 22px;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+}
+
 .icon-dashboard::before { content: "⊞"; }
+.icon-reading::before { content: "Aa"; font-size: 13px; font-weight: 900; }
 .icon-review::before { content: "↻"; }
 .icon-books::before { content: "▤"; }
 .icon-history::before { content: "📋"; }
 .icon-more::before { content: "⋯"; }
 
-@media (max-width: 1300px) {
-  .header-content { grid-template-columns: auto 1fr auto; }
+@media (max-height: 620px) and (min-width: 861px) {
+  .has-sidebar .shell-header {
+    overflow-y: auto;
+  }
+
+  .nav-rail {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1080px) {
+  .has-sidebar .shell-header {
+    width: 88px;
+  }
+
   .brand-copy { display: none; }
+
+  .has-sidebar .brand-link {
+    justify-content: center;
+  }
+
+  .has-sidebar .nav-item {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .has-sidebar .nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .has-sidebar .profile-menu {
+    top: calc(100% + 12px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+  }
+
+  .has-sidebar .shell-main {
+    padding-left: 128px;
+    padding-top: 50px;
+  }
+
+  .sidebar-collapsed .shell-main {
+    padding-left: 128px;
+  }
+
+  .sidebar-collapsed .utility-row {
+    left: 128px;
+  }
 }
 
 @media (max-width: 1000px) {
   .header-toggle-wrap { display: none; }
 }
 
-@media (max-width: 800px) {
-  .nav-label { display: none; }
-  .utility-row { gap: 8px; }
-}
+@media (max-width: 860px) {
+  .sidebar-toggle {
+    display: none;
+  }
 
-@media (max-width: 600px) {
-  .shell-header {
+  .shell-header,
+  .has-sidebar .shell-header {
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
     padding: 12px;
+    border-width: 0 0 1px;
+    border-radius: 0;
   }
 
-  .header-content {
+  .header-content,
+  .has-sidebar .header-content {
+    height: auto;
+    max-width: 100%;
+    margin: 0;
+    display: grid;
     grid-template-columns: auto 1fr auto;
-    gap: 8px;
+    align-items: center;
+    gap: 10px;
   }
 
-  .nav-pill {
-    gap: 2px;
+  .nav-rail {
+    flex: none;
+    min-width: 0;
+    flex-direction: row;
+    justify-content: center;
+    gap: 4px;
     padding: 4px;
+    border-radius: 999px;
+    background: var(--sl-glass-bg);
+    border: 1px solid var(--sl-glass-border);
+    box-shadow: var(--sl-shadow);
+    overflow-x: auto;
+  }
+
+  .nav-rail::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-item {
-    min-width: 34px;
-    min-height: 34px;
-    justify-content: center;
-    padding: 6px 8px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 4px;
+    border-radius: 999px;
+  }
+
+  .nav-item.router-link-exact-active {
+    background: var(--sl-bg);
   }
 
   .utility-row {
+    flex-direction: row;
     gap: 6px;
+    top: 12px;
+    right: 12px;
+  }
+
+  .has-sidebar .utility-row {
+    left: auto;
+    top: 12px;
+    right: 12px;
+    height: auto;
+    padding: 0;
+    background: transparent;
   }
 
   .utility-row [aria-label="Locale"] {
@@ -663,10 +922,19 @@ onBeforeUnmount(() => {
     height: 42px;
   }
 
-  .profile-menu {
+  .profile-menu,
+  .has-sidebar .profile-menu {
     position: fixed;
     top: 72px;
+    left: auto;
     right: 12px;
+    bottom: auto;
+  }
+
+  .shell-main,
+  .has-sidebar .shell-main {
+    padding-left: 0;
+    padding-top: 0;
   }
 }
 </style>

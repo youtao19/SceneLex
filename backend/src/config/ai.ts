@@ -4,6 +4,24 @@ import path from 'node:path'
 import { env } from './env'
 
 export type AiProvider = 'ollama' | 'omlx' | 'deepseek'
+export type AiModelConfig = {
+  baseURL: string
+  model: string
+  timeout: number
+  apiKey?: string
+}
+
+export interface AiSettingsSnapshot {
+  provider: AiProvider
+  providers: Array<{
+    id: AiProvider
+    name: string
+    model: string
+    baseURL: string
+    timeout: number
+    hasApiKey: boolean
+  }>
+}
 
 function readProvider(): AiProvider {
   const provider = env.aiProvider.toLowerCase()
@@ -62,4 +80,50 @@ export const aiConfig = {
     timeout: Number(process.env.DEEPSEEK_TIMEOUT ?? 60_000),
     apiKey: process.env.DEEPSEEK_API_KEY ?? ''
   }
+}
+
+const providerNames: Record<AiProvider, string> = {
+  ollama: 'Ollama',
+  omlx: 'oMLX',
+  deepseek: 'DeepSeek'
+}
+
+/**
+ * 前端设置页只需要运行态快照，不能把 API Key 原文传给浏览器。
+ */
+export function readAiSettings(): AiSettingsSnapshot {
+  const providers: AiSettingsSnapshot['providers'] = (['ollama', 'omlx', 'deepseek'] as AiProvider[]).map((id) => {
+    const config = aiConfig[id] as AiModelConfig
+
+    return {
+      id,
+      name: providerNames[id],
+      model: config.model,
+      baseURL: config.baseURL,
+      timeout: config.timeout,
+      hasApiKey: Boolean(config.apiKey)
+    }
+  })
+
+  return {
+    provider: aiConfig.provider,
+    providers
+  }
+}
+
+/**
+ * 设置页切换的是当前 Node 进程的运行态，避免从浏览器改写本地 .env。
+ */
+export function updateAiSettings(provider: AiProvider, model: string): AiSettingsSnapshot {
+  aiConfig.provider = provider
+  aiConfig[provider].model = model
+
+  return readAiSettings()
+}
+
+/**
+ * API 边界统一校验 provider，避免业务层收到不存在的模型配置。
+ */
+export function isAiProvider(value: string): value is AiProvider {
+  return value === 'ollama' || value === 'omlx' || value === 'deepseek'
 }
