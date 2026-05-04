@@ -17,6 +17,7 @@ import type {
   StoredWord,
   WordGenerateResult,
   WordMeaningItem,
+  WordRequiredMeaning,
 } from '../types/word';
 import type { DictionaryEntry } from '../types/dictionary';
 
@@ -310,6 +311,60 @@ function normalizeBookIds(value: unknown) {
   return result;
 }
 
+function normalizeRequiredMeanings(value: unknown): WordRequiredMeaning[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const result: WordRequiredMeaning[] = [];
+
+  for (const item of value) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const data = item as Record<string, unknown>;
+    const partOfSpeech = typeof data.partOfSpeech === 'string' ? data.partOfSpeech.trim() : '';
+    const meaning = typeof data.meaning === 'string' ? data.meaning.trim() : '';
+    const priority = Number(data.priority);
+
+    if (!partOfSpeech || !meaning || !Number.isInteger(priority)) {
+      continue;
+    }
+
+    result.push({ partOfSpeech, meaning, priority });
+  }
+
+  return result
+    .sort((left, right) => left.priority - right.priority)
+    .slice(0, 5);
+}
+
+function applyRequiredMeanings(
+  result: WordGenerateResult,
+  requiredMeanings: WordRequiredMeaning[],
+): WordGenerateResult {
+  if (requiredMeanings.length === 0) {
+    return result;
+  }
+
+  const fallbackMeaning = result.meanings[0] ?? buildFallback(result.word).meanings[0];
+  const meanings = requiredMeanings.map((required, index) => {
+    const generated = result.meanings[index] ?? fallbackMeaning;
+
+    return {
+      ...generated,
+      partOfSpeech: required.partOfSpeech,
+      meaning: required.meaning,
+    };
+  });
+
+  return {
+    ...result,
+    meanings,
+  };
+}
+
 /**
  * 查询缓存时只返回词卡预览需要的字段，避免前端误把复习进度当成可编辑内容。
  */
@@ -404,6 +459,7 @@ export const wordService = {
     userId: number,
     word: string,
     forceRegenerate = false,
+    requiredMeaningsInput: unknown = [],
   ): Promise<WordGenerateResult> {
     const cleanWord = normalizeWord(word);
 
@@ -412,8 +468,9 @@ export const wordService = {
     }
 
     const dictionaryEntry = dictionaryService.findByWord(cleanWord);
+    const requiredMeanings = normalizeRequiredMeanings(requiredMeaningsInput);
 
-    if (!forceRegenerate) {
+    if (!forceRegenerate && requiredMeanings.length === 0) {
       const storedWord = await findWordByText(userId, cleanWord);
 
       if (storedWord && canUseStoredWord(storedWord)) {
@@ -422,7 +479,7 @@ export const wordService = {
       }
     }
 
-    const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined);
+    const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined, requiredMeanings);
     const rawText = await generateWithLocalModel(prompt);
     let parsed: unknown;
 
@@ -433,9 +490,12 @@ export const wordService = {
       throw new Error('模型输出解析失败');
     }
 
-    const normalized = applyDictionaryFacts(
-      normalizeGeneratedResult(parsed, cleanWord),
-      dictionaryEntry,
+    const normalized = applyRequiredMeanings(
+      applyDictionaryFacts(
+        normalizeGeneratedResult(parsed, cleanWord),
+        requiredMeanings.length > 0 ? null : dictionaryEntry,
+      ),
+      requiredMeanings,
     );
     const contentSource: WordGenerateResult['contentSource'] = dictionaryEntry
       ? 'dictionary'

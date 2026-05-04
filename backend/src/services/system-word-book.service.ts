@@ -25,9 +25,11 @@ export const systemWordBookService = {
   /**
    * 详情默认返回一小批候选词，避免用户一进词书就拉完整大纲。
    */
-  async detail(userId: number, bookIdInput: unknown) {
+  async detail(userId: number, bookIdInput: unknown, limitInput?: unknown, offsetInput?: unknown) {
     const bookId = normalizeBookId(bookIdInput);
-    const detail = await getSystemWordBookDetail(userId, bookId, 20);
+    const limit = Math.min(Math.max(Number(limitInput) || 100, 1), 500);
+    const offset = Math.max(Number(offsetInput) || 0, 0);
+    const detail = await getSystemWordBookDetail(userId, bookId, limit, offset);
 
     if (!detail) {
       throw new HttpError(404, '系统词书不存在');

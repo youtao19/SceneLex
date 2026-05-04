@@ -23,6 +23,7 @@ interface SystemWordBookItemRow {
   order_index: number;
   unit: string;
   difficulty: string;
+  exam_meanings: unknown;
   learned: boolean;
 }
 
@@ -51,6 +52,26 @@ function mapItemRow(row: SystemWordBookItemRow): SystemWordBookItem {
     orderIndex: row.order_index,
     unit: row.unit,
     difficulty: row.difficulty,
+    examMeanings: Array.isArray(row.exam_meanings)
+      ? row.exam_meanings
+        .map((item) => {
+          if (!item || typeof item !== 'object') {
+            return null;
+          }
+
+          const data = item as Record<string, unknown>;
+          const partOfSpeech = typeof data.partOfSpeech === 'string' ? data.partOfSpeech : '';
+          const meaning = typeof data.meaning === 'string' ? data.meaning : '';
+          const priority = Number(data.priority);
+
+          if (!partOfSpeech || !meaning || !Number.isInteger(priority)) {
+            return null;
+          }
+
+          return { partOfSpeech, meaning, priority };
+        })
+        .filter((item) => item !== null)
+      : [],
     learned: row.learned,
   };
 }
@@ -86,6 +107,7 @@ export async function getSystemWordBookDetail(
   userId: number,
   bookId: number,
   limit: number,
+  offset: number,
 ): Promise<SystemWordBookDetail | null> {
   const bookResult = await query<SystemWordBookRow>(
     `
@@ -123,6 +145,7 @@ export async function getSystemWordBookDetail(
         item.order_index,
         item.unit,
         item.difficulty,
+        item.exam_meanings,
         (w.id IS NOT NULL) AS learned
       FROM system_word_book_items item
       LEFT JOIN words w
@@ -133,9 +156,9 @@ export async function getSystemWordBookDetail(
         (w.id IS NOT NULL) ASC,
         item.order_index ASC,
         item.word ASC
-      LIMIT $3
+      LIMIT $3 OFFSET $4
     `,
-    [userId, bookId, limit],
+    [userId, bookId, limit, offset],
   );
 
   return {

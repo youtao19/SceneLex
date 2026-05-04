@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { readAuthUser } from '../middlewares/auth.middleware'
 import { wordService } from '../services/word.service'
 import { ok } from '../utils/response'
-import type { ReviewRating, WordMeaningItem } from '../types/word'
+import type { ReviewRating, WordMeaningItem, WordRequiredMeaning } from '../types/word'
 
 /**
  * 生成接口需要带上用户身份，因为词卡缓存按用户隔离。
@@ -14,14 +14,16 @@ export async function generateWordContent(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const { word, forceRegenerate } = req.body as {
+    const { word, forceRegenerate, requiredMeanings } = req.body as {
       word?: string
       forceRegenerate?: boolean
+      requiredMeanings?: WordRequiredMeaning[]
     }
     const result = await wordService.generateWordContent(
       authUser.id,
       word ?? '',
-      forceRegenerate === true
+      forceRegenerate === true,
+      requiredMeanings
     )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {

@@ -5,12 +5,18 @@ import type {
   StoredWord,
   WordGenerateData,
   WordMeaningItem,
+  WordRequiredMeaning,
 } from '../types/word'
 
-export async function generateWord(word: string, forceRegenerate = false) {
+export async function generateWord(
+  word: string,
+  forceRegenerate = false,
+  requiredMeanings: WordRequiredMeaning[] = []
+) {
   return post<ApiResponse<WordGenerateData>>('/words/generate', {
     word,
     forceRegenerate,
+    requiredMeanings,
   })
 }
 
