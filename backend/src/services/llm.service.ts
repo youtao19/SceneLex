@@ -20,6 +20,19 @@ interface ChatCompletionResponse {
   }>
 }
 
+/**
+ * 去掉模型常见的包裹符号，让阅读页拿到能直接展示的短文本。
+ */
+function cleanPlainText(text: string) {
+  return text
+    .trim()
+    .replace(/^```(?:text|json)?/i, '')
+    .replace(/```$/i, '')
+    .trim()
+    .replace(/^["“”]+|["“”]+$/g, '')
+    .trim()
+}
+
 // 用 schema 约束输出，减少小模型漏字段或乱改结构。
 const jsonFormat = {
   type: 'object',
@@ -317,4 +330,167 @@ export async function generateWithLocalModel(prompt: string): Promise<string> {
   }
 
   return generateWithOllama(prompt)
+}
+
+/**
+ * 阅读助手需要自然语言短回答，不能复用词卡生成的 JSON schema。
+ */
+export async function generatePlainWithOllama(prompt: string): Promise<string> {
+  const config = aiConfig.ollama
+
+  const response = await fetch(`${config.baseURL}/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      think: false,
+      stream: false,
+      keep_alive: '10m',
+      options: {
+        temperature: 0.3,
+        num_predict: 220
+      }
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Ollama 调用失败：${response.status} ${errorText}`)
+  }
+
+  const data = (await response.json()) as OllamaGenerateResponse
+  const text = data.response || data.thinking || ''
+
+  if (text.trim()) {
+    return cleanPlainText(text)
+  }
+
+  throw new Error('Ollama 返回了空 response')
+}
+
+/**
+ * oMLX 的阅读问答走普通 chat completion，避免被 JSON mode 约束。
+ */
+export async function generatePlainWithOmlx(prompt: string): Promise<string> {
+  const config = aiConfig.omlx
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+
+  if (config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`
+  }
+
+  const response = await fetch(`${config.baseURL}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a concise bilingual English-Chinese reading teacher. Answer in Chinese unless asked otherwise.'
+        },
+        {
+          role: 'user',
+          content: `/no_think\n${prompt}`
+        }
+      ],
+      chat_template_kwargs: {
+        enable_thinking: false
+      },
+      temperature: 0.3,
+      max_tokens: 220,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
+  }
+
+  const data = (await response.json()) as ChatCompletionResponse
+  const content = data.choices?.[0]?.message?.content
+
+  if (content && content.trim()) {
+    return cleanPlainText(content)
+  }
+
+  throw new Error('oMLX 未返回 message.content')
+}
+
+/**
+ * DeepSeek 阅读问答不要求 JSON，避免短句翻译被强行包成对象。
+ */
+export async function generatePlainWithDeepseek(prompt: string): Promise<string> {
+  const config = aiConfig.deepseek
+
+  if (!config.apiKey) {
+    throw new Error('DeepSeek 调用失败：请先配置 DEEPSEEK_API_KEY')
+  }
+
+  const response = await fetch(`${config.baseURL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a concise bilingual English-Chinese reading teacher. Answer in Chinese unless asked otherwise.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 220,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`DeepSeek 调用失败：${response.status} ${errorText}`)
+  }
+
+  const data = (await response.json()) as ChatCompletionResponse
+  const finishReason = data.choices?.[0]?.finish_reason
+  const content = data.choices?.[0]?.message?.content
+
+  if (finishReason === 'length') {
+    throw new Error('DeepSeek 输出被 max_tokens 截断，请调大 max_tokens 或缩短文本')
+  }
+
+  if (content && content.trim()) {
+    return cleanPlainText(content)
+  }
+
+  throw new Error('DeepSeek 未返回 message.content')
+}
+
+/**
+ * 根据当前 AI_PROVIDER 生成普通文本，供阅读助手复用同一套模型切换配置。
+ */
+export async function generatePlainWithLocalModel(prompt: string): Promise<string> {
+  if (aiConfig.provider === 'omlx') {
+    return generatePlainWithOmlx(prompt)
+  }
+
+  if (aiConfig.provider === 'deepseek') {
+    return generatePlainWithDeepseek(prompt)
+  }
+
+  return generatePlainWithOllama(prompt)
 }

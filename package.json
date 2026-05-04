@@ -16,6 +16,8 @@
     "dev:backend:ollama": "AI_PROVIDER=ollama npm --prefix backend run dev",
     "dev:backend:omlx": "AI_PROVIDER=omlx npm --prefix backend run dev",
     "dev:backend:deepseek": "AI_PROVIDER=deepseek npm --prefix backend run dev",
+    "dev:ocr": "cd ocr-service && uv run uvicorn main:app --host 127.0.0.1 --port 8001",
+    "dev:ocr:reload": "cd ocr-service && uv run uvicorn main:app --host 127.0.0.1 --port 8001 --reload",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",

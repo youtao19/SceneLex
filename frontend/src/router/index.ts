@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LandingView from '../views/LandingView.vue';
 import HomeView from '../views/HomeView.vue';
 import HistoryView from '../views/HistoryView.vue';
+import ReadingView from '../views/ReadingView.vue';
 import ReviewView from '../views/ReviewView.vue';
 import SettingsView from '../views/SettingsView.vue';
 import ProfileView from '../views/ProfileView.vue';
@@ -14,6 +15,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'landing', component: LandingView, meta: { guestOnly: true } },
     { path: '/dashboard', name: 'dashboard', component: HomeView, meta: { requiresAuth: true } },
+    { path: '/reading', name: 'reading', component: ReadingView, meta: { requiresAuth: true } },
     { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },
     { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
     { path: '/word-books', name: 'word-books', component: WordBooksView, meta: { requiresAuth: true } },

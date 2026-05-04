@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { recognizeWord } from '../controllers/ocr.controller';
+import { recognizeArticleText } from '../controllers/ocr.controller';
+import { uploadOcrImageMiddleware } from '../middlewares/upload.middleware';
 
 const router = Router();
 
-router.post('/', recognizeWord);
+router.post('/', uploadOcrImageMiddleware.single('image'), recognizeArticleText);
 
 export default router;
-

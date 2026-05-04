@@ -81,7 +81,7 @@
               v-for="item in displayWords"
               :key="item.id"
               class="table-row word-row"
-              :class="{ 'is-revealed': isWordRevealed(item.id) }"
+              :class="reviewRowClass(item.id)"
               role="row"
             >
               <div class="word-cell" role="cell">
@@ -95,6 +95,7 @@
                     v-for="(meaning, index) in item.meanings"
                     :key="index"
                     class="meaning-pill"
+                    :class="reviewToneClass(item.id)"
                   >
                     {{ meaning.partOfSpeech }} {{ meaning.meaning }}
                   </span>
@@ -138,7 +139,9 @@
                   </button>
                 </template>
                 <template v-else>
-                  <span class="review-result">{{ getReviewResultLabel(item.id) }}</span>
+                  <span class="review-result" :class="reviewToneClass(item.id)">
+                    {{ getReviewResultLabel(item.id) }}
+                  </span>
                   <button
                     class="detail-btn"
                     type="button"
@@ -161,40 +164,13 @@
       </section>
     </main>
 
-    <div
-      v-if="selectedWord"
-      class="modal-backdrop"
-      aria-modal="true"
-      role="dialog"
-      @click="closeDetailModal"
-    >
-      <article class="word-detail-modal surface-card" @click.stop>
-        <header class="modal-head">
-          <div>
-            <p class="card-label">WORD DETAIL</p>
-            <h3>{{ selectedWord.word }}</h3>
-          </div>
-          <button class="modal-close" type="button" aria-label="关闭详情" @click="closeDetailModal">
-            ×
-          </button>
-        </header>
-
-        <div class="modal-scroll">
-          <WordMeaningsPanel
-            :word="selectedWord.word"
-            :phonetic="selectedWord.phonetic"
-            :core-feeling="selectedWord.coreFeeling"
-            :meanings="selectedWord.meanings"
-          />
-        </div>
-      </article>
-    </div>
+    <WordDetailModal :word="selectedWord" @close="closeDetailModal" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import WordMeaningsPanel from '../components/WordMeaningsPanel.vue'
+import WordDetailModal from '../components/WordDetailModal.vue'
 import { fetchHistoryList } from '../services/history.service'
 import { getTodayWords, reviewWord } from '../services/word.service'
 import type { HistoryArchive } from '../types/history'
@@ -421,6 +397,21 @@ function isWordRevealed(wordId: number) {
 
 function isWordSubmitting(wordId: number) {
   return submittingWordIds.value.has(wordId)
+}
+
+function reviewToneClass(wordId: number) {
+  const result = reviewResults.value[wordId]
+
+  if (!result) return ''
+
+  return `is-${result}`
+}
+
+function reviewRowClass(wordId: number) {
+  return {
+    'is-revealed': isWordRevealed(wordId),
+    [reviewToneClass(wordId)]: Boolean(reviewToneClass(wordId)),
+  }
 }
 
 function getReviewResultLabel(wordId: number) {
@@ -731,6 +722,22 @@ onMounted(syncReviewData)
   background: rgba(236, 253, 245, 0.42);
 }
 
+.word-row.is-again {
+  background: rgba(254, 242, 242, 0.7);
+}
+
+.word-row.is-hard {
+  background: rgba(255, 247, 237, 0.72);
+}
+
+.word-row.is-good {
+  background: rgba(236, 253, 245, 0.7);
+}
+
+.word-row.is-easy {
+  background: rgba(239, 246, 255, 0.72);
+}
+
 .word-cell {
   display: flex;
   flex-direction: column;
@@ -767,6 +774,30 @@ onMounted(syncReviewData)
   border: 1px solid var(--sl-glass-border);
   font-size: 13px;
   font-weight: 700;
+}
+
+.meaning-pill.is-again {
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.18);
+}
+
+.meaning-pill.is-hard {
+  color: #c2410c;
+  background: rgba(249, 115, 22, 0.1);
+  border-color: rgba(249, 115, 22, 0.2);
+}
+
+.meaning-pill.is-good {
+  color: #047857;
+  background: rgba(4, 120, 87, 0.1);
+  border-color: rgba(4, 120, 87, 0.2);
+}
+
+.meaning-pill.is-easy {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 .hidden-meaning {
@@ -847,56 +878,20 @@ onMounted(syncReviewData)
   font-weight: 800;
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  padding: 32px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 13, 19, 0.36);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.review-result.is-again {
+  color: #b42318;
 }
 
-.word-detail-modal {
-  width: min(820px, 100%);
-  max-height: min(760px, calc(100vh - 64px));
-  border-radius: var(--sl-radius-xl);
-  overflow: hidden;
+.review-result.is-hard {
+  color: #c2410c;
 }
 
-.modal-head {
-  padding: 22px 28px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  border-bottom: 1px solid var(--sl-glass-border);
+.review-result.is-good {
+  color: #047857;
 }
 
-.modal-head h3 {
-  margin: 0;
-  color: var(--sl-text-main);
-  font-size: 28px;
-  font-family: var(--sl-display-font);
-}
-
-.modal-close {
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  color: var(--sl-text-soft);
-  background: var(--sl-glass-bg);
-  font-size: 24px;
-  line-height: 1;
-}
-
-.modal-scroll {
-  max-height: calc(100vh - 190px);
-  padding: 8px 28px 28px;
-  overflow-y: auto;
+.review-result.is-easy {
+  color: #1d4ed8;
 }
 
 @media (max-width: 980px) {

@@ -73,6 +73,9 @@
               <span>{{ item.meanings.length }} 个义项</span>
               <span>下次 {{ formatDate(item.nextReview) }}</span>
             </div>
+            <button class="detail-word-btn" type="button" @click="openDetailModal(item)">
+              查看详情
+            </button>
           </article>
         </div>
       </article>
@@ -107,21 +110,30 @@
             <span role="columnheader">主要释义</span>
             <span role="columnheader">复习</span>
             <span role="columnheader">添加时间</span>
+            <span role="columnheader">操作</span>
           </div>
           <div v-for="item in filteredWords" :key="item.id" class="table-row" role="row">
             <span class="word-name" role="cell">{{ item.word }}</span>
             <span class="meaning-cell" role="cell">{{ item.primaryMeaning }}</span>
             <span role="cell">{{ item.reviewCount }} 次</span>
             <span role="cell">{{ formatDate(item.createdAt) }}</span>
+            <span role="cell">
+              <button class="detail-word-btn" type="button" @click="openDetailModal(item)">
+                查看详情
+              </button>
+            </span>
           </div>
         </div>
       </article>
     </section>
+
+    <WordDetailModal :word="selectedWord" @close="closeDetailModal" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import WordDetailModal from '../components/WordDetailModal.vue'
 import { fetchHistoryList } from '../services/history.service'
 import type { HistoryArchive } from '../types/history'
 import type { StoredWord } from '../types/word'
@@ -131,6 +143,7 @@ const keyword = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 const activeFilter = ref<'all' | 'due'>('all')
+const selectedWord = ref<StoredWord | null>(null)
 
 const dueWords = computed(() => archive.value?.dueWords ?? [])
 const recentWords = computed(() => archive.value?.recentWords ?? [])
@@ -165,6 +178,7 @@ const filteredWords = computed(() => {
 
 function setFilter(filter: 'all' | 'due') {
   activeFilter.value = filter
+  selectedWord.value = null
 }
 
 // 归档页只需要短日期，避免表格在移动端被完整时间挤宽。
@@ -189,6 +203,14 @@ async function loadArchive() {
   } finally {
     loading.value = false
   }
+}
+
+function openDetailModal(word: StoredWord) {
+  selectedWord.value = word
+}
+
+function closeDetailModal() {
+  selectedWord.value = null
 }
 
 onMounted(loadArchive)
@@ -384,6 +406,17 @@ button.summary-card:focus-visible {
   line-height: 1.6;
 }
 
+.detail-word-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--sl-glass-border-strong);
+  border-radius: 999px;
+  background: var(--sl-glass-bg);
+  color: var(--sl-text-soft);
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .library-head {
   align-items: flex-start;
 }
@@ -443,7 +476,7 @@ button.summary-card:focus-visible {
   min-height: 58px;
   padding: 12px 16px;
   display: grid;
-  grid-template-columns: minmax(110px, 0.9fr) minmax(180px, 1.5fr) 82px 82px;
+  grid-template-columns: minmax(110px, 0.9fr) minmax(180px, 1.5fr) 82px 82px 96px;
   gap: 16px;
   align-items: center;
   color: var(--sl-text-soft);
