@@ -9,6 +9,10 @@ export function fetchSystemWordBooks() {
   return get<ApiResponse<SystemWordBook[]>>('/system-word-books')
 }
 
-export function fetchSystemWordBookDetail(bookId: number) {
-  return get<ApiResponse<SystemWordBookDetail>>(`/system-word-books/${bookId}`)
+export function fetchSystemWordBookDetail(bookId: number, limit?: number, offset?: number) {
+  const params = new URLSearchParams()
+  if (limit) params.append('limit', String(limit))
+  if (offset !== undefined) params.append('offset', String(offset))
+  const query = params.toString()
+  return get<ApiResponse<SystemWordBookDetail>>(`/system-word-books/${bookId}${query ? '?' + query : ''}`)
 }

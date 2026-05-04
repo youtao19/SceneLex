@@ -14,8 +14,10 @@ function getFullAvatarUrl(path: string) {
   if (path.startsWith('http')) {
     return path
   }
-  // 基础路径硬编码，实际生产中应从配置读取
-  return `http://localhost:3003${path}`
+  // 使用相对路径：
+  // - 开发模式：vite proxy 把 /uploads 转发到后端
+  // - 生产模式：后端直接 serve 静态资源，同源
+  return path
 }
 </script>
 

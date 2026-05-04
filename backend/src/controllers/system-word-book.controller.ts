@@ -25,7 +25,12 @@ export async function getSystemWordBook(
 ) {
   try {
     const authUser = readAuthUser(req);
-    const result = await systemWordBookService.detail(authUser.id, req.params.bookId);
+    const result = await systemWordBookService.detail(
+      authUser.id,
+      req.params.bookId,
+      req.query.limit,
+      req.query.offset,
+    );
 
     return res.json(ok(result, 'System word book fetched'));
   } catch (error) {

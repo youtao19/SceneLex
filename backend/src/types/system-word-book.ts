@@ -1,3 +1,5 @@
+import type { WordRequiredMeaning } from './word';
+
 export interface SystemWordBook {
   id: number;
   code: string;
@@ -16,6 +18,7 @@ export interface SystemWordBookItem {
   orderIndex: number;
   unit: string;
   difficulty: string;
+  examMeanings: WordRequiredMeaning[];
   learned: boolean;
 }
 

@@ -1,7 +1,15 @@
 import type { DictionaryEntry } from '../types/dictionary'
+import type { WordRequiredMeaning } from '../types/word'
 
-export function buildWordPrompt(word: string, dictionaryEntry?: DictionaryEntry): string {
+export function buildWordPrompt(
+  word: string,
+  dictionaryEntry?: DictionaryEntry,
+  requiredMeanings: WordRequiredMeaning[] = [],
+): string {
   const dictionaryContext = dictionaryEntry ? buildDictionaryContext(dictionaryEntry) : ''
+  const requiredContext = requiredMeanings.length > 0
+    ? buildRequiredMeaningContext(requiredMeanings)
+    : ''
 
   return `
 你是一个英语单词记忆助手。只输出纯 JSON，不输出任何其他文字。
@@ -18,7 +26,11 @@ export function buildWordPrompt(word: string, dictionaryEntry?: DictionaryEntry)
 
 ${dictionaryContext}
 
+${requiredContext}
+
 规则：
+
+如果有考试要求义项，必须只围绕这些义项生成 meanings，并保持同样顺序；不要补充考试范围外的主要义项
 
 如果有词库上下文，必须优先按词库的中文义项和英文释义生成场景；不要自己另造主要义项
 
@@ -47,6 +59,17 @@ explanation 只写一句短中文，不超过 30 字
 tip 写成短中文画面，不要只写抽象同义词
 
 不要输出解释、不要 markdown、不要废话
+`.trim()
+}
+
+function buildRequiredMeaningContext(requiredMeanings: WordRequiredMeaning[]) {
+  const meanings = requiredMeanings
+    .map((item) => `${item.priority}. ${item.partOfSpeech} ${item.meaning}`)
+    .join('\n')
+
+  return `
+考试要求义项：
+${meanings}
 `.trim()
 }
 

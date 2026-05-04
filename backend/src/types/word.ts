@@ -9,6 +9,12 @@ export interface WordMeaningItem {
   tip: string;
 }
 
+export interface WordRequiredMeaning {
+  partOfSpeech: string;
+  meaning: string;
+  priority: number;
+}
+
 export interface WordGenerateResult {
   word: string;
   phonetic: string;

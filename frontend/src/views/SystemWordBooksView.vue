@@ -2,31 +2,52 @@
   <div class="system-books-page">
     <p v-if="errorMessage" class="books-error" role="alert">{{ errorMessage }}</p>
 
-    <main class="system-books-layout">
-      <section class="system-books-panel surface-card" aria-label="系统词书">
-        <header class="module-head">
+    <section class="study-hero" aria-label="词书学习概览">
+      <div class="hero-main">
+        <div>
           <p class="card-label">OFFICIAL BOOKS</p>
           <h2 class="section-title">词书中心</h2>
-          <p class="hero-desc">选择官方词书开始学习；学过的词会进入你的个人词库和复习舱。</p>
-        </header>
-
-        <div v-if="loadingBooks" class="state-block">正在读取词书...</div>
-        <div v-else class="book-grid">
-          <button
-            v-for="book in books"
-            :key="book.id"
-            class="book-card"
-            :class="{ 'is-active': selectedBookId === book.id }"
-            type="button"
-            @click="selectBook(book.id)"
-          >
-            <span class="book-name">{{ book.name }}</span>
-            <span class="book-desc">{{ book.description }}</span>
-            <span class="book-progress">{{ book.learnedWords }} / {{ book.totalWords }} 已学</span>
-          </button>
+          <p class="hero-desc">从官方词书开始学新词；确认学过的词会进入你的个人词库和复习舱。</p>
         </div>
-      </section>
 
+        <label class="book-select-field">
+          <span>当前词书</span>
+          <div class="book-select-shell">
+            <select
+              :value="selectedBookId ?? ''"
+              :disabled="loadingBooks || books.length === 0"
+              aria-label="选择系统词书"
+              @change="handleBookSelectChange"
+            >
+              <option disabled value="">选择词书</option>
+              <option v-for="book in books" :key="book.id" :value="book.id">
+                {{ book.name }} · {{ book.learnedWords }}/{{ book.totalWords }} 已学
+              </option>
+            </select>
+            <span class="select-arrow" aria-hidden="true">⌄</span>
+          </div>
+          <small v-if="selectedBook">{{ selectedBook.description }}</small>
+          <small v-else>{{ loadingBooks ? '正在读取词书...' : '请选择一本词书开始学习' }}</small>
+        </label>
+      </div>
+
+      <div v-if="detail" class="hero-metrics" aria-label="当前词书进度">
+        <div>
+          <strong>{{ detail.learnedWords }}</strong>
+          <span>已学</span>
+        </div>
+        <div>
+          <strong>{{ remainingWords }}</strong>
+          <span>未学</span>
+        </div>
+        <div>
+          <strong>{{ progressPercent }}</strong>
+          <span>进度</span>
+        </div>
+      </div>
+    </section>
+
+    <main class="system-books-layout">
       <section class="study-panel surface-card" aria-label="开始学习">
         <div v-if="loadingDetail" class="state-block">正在读取学习进度...</div>
         <div v-else-if="!detail" class="state-block">选择一本词书开始学习。</div>
@@ -35,39 +56,78 @@
             <div>
               <p class="card-label">STUDY</p>
               <h3>{{ detail.name }}</h3>
-              <p>{{ detail.learnedWords }} / {{ detail.totalWords }} 已进入个人词库</p>
+              <p>下一批会优先展示未加入个人词库的单词。</p>
             </div>
             <button class="peach-button-ghost compact-btn" type="button" @click="loadDetail">
               刷新
             </button>
           </div>
 
-          <div class="progress-track" aria-label="学习进度">
-            <span :style="{ width: progressPercent }"></span>
+          <div class="progress-block">
+            <div class="progress-label">
+              <span>{{ detail.learnedWords }} / {{ detail.totalWords }} 已进入个人词库</span>
+              <strong>{{ progressPercent }}</strong>
+            </div>
+            <div class="progress-track" aria-label="学习进度">
+              <span :style="{ width: progressPercent }"></span>
+            </div>
           </div>
 
           <div v-if="detail.nextWords.length === 0" class="state-block">这本词书还没有可学习的单词。</div>
-          <div v-else class="word-plan" role="table" aria-label="词书学习列表">
-            <div class="plan-row plan-header" role="row">
-              <span role="columnheader">顺序</span>
-              <span role="columnheader">单词</span>
-              <span role="columnheader">状态</span>
-              <span role="columnheader">操作</span>
-            </div>
-            <div v-for="item in detail.nextWords" :key="item.id" class="plan-row" role="row">
-              <span role="cell">#{{ item.orderIndex }}</span>
-              <strong role="cell">{{ item.word }}</strong>
-              <span role="cell">{{ item.learned ? '已学习' : '未学习' }}</span>
-              <span role="cell">
+          <div v-else class="word-plan" aria-label="词书学习列表">
+            <article v-for="item in detail.nextWords" :key="item.id" class="plan-row">
+              <span class="word-order">#{{ item.orderIndex }}</span>
+              <div class="word-main">
+                <strong>{{ item.word }}</strong>
+                <span>{{ item.unit || 'Unit 1' }} · {{ item.difficulty || 'core' }}</span>
+              </div>
+              <span class="status-pill" :class="{ 'is-learned': item.learned }">
+                {{ item.learned ? '已加入' : '待学习' }}
+              </span>
+              <div class="word-action">
                 <button
                   class="peach-button-secondary compact-btn"
                   type="button"
                   :disabled="item.learned || previewingWord === item.word"
-                  @click="previewWord(item.word)"
+                  @click="previewWord(item)"
                 >
                   {{ item.learned ? '已加入' : previewingWord === item.word ? '生成中...' : '查看词卡' }}
                 </button>
-              </span>
+              </div>
+              <p v-if="item.examMeanings.length > 0" class="exam-meanings">
+                六级义项：{{ formatExamMeanings(item.examMeanings) }}
+              </p>
+            </article>
+          </div>
+
+          <div v-if="detail &amp;&amp; detail.totalWords &gt; 0" class="pagination-bar">
+            <div class="page-size">
+              <span>每页</span>
+              <select :value="pageSize" @change="onPageSizeChange">
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+                <option :value="200">200</option>
+              </select>
+              <span>个</span>
+            </div>
+            <div class="page-nav">
+              <button
+                class="peach-button-ghost compact-btn"
+                type="button"
+                :disabled="page <= 1"
+                @click="goPage(page - 1)"
+              >
+                上一页
+              </button>
+              <span class="page-info">第 {{ page }} / {{ totalPages }} 页</span>
+              <button
+                class="peach-button-ghost compact-btn"
+                type="button"
+                :disabled="page >= totalPages"
+                @click="goPage(page + 1)"
+              >
+                下一页
+              </button>
             </div>
           </div>
 
@@ -136,8 +196,9 @@ import WordMeaningsPanel from '../components/WordMeaningsPanel.vue'
 import type {
   SystemWordBook,
   SystemWordBookDetail,
+  SystemWordBookItem,
 } from '../types/system-word-book'
-import type { WordGenerateData } from '../types/word'
+import type { WordGenerateData, WordRequiredMeaning } from '../types/word'
 
 const books = ref<SystemWordBook[]>([])
 const detail = ref<SystemWordBookDetail | null>(null)
@@ -150,9 +211,22 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const preview = ref<WordGenerateData | null>(null)
 const previewRequestId = ref(0)
+const DEFAULT_SYSTEM_BOOK_CODE = 'cet6'
+const page = ref(1)
+const pageSize = ref(100)
 
 const showPreviewModal = computed(() => Boolean(previewingWord.value || preview.value))
 const previewTitle = computed(() => preview.value?.word ?? previewingWord.value)
+const selectedBook = computed(() => {
+  return books.value.find((book) => book.id === selectedBookId.value) ?? null
+})
+const remainingWords = computed(() => {
+  if (!detail.value) {
+    return 0
+  }
+
+  return Math.max(detail.value.totalWords - detail.value.learnedWords, 0)
+})
 
 const progressPercent = computed(() => {
   if (!detail.value || detail.value.totalWords === 0) {
@@ -160,6 +234,13 @@ const progressPercent = computed(() => {
   }
 
   return `${Math.round((detail.value.learnedWords / detail.value.totalWords) * 100)}%`
+})
+
+const totalPages = computed(() => {
+  if (!detail.value || detail.value.totalWords === 0) {
+    return 1
+  }
+  return Math.ceil(detail.value.totalWords / pageSize.value)
 })
 
 /**
@@ -174,7 +255,8 @@ async function loadBooks() {
     books.value = response.data
 
     if (!selectedBookId.value && response.data.length > 0) {
-      await selectBook(response.data[0].id)
+      const defaultBook = response.data.find((book) => book.code === DEFAULT_SYSTEM_BOOK_CODE)
+      await selectBook((defaultBook ?? response.data[0]).id)
     }
   } catch (error) {
     console.error(error)
@@ -185,7 +267,7 @@ async function loadBooks() {
 }
 
 /**
- * 详情只取下一批词，避免词书很大时一次性压到前端。
+ * 详情分页加载，避免词书很大时一次性压到前端。
  */
 async function loadDetail() {
   if (!selectedBookId.value) {
@@ -197,7 +279,8 @@ async function loadDetail() {
   errorMessage.value = ''
 
   try {
-    const response = await fetchSystemWordBookDetail(selectedBookId.value)
+    const offset = (page.value - 1) * pageSize.value
+    const response = await fetchSystemWordBookDetail(selectedBookId.value, pageSize.value, offset)
     detail.value = response.data
   } catch (error) {
     console.error(error)
@@ -207,29 +290,67 @@ async function loadDetail() {
   }
 }
 
+async function goPage(newPage: number) {
+  if (!detail.value || newPage < 1 || newPage > totalPages.value) return
+  page.value = newPage
+  await loadDetail()
+}
+
+async function changePageSize(newSize: number) {
+  pageSize.value = newSize
+  page.value = 1
+  await loadDetail()
+}
+
+async function onPageSizeChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  const newSize = Number(target.value)
+  if (!Number.isNaN(newSize) && newSize > 0) {
+    await changePageSize(newSize)
+  }
+}
+
 /**
- * 切换词书时清空预览，避免用户把上一本词书的词误加入。
+ * 切换词书时清空预览并重置分页，避免用户把上一本词书的词误加入。
  */
 async function selectBook(bookId: number) {
   selectedBookId.value = bookId
   successMessage.value = ''
   preview.value = null
+  page.value = 1
   await loadDetail()
+}
+
+async function handleBookSelectChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  const bookId = Number(target.value)
+
+  if (!Number.isInteger(bookId) || bookId <= 0) {
+    return
+  }
+
+  await selectBook(bookId)
 }
 
 /**
  * 先用强制生成模式展示词卡，不写入用户 words，避免“点一下就保存”。
  */
-async function previewWord(word: string) {
+function formatExamMeanings(meanings: WordRequiredMeaning[]) {
+  return meanings
+    .map((item) => `${item.partOfSpeech} ${item.meaning}`)
+    .join('；')
+}
+
+async function previewWord(item: SystemWordBookItem) {
   const requestId = previewRequestId.value + 1
   previewRequestId.value = requestId
   preview.value = null
-  previewingWord.value = word
+  previewingWord.value = item.word
   errorMessage.value = ''
   successMessage.value = ''
 
   try {
-    const response = await generateWord(word, true)
+    const response = await generateWord(item.word, true, item.examMeanings)
     if (previewRequestId.value !== requestId) {
       return
     }
@@ -292,7 +413,7 @@ onMounted(loadBooks)
 .system-books-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 .books-error,
@@ -302,32 +423,135 @@ onMounted(loadBooks)
   font-size: 14px;
 }
 
-.system-books-layout {
+.study-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 28px;
+  border: 1px solid rgba(31, 41, 55, 0.08);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.72)),
+    radial-gradient(circle at 92% 18%, rgba(37, 99, 235, 0.14), transparent 34%);
+}
+
+.hero-main {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.1fr);
-  gap: 18px;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 360px);
+  align-items: end;
+  gap: 24px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.system-books-panel,
+.study-hero .section-title,
+.study-hero .hero-desc {
+  margin: 0;
+}
+
+.study-hero .hero-desc {
+  max-width: 620px;
+  margin-top: 8px;
+  color: var(--text-muted);
+}
+
+.book-select-field {
+  display: grid;
+  gap: 7px;
+}
+
+.book-select-field > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.book-select-field small {
+  min-height: 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.book-select-shell {
+  position: relative;
+}
+
+.book-select-shell select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 38px 0 14px;
+  border: 1px solid rgba(31, 41, 55, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--sl-text-main);
+  font: inherit;
+  font-weight: 800;
+  appearance: none;
+}
+
+.book-select-shell select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.select-arrow {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  color: var(--text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  min-width: min(360px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(31, 41, 55, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.hero-metrics div {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+  border-left: 1px solid rgba(31, 41, 55, 0.08);
+}
+
+.hero-metrics div:first-child {
+  border-left: 0;
+}
+
+.hero-metrics strong {
+  color: var(--sl-text-main);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.hero-metrics span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.system-books-layout {
+  display: block;
+}
+
 .study-panel {
+  min-height: 520px;
   padding: 24px;
+  border-radius: 8px;
 }
 
-.module-head,
 .study-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-}
-
-.module-head {
-  flex-direction: column;
-  margin-bottom: 18px;
-}
-
-.study-head {
   align-items: flex-start;
-  margin-bottom: 16px;
+  gap: 16px;
 }
 
 .study-head h3,
@@ -344,40 +568,24 @@ onMounted(loadBooks)
   color: var(--text-muted);
 }
 
-.book-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.book-card {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  padding: 16px;
-  border: 1px solid rgba(31, 41, 55, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.book-card.is-active {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
-.book-name {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.book-desc,
-.book-progress,
 .state-block {
   color: var(--text-muted);
   font-size: 14px;
   line-height: 1.6;
+}
+
+.progress-block {
+  margin: 18px 0;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .progress-track {
@@ -385,7 +593,6 @@ onMounted(loadBooks)
   overflow: hidden;
   border-radius: 999px;
   background: rgba(31, 41, 55, 0.1);
-  margin-bottom: 18px;
 }
 
 .progress-track span {
@@ -397,29 +604,69 @@ onMounted(loadBooks)
 
 .word-plan {
   display: grid;
-  border: 1px solid rgba(31, 41, 55, 0.1);
-  border-radius: 8px;
-  overflow: hidden;
+  gap: 8px;
 }
 
 .plan-row {
   display: grid;
-  grid-template-columns: 72px minmax(120px, 1fr) 88px 96px;
-  gap: 12px;
+  grid-template-columns: 64px minmax(160px, 1fr) 92px 108px;
+  gap: 14px;
   align-items: center;
+  min-height: 68px;
   padding: 12px 14px;
-  border-top: 1px solid rgba(31, 41, 55, 0.08);
+  border: 1px solid rgba(31, 41, 55, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
 }
 
-.plan-row:first-child {
-  border-top: 0;
+.exam-meanings {
+  grid-column: 2 / -1;
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-.plan-header {
-  background: rgba(31, 41, 55, 0.04);
+.word-order {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.word-main {
+  display: grid;
+  gap: 3px;
+}
+
+.word-main strong {
+  color: var(--sl-text-main);
+  font-size: 20px;
+}
+
+.word-main span {
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.status-pill {
+  justify-self: start;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.09);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-pill.is-learned {
+  background: rgba(22, 163, 74, 0.1);
+  color: #15803d;
+}
+
+.word-action {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .compact-btn {
@@ -503,13 +750,72 @@ onMounted(loadBooks)
   border-top: 1px solid var(--sl-glass-border);
 }
 
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(31, 41, 55, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.page-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.page-size select {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgba(31, 41, 55, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-info {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
-  .system-books-layout {
+  .study-hero {
+    flex-direction: column;
+  }
+
+  .hero-main {
     grid-template-columns: 1fr;
   }
 
   .plan-row {
-    grid-template-columns: 56px minmax(96px, 1fr) 72px 86px;
+    grid-template-columns: 52px minmax(96px, 1fr);
+  }
+
+  .status-pill,
+  .word-action,
+  .exam-meanings {
+    grid-column: 2;
+  }
+
+  .word-action {
+    justify-content: flex-start;
   }
 
   .preview-modal-head,
@@ -521,6 +827,16 @@ onMounted(loadBooks)
   .preview-modal-scroll {
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  .pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .page-nav {
+    justify-content: center;
   }
 }
 </style>

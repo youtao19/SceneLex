@@ -1,7 +1,10 @@
 import { AUTH_STORAGE_KEY, type AuthState } from '../types/auth'
 import { readFromStorage } from '../utils/storage'
 
-const BASE_URL = 'http://localhost:3003/api'
+// 使用相对路径：
+// - 开发模式：vite.config.ts 中的 proxy 会把 /api 转发到后端 3003 端口
+// - 生产模式：后端直接 serve 前端静态资源，请求走同源
+const BASE_URL = '/api'
 
 function readAuthToken() {
   const authState = readFromStorage<AuthState>(AUTH_STORAGE_KEY)

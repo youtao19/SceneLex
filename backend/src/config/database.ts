@@ -16,7 +16,78 @@ const SYSTEM_WORD_BOOK_SEEDS = [
     name: '六级核心词',
     description: '大学英语六级常见进阶词，适合在四级基础上继续扩展。',
     sortOrder: 20,
-    words: ['ambiguous', 'anticipate', 'approximate', 'capacity', 'collapse', 'comprehensive', 'controversy', 'dimension', 'eliminate', 'substantial'],
+    words: [
+      {
+        word: 'ambiguous',
+        examMeanings: [
+          { partOfSpeech: 'adj.', meaning: '模棱两可的', priority: 1 },
+          { partOfSpeech: 'adj.', meaning: '有歧义的', priority: 2 },
+        ],
+      },
+      {
+        word: 'anticipate',
+        examMeanings: [
+          { partOfSpeech: 'v.', meaning: '预期', priority: 1 },
+          { partOfSpeech: 'v.', meaning: '提前应对', priority: 2 },
+        ],
+      },
+      {
+        word: 'approximate',
+        examMeanings: [
+          { partOfSpeech: 'adj.', meaning: '大约的', priority: 1 },
+          { partOfSpeech: 'v.', meaning: '接近', priority: 2 },
+        ],
+      },
+      {
+        word: 'capacity',
+        examMeanings: [
+          { partOfSpeech: 'n.', meaning: '能力', priority: 1 },
+          { partOfSpeech: 'n.', meaning: '容量', priority: 2 },
+        ],
+      },
+      {
+        word: 'collapse',
+        examMeanings: [
+          { partOfSpeech: 'v.', meaning: '倒塌', priority: 1 },
+          { partOfSpeech: 'n.', meaning: '崩溃', priority: 2 },
+        ],
+      },
+      {
+        word: 'comprehensive',
+        examMeanings: [
+          { partOfSpeech: 'adj.', meaning: '全面的', priority: 1 },
+          { partOfSpeech: 'adj.', meaning: '综合的', priority: 2 },
+        ],
+      },
+      {
+        word: 'controversy',
+        examMeanings: [
+          { partOfSpeech: 'n.', meaning: '争议', priority: 1 },
+          { partOfSpeech: 'n.', meaning: '争论', priority: 2 },
+        ],
+      },
+      {
+        word: 'dimension',
+        examMeanings: [
+          { partOfSpeech: 'n.', meaning: '方面', priority: 1 },
+          { partOfSpeech: 'n.', meaning: '维度', priority: 2 },
+        ],
+      },
+      {
+        word: 'eliminate',
+        examMeanings: [
+          { partOfSpeech: 'v.', meaning: '消除', priority: 1 },
+          { partOfSpeech: 'v.', meaning: '淘汰', priority: 2 },
+        ],
+      },
+      {
+        word: 'substantial',
+        examMeanings: [
+          { partOfSpeech: 'adj.', meaning: '大量的', priority: 1 },
+          { partOfSpeech: 'adj.', meaning: '实质的', priority: 2 },
+        ],
+      },
+    ],
   },
   {
     code: 'postgraduate',
@@ -106,7 +177,10 @@ async function seedSystemWordBooks() {
       );
       const bookId = Number(bookResult.rows[0].id);
 
-      for (const [index, word] of book.words.entries()) {
+      for (const [index, item] of book.words.entries()) {
+        const word = typeof item === 'string' ? item : item.word;
+        const examMeanings = typeof item === 'string' ? [] : item.examMeanings;
+
         await client.query(
           `
             INSERT INTO system_word_book_items (
@@ -114,16 +188,18 @@ async function seedSystemWordBooks() {
               word,
               order_index,
               unit,
-              difficulty
+              difficulty,
+              exam_meanings
             )
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
             ON CONFLICT (book_id, word)
             DO UPDATE SET
               order_index = EXCLUDED.order_index,
               unit = EXCLUDED.unit,
-              difficulty = EXCLUDED.difficulty
+              difficulty = EXCLUDED.difficulty,
+              exam_meanings = EXCLUDED.exam_meanings
           `,
-          [bookId, word, index + 1, 'Unit 1', 'core'],
+          [bookId, word, index + 1, 'Unit 1', 'core', JSON.stringify(examMeanings)],
         );
       }
     }
@@ -376,9 +452,17 @@ export async function initializeDatabase() {
         order_index INTEGER NOT NULL,
         unit TEXT NOT NULL DEFAULT '',
         difficulty TEXT NOT NULL DEFAULT '',
+        exam_meanings JSONB NOT NULL DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE system_word_book_items
+      ADD COLUMN IF NOT EXISTS exam_meanings JSONB NOT NULL DEFAULT '[]'::jsonb
     `,
   );
 

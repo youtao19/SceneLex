@@ -21,6 +21,8 @@
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
+    "start:prod": "node backend/dist/server.js",
+    "start:tunnel": "sh ./scripts/start-tunnel.sh",
     "dict:download": "npm --prefix backend run dict:download",
     "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
     "key:create": "sh ./scripts/create-access-key.sh",
