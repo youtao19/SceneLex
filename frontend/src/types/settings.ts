@@ -18,3 +18,13 @@ export interface UpdateAiSettingsPayload {
   provider: AiProvider;
   model: string;
 }
+
+export interface LearningSettings {
+  dailyReviewLimitEnabled: boolean;
+  dailyReviewLimit: number;
+}
+
+export interface UpdateLearningSettingsPayload {
+  dailyReviewLimitEnabled: boolean;
+  dailyReviewLimit: number;
+}

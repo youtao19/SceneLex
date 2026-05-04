@@ -185,6 +185,7 @@ const navigationItems: NavItem[] = [
   { to: '/dashboard', label: '仪表盘', icon: 'dashboard' },
   { to: '/reading', label: '阅读', icon: 'reading' },
   { to: '/review', label: '复习舱', icon: 'review' },
+  { to: '/study-books', label: '词书中心', icon: 'study-books' },
   { to: '/word-books', label: '单词本', icon: 'books' },
   { to: '/history', label: '归档册', icon: 'history' },
   { to: '/settings', label: '更多', icon: 'more' },
@@ -776,6 +777,7 @@ onBeforeUnmount(() => {
 .icon-dashboard::before { content: "⊞"; }
 .icon-reading::before { content: "Aa"; font-size: 13px; font-weight: 900; }
 .icon-review::before { content: "↻"; }
+.icon-study-books::before { content: "▦"; }
 .icon-books::before { content: "▤"; }
 .icon-history::before { content: "📋"; }
 .icon-more::before { content: "⋯"; }

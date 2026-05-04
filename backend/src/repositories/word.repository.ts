@@ -130,6 +130,7 @@ export async function saveWordCard(
 
 export async function listTodayWords(
   userId: number,
+  limit?: number,
 ): Promise<StoredWord[]> {
   const result = await query<WordRow>(
     `
@@ -153,8 +154,9 @@ export async function listTodayWords(
         next_review ASC,
         updated_at ASC,
         word ASC
+      ${limit ? 'LIMIT $2' : ''}
     `,
-    [userId],
+    limit ? [userId, limit] : [userId],
   );
 
   return result.rows.map(mapWordRow);
