@@ -63,13 +63,13 @@ export const aiConfig = {
   ollama: {
     // Ollama 原生 API 地址，注意这里带 /api。
     baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/api',
-    model: process.env.OLLAMA_MODEL ?? 'qwen3:4b',
+    model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b',
     timeout: Number(process.env.OLLAMA_TIMEOUT ?? 60_000)
   },
   omlx: {
     // oMLX 使用 OpenAI-compatible API，默认服务地址是 localhost:8000/v1。
     baseURL: process.env.OMLX_BASE_URL ?? 'http://localhost:8000/v1',
-    model: process.env.OMLX_MODEL ?? process.env.OLLAMA_MODEL ?? 'qwen3:4b',
+    model: process.env.OMLX_MODEL ?? process.env.OLLAMA_MODEL ?? 'qwen3.5:4b',
     timeout: Number(process.env.OMLX_TIMEOUT ?? process.env.OLLAMA_TIMEOUT ?? 60_000),
     apiKey: readOmlxApiKey()
   },

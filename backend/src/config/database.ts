@@ -3,6 +3,44 @@ import { env } from './env';
 
 let pool: Pool | null = null;
 
+const SYSTEM_WORD_BOOK_SEEDS = [
+  {
+    code: 'cet4',
+    name: '四级核心词',
+    description: '大学英语四级高频基础词，适合从通用考试词汇开始。',
+    sortOrder: 10,
+    words: ['abandon', 'ability', 'absorb', 'academic', 'access', 'account', 'achieve', 'adapt', 'adequate', 'advance'],
+  },
+  {
+    code: 'cet6',
+    name: '六级核心词',
+    description: '大学英语六级常见进阶词，适合在四级基础上继续扩展。',
+    sortOrder: 20,
+    words: ['ambiguous', 'anticipate', 'approximate', 'capacity', 'collapse', 'comprehensive', 'controversy', 'dimension', 'eliminate', 'substantial'],
+  },
+  {
+    code: 'postgraduate',
+    name: '考研核心词',
+    description: '考研英语常见核心词，优先覆盖阅读和写作高频表达。',
+    sortOrder: 30,
+    words: ['analysis', 'approach', 'assumption', 'concept', 'context', 'derive', 'emphasis', 'evidence', 'indicate', 'significant'],
+  },
+  {
+    code: 'tem4',
+    name: '专四核心词',
+    description: '英语专业四级基础核心词，兼顾语言学术表达和常用语义辨析。',
+    sortOrder: 40,
+    words: ['coherent', 'compound', 'connotation', 'dictation', 'fluent', 'interpret', 'literal', 'morphology', 'phrase', 'syntax'],
+  },
+  {
+    code: 'tem8',
+    name: '专八核心词',
+    description: '英语专业八级进阶词，适合高阶阅读、翻译和写作积累。',
+    sortOrder: 50,
+    words: ['aesthetic', 'allegory', 'discourse', 'elaborate', 'empirical', 'metaphor', 'nuance', 'paradigm', 'rhetoric', 'sophisticated'],
+  },
+];
+
 function createPool() {
   if (!env.databaseUrl) {
     throw new Error('DATABASE_URL 未配置，无法连接 PostgreSQL');
@@ -44,6 +82,52 @@ export async function withTransaction<T>(
   } finally {
     client.release();
   }
+}
+
+/**
+ * 内置词书只提供全局学习模板，用户进度仍然由自己的 words 表判断。
+ */
+async function seedSystemWordBooks() {
+  await withTransaction(async (client) => {
+    for (const book of SYSTEM_WORD_BOOK_SEEDS) {
+      const bookResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO system_word_books (code, name, description, sort_order)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (code)
+          DO UPDATE SET
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            sort_order = EXCLUDED.sort_order,
+            updated_at = NOW()
+          RETURNING id
+        `,
+        [book.code, book.name, book.description, book.sortOrder],
+      );
+      const bookId = Number(bookResult.rows[0].id);
+
+      for (const [index, word] of book.words.entries()) {
+        await client.query(
+          `
+            INSERT INTO system_word_book_items (
+              book_id,
+              word,
+              order_index,
+              unit,
+              difficulty
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (book_id, word)
+            DO UPDATE SET
+              order_index = EXCLUDED.order_index,
+              unit = EXCLUDED.unit,
+              difficulty = EXCLUDED.difficulty
+          `,
+          [bookId, word, index + 1, 'Unit 1', 'core'],
+        );
+      }
+    }
+  });
 }
 
 export async function initializeDatabase() {
@@ -139,6 +223,26 @@ export async function initializeDatabase() {
     `
       CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id
       ON user_sessions (user_id)
+    `,
+  );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS user_learning_settings (
+        user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        daily_review_limit_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        daily_review_limit INTEGER NOT NULL DEFAULT 20,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT user_learning_settings_daily_review_limit_check
+          CHECK (daily_review_limit BETWEEN 1 AND 200)
+      )
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE user_learning_settings
+      ADD COLUMN IF NOT EXISTS daily_review_limit_enabled BOOLEAN NOT NULL DEFAULT FALSE
     `,
   );
 
@@ -248,6 +352,51 @@ export async function initializeDatabase() {
       ON word_book_items (word_id)
     `,
   );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS system_word_books (
+        id BIGSERIAL PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS system_word_book_items (
+        id BIGSERIAL PRIMARY KEY,
+        book_id BIGINT NOT NULL REFERENCES system_word_books(id) ON DELETE CASCADE,
+        word TEXT NOT NULL,
+        order_index INTEGER NOT NULL,
+        unit TEXT NOT NULL DEFAULT '',
+        difficulty TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_system_word_book_items_book_word
+      ON system_word_book_items (book_id, word)
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_system_word_book_items_book_order
+      ON system_word_book_items (book_id, order_index)
+    `,
+  );
+
+  await seedSystemWordBooks();
 
   await query(
     `

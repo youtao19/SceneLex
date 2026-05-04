@@ -1,6 +1,7 @@
 import { buildWordPrompt } from '../prompts/word.prompt';
 import { generateWithLocalModel } from './llm.service';
 import { dictionaryService } from './dictionary.service';
+import { settingsService } from './settings.service';
 import { buildPrimaryMeaning } from '../utils/word-meaning';
 import {
   findWordByText,
@@ -502,7 +503,10 @@ export const wordService = {
    * 今日复习队列只返回到期单词，保证前端按单词逐张推进。
    */
   async getTodayReviewWords(userId: number): Promise<StoredWord[]> {
-    return listTodayWords(userId);
+    const settings = await settingsService.getLearningSettings(userId);
+    const limit = settings.dailyReviewLimitEnabled ? settings.dailyReviewLimit : undefined;
+
+    return listTodayWords(userId, limit);
   },
 
   /**

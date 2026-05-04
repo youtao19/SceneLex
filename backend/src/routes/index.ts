@@ -11,6 +11,7 @@ import historyRoutes from './history.routes'
 import ocrRoutes from './ocr.routes'
 import readingRoutes from './reading.routes'
 import settingsRoutes from './settings.routes'
+import systemWordBookRoutes from './system-word-book.routes'
 import wordBookRoutes from './word-book.routes'
 import wordRoutes from './word.routes'
 import wordStudyRoutes from './word-study.routes'
@@ -22,6 +23,7 @@ router.use('/history', authMiddleware, accessMiddleware, historyRoutes)
 router.use('/ocr', authMiddleware, accessMiddleware, ocrRoutes)
 router.use('/reading', authMiddleware, accessMiddleware, readingRoutes)
 router.use('/settings', authMiddleware, accessMiddleware, settingsRoutes)
+router.use('/system-word-books', authMiddleware, accessMiddleware, systemWordBookRoutes)
 router.use('/word-books', authMiddleware, accessMiddleware, wordBookRoutes)
 router.use('/words', authMiddleware, accessMiddleware, wordRoutes)
 router.use('/word', authMiddleware, accessMiddleware, wordStudyRoutes)

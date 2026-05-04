@@ -17,76 +17,149 @@
     </header>
 
     <section class="settings-board">
-      <article class="model-panel surface-card" aria-labelledby="model-title">
-        <div class="panel-head">
-          <div>
-            <p class="card-label">GENERATION</p>
-            <h3 id="model-title">模型设置</h3>
+      <div class="settings-stack">
+        <article class="model-panel surface-card" aria-labelledby="model-title">
+          <div class="panel-head">
+            <div>
+              <p class="card-label">GENERATION</p>
+              <h3 id="model-title">模型设置</h3>
+            </div>
+            <span class="state-pill" :class="{ 'is-dirty': hasModelChanges }">
+              {{ hasModelChanges ? '未保存' : '已同步' }}
+            </span>
           </div>
-          <span class="state-pill" :class="{ 'is-dirty': hasChanges }">
-            {{ hasChanges ? '未保存' : '已同步' }}
-          </span>
-        </div>
 
-        <div v-if="isLoading" class="notice-box">正在读取后端模型配置...</div>
-        <div v-else-if="errorMessage" class="notice-box is-error">{{ errorMessage }}</div>
+          <div v-if="isLoading" class="notice-box">正在读取后端模型配置...</div>
+          <div v-else-if="modelErrorMessage" class="notice-box is-error">{{ modelErrorMessage }}</div>
 
-        <template v-if="settings">
-          <div class="provider-grid" aria-label="模型服务">
+          <template v-if="settings">
+            <div class="provider-grid" aria-label="模型服务">
+              <button
+                v-for="provider in settings.providers"
+                :key="provider.id"
+                class="provider-tile"
+                :class="{ 'is-active': selectedProvider === provider.id }"
+                type="button"
+                @click="chooseProvider(provider.id)"
+              >
+                <span class="provider-icon">{{ providerMeta[provider.id].icon }}</span>
+                <span>
+                  <strong>{{ provider.name }}</strong>
+                  <small>{{ providerMeta[provider.id].tone }}</small>
+                </span>
+              </button>
+            </div>
+
+            <div class="model-form">
+              <label class="field-block">
+                <span>模型名称</span>
+                <input
+                  v-model.trim="selectedModel"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  :placeholder="selectedProviderConfig?.model || '输入模型名'"
+                />
+              </label>
+
+              <div class="preset-row" aria-label="常用模型">
+                <button
+                  v-for="preset in activePresets"
+                  :key="preset"
+                  class="preset-chip"
+                  type="button"
+                  @click="selectedModel = preset"
+                >
+                  {{ preset }}
+                </button>
+              </div>
+
+              <div class="action-row">
+                <button
+                  class="peach-button save-button"
+                  type="button"
+                  :disabled="!canSaveModel"
+                  @click="saveModelSettings"
+                >
+                  保存模型设置
+                </button>
+                <p v-if="modelSuccessMessage" class="save-result">{{ modelSuccessMessage }}</p>
+              </div>
+            </div>
+          </template>
+        </article>
+
+        <article class="model-panel surface-card" aria-labelledby="learning-title">
+          <div class="panel-head">
+            <div>
+              <p class="card-label">REVIEW</p>
+              <h3 id="learning-title">复习推送</h3>
+            </div>
+            <span class="state-pill" :class="{ 'is-dirty': hasLearningChanges }">
+              {{ hasLearningChanges ? '未保存' : '已同步' }}
+            </span>
+          </div>
+
+          <div v-if="learningErrorMessage" class="notice-box is-error">{{ learningErrorMessage }}</div>
+
+          <div class="learning-form">
             <button
-              v-for="provider in settings.providers"
-              :key="provider.id"
-              class="provider-tile"
-              :class="{ 'is-active': selectedProvider === provider.id }"
+              class="switch-row"
               type="button"
-              @click="chooseProvider(provider.id)"
+              :aria-pressed="dailyReviewLimitEnabled"
+              @click="toggleDailyReviewLimit"
             >
-              <span class="provider-icon">{{ providerMeta[provider.id].icon }}</span>
               <span>
-                <strong>{{ provider.name }}</strong>
-                <small>{{ providerMeta[provider.id].tone }}</small>
+                <strong>启用每日数量限制</strong>
+                <small>{{ dailyReviewLimitEnabled ? '复习舱会按下方数量推送到期词' : '关闭时恢复默认：展示所有到期词' }}</small>
+              </span>
+              <span class="switch-track" :class="{ 'is-on': dailyReviewLimitEnabled }">
+                <span class="switch-thumb"></span>
               </span>
             </button>
-          </div>
 
-          <div class="model-form">
             <label class="field-block">
-              <span>模型名称</span>
+              <span>每天推送数量</span>
               <input
-                v-model.trim="selectedModel"
-                type="text"
-                autocomplete="off"
-                spellcheck="false"
-                :placeholder="selectedProviderConfig?.model || '输入模型名'"
+                v-model.number="dailyReviewLimit"
+                :disabled="!dailyReviewLimitEnabled"
+                type="number"
+                min="1"
+                max="200"
+                step="1"
               />
             </label>
 
-            <div class="preset-row" aria-label="常用模型">
-              <button
-                v-for="preset in activePresets"
-                :key="preset"
-                class="preset-chip"
-                type="button"
-                @click="selectedModel = preset"
-              >
-                {{ preset }}
-              </button>
+            <input
+              v-model.number="dailyReviewLimit"
+              class="review-slider"
+              :disabled="!dailyReviewLimitEnabled"
+              type="range"
+              min="1"
+              max="100"
+              step="1"
+              aria-label="每天推送数量"
+            />
+
+            <div class="review-limit-preview">
+              <strong>{{ dailyReviewLimitEnabled ? normalizedDailyReviewLimit : 'ALL' }}</strong>
+              <span>{{ dailyReviewLimitEnabled ? '个到期单词 / 天' : '所有到期单词' }}</span>
             </div>
 
             <div class="action-row">
               <button
                 class="peach-button save-button"
                 type="button"
-                :disabled="!canSave"
-                @click="saveSettings"
+                :disabled="!canSaveLearning"
+                @click="saveLearningSettings"
               >
-                保存模型设置
+                保存复习设置
               </button>
-              <p v-if="successMessage" class="save-result">{{ successMessage }}</p>
+              <p v-if="learningSuccessMessage" class="save-result">{{ learningSuccessMessage }}</p>
             </div>
           </div>
-        </template>
-      </article>
+        </article>
+      </div>
 
       <aside class="diagnostic-panel surface-card" aria-label="运行诊断">
         <p class="card-label">RUNTIME</p>
@@ -122,23 +195,35 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { fetchAiSettings, updateAiSettings } from '../services/settings.service';
+import {
+  fetchAiSettings,
+  fetchLearningSettings,
+  updateAiSettings,
+  updateLearningSettings,
+} from '../services/settings.service';
 import type { AiProvider, AiSettings } from '../types/settings';
 
 const settings = ref<AiSettings | null>(null);
 const selectedProvider = ref<AiProvider>('ollama');
 const selectedModel = ref('');
+const savedDailyReviewLimitEnabled = ref(false);
+const dailyReviewLimitEnabled = ref(false);
+const savedDailyReviewLimit = ref(20);
+const dailyReviewLimit = ref(20);
 const isLoading = ref(false);
 const isSaving = ref(false);
-const errorMessage = ref('');
-const successMessage = ref('');
+const isSavingLearning = ref(false);
+const modelErrorMessage = ref('');
+const learningErrorMessage = ref('');
+const modelSuccessMessage = ref('');
+const learningSuccessMessage = ref('');
 
 const providerMeta: Record<AiProvider, { icon: string; tone: string; description: string; presets: string[] }> = {
   ollama: {
     icon: 'O',
     tone: '本地 Ollama',
     description: '适合日常本地生成，要求 Ollama 服务在本机启动。',
-    presets: ['qwen3:4b', 'qwen3:8b', 'llama3.1:8b'],
+    presets: ['qwen3.5:4b', 'gemma4:e4b'],
   },
   omlx: {
     icon: 'X',
@@ -150,7 +235,7 @@ const providerMeta: Record<AiProvider, { icon: string; tone: string; description
     icon: 'D',
     tone: '云端 API',
     description: '适合需要更稳定云端输出时使用，后端必须配置 DEEPSEEK_API_KEY。',
-    presets: ['deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'],
+    presets: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   },
 };
 
@@ -165,15 +250,31 @@ const activeModelName = computed(() => savedProviderConfig.value?.model ?? '等�
 const selectedProviderName = computed(() => selectedProviderConfig.value?.name ?? '未连接');
 const activePresets = computed(() => providerMeta[selectedProvider.value].presets);
 const activeProviderDescription = computed(() => providerMeta[selectedProvider.value].description);
-const hasChanges = computed(() => {
+const normalizedDailyReviewLimit = computed(() => {
+  const limit = Number(dailyReviewLimit.value);
+
+  if (!Number.isInteger(limit)) {
+    return 20;
+  }
+
+  return Math.min(200, Math.max(1, limit));
+});
+const hasModelChanges = computed(() => {
   if (!settings.value) {
     return false;
   }
 
   return settings.value.provider !== selectedProvider.value || selectedProviderConfig.value?.model !== selectedModel.value;
 });
-const canSave = computed(() => {
-  return Boolean(settings.value && selectedModel.value.trim() && hasChanges.value && !isSaving.value);
+const hasLearningChanges = computed(() => {
+  return dailyReviewLimitEnabled.value !== savedDailyReviewLimitEnabled.value
+    || normalizedDailyReviewLimit.value !== savedDailyReviewLimit.value;
+});
+const canSaveModel = computed(() => {
+  return Boolean(settings.value && selectedModel.value.trim() && hasModelChanges.value && !isSaving.value);
+});
+const canSaveLearning = computed(() => {
+  return Boolean(hasLearningChanges.value && !isSavingLearning.value);
 });
 const keyStatus = computed(() => {
   if (selectedProvider.value === 'ollama') {
@@ -188,15 +289,23 @@ const keyStatus = computed(() => {
  */
 async function loadSettings() {
   isLoading.value = true;
-  errorMessage.value = '';
+  modelErrorMessage.value = '';
+  learningErrorMessage.value = '';
 
   try {
-    const response = await fetchAiSettings();
-    settings.value = response.data;
-    selectedProvider.value = response.data.provider;
-    selectedModel.value = response.data.providers.find((provider) => provider.id === response.data.provider)?.model ?? '';
+    const [modelResponse, learningResponse] = await Promise.all([
+      fetchAiSettings(),
+      fetchLearningSettings(),
+    ]);
+    settings.value = modelResponse.data;
+    selectedProvider.value = modelResponse.data.provider;
+    selectedModel.value = modelResponse.data.providers.find((provider) => provider.id === modelResponse.data.provider)?.model ?? '';
+    savedDailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
+    dailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
+    savedDailyReviewLimit.value = learningResponse.data.dailyReviewLimit;
+    dailyReviewLimit.value = learningResponse.data.dailyReviewLimit;
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '读取模型设置失败';
+    modelErrorMessage.value = error instanceof Error ? error.message : '读取设置失败';
   } finally {
     isLoading.value = false;
   }
@@ -208,20 +317,28 @@ async function loadSettings() {
 function chooseProvider(provider: AiProvider) {
   selectedProvider.value = provider;
   selectedModel.value = settings.value?.providers.find((item) => item.id === provider)?.model ?? '';
-  successMessage.value = '';
+  modelSuccessMessage.value = '';
+}
+
+/**
+ * 开关只控制数量限制是否生效，用户填过的数量会保留，方便再次开启。
+ */
+function toggleDailyReviewLimit() {
+  dailyReviewLimitEnabled.value = !dailyReviewLimitEnabled.value;
+  learningSuccessMessage.value = '';
 }
 
 /**
  * 保存后更新本页快照，后续生成请求会使用同一个后端运行态。
  */
-async function saveSettings() {
-  if (!canSave.value) {
+async function saveModelSettings() {
+  if (!canSaveModel.value) {
     return;
   }
 
   isSaving.value = true;
-  errorMessage.value = '';
-  successMessage.value = '';
+  modelErrorMessage.value = '';
+  modelSuccessMessage.value = '';
 
   try {
     const response = await updateAiSettings({
@@ -231,11 +348,42 @@ async function saveSettings() {
     settings.value = response.data;
     selectedProvider.value = response.data.provider;
     selectedModel.value = response.data.providers.find((provider) => provider.id === response.data.provider)?.model ?? '';
-    successMessage.value = '已保存，下一次生成会使用这组模型设置。';
+    modelSuccessMessage.value = '已保存，下一次生成会使用这组模型设置。';
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '保存模型设置失败';
+    modelErrorMessage.value = error instanceof Error ? error.message : '保存模型设置失败';
   } finally {
     isSaving.value = false;
+  }
+}
+
+/**
+ * 保存后只限制每天队列数量，超过数量的到期词会留到下一次同步继续出现。
+ */
+async function saveLearningSettings() {
+  if (!canSaveLearning.value) {
+    return;
+  }
+
+  isSavingLearning.value = true;
+  learningErrorMessage.value = '';
+  learningSuccessMessage.value = '';
+
+  try {
+    const response = await updateLearningSettings({
+      dailyReviewLimitEnabled: dailyReviewLimitEnabled.value,
+      dailyReviewLimit: normalizedDailyReviewLimit.value,
+    });
+    savedDailyReviewLimitEnabled.value = response.data.dailyReviewLimitEnabled;
+    dailyReviewLimitEnabled.value = response.data.dailyReviewLimitEnabled;
+    savedDailyReviewLimit.value = response.data.dailyReviewLimit;
+    dailyReviewLimit.value = response.data.dailyReviewLimit;
+    learningSuccessMessage.value = dailyReviewLimitEnabled.value
+      ? '已保存，下一次同步复习舱会按这个数量推送。'
+      : '已保存，下一次同步复习舱会展示所有到期词。';
+  } catch (error) {
+    learningErrorMessage.value = error instanceof Error ? error.message : '保存复习设置失败';
+  } finally {
+    isSavingLearning.value = false;
   }
 }
 
@@ -318,6 +466,11 @@ onMounted(loadSettings);
 
 .model-panel {
   padding: 26px;
+}
+
+.settings-stack {
+  display: grid;
+  gap: 20px;
 }
 
 .diagnostic-panel {
@@ -449,33 +602,151 @@ onMounted(loadSettings);
   gap: 16px;
 }
 
+.learning-form {
+  margin-top: 22px;
+  display: grid;
+  gap: 16px;
+}
+
+.switch-row {
+  width: 100%;
+  min-height: 74px;
+  padding: 14px 16px;
+  border: 2px solid rgba(23, 74, 47, 0.18);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+  color: var(--sl-text-main);
+  background: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+}
+
+.switch-row:hover,
+.switch-row:focus-visible {
+  border-color: rgba(23, 74, 47, 0.38);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.switch-row:focus-visible {
+  outline: 3px solid rgba(22, 101, 52, 0.18);
+  outline-offset: 2px;
+}
+
+.switch-row strong,
+.switch-row small {
+  display: block;
+}
+
+.switch-row small {
+  margin-top: 5px;
+  color: var(--sl-text-soft);
+  font-weight: 800;
+}
+
+.switch-track {
+  width: 58px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  background: rgba(120, 113, 108, 0.32);
+  transition: background 0.2s ease;
+}
+
+.switch-track.is-on {
+  background: #166534;
+}
+
+.switch-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(28, 25, 23, 0.22);
+  transform: translateX(0);
+  transition: transform 0.2s ease;
+}
+
+.switch-track.is-on .switch-thumb {
+  transform: translateX(24px);
+}
+
 .field-block {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .field-block span {
-  color: var(--sl-text-soft);
-  font-size: 13px;
+  color: #174a2f;
+  font-size: 12px;
   font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .field-block input {
   width: 100%;
-  min-height: 56px;
-  padding: 0 16px;
-  border: 1px solid var(--sl-glass-border-strong);
+  min-height: 62px;
+  padding: 0 18px;
+  border: 2px solid rgba(23, 74, 47, 0.28);
   border-radius: 8px;
   color: var(--sl-text-main);
-  background: rgba(255, 255, 255, 0.42);
-  font-size: 16px;
-  font-weight: 800;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 24px rgba(23, 74, 47, 0.08);
+  font-size: 17px;
+  font-weight: 900;
   outline: none;
 }
 
+.field-block input:hover {
+  border-color: rgba(23, 74, 47, 0.42);
+  background: rgba(255, 255, 255, 0.94);
+}
+
 .field-block input:focus {
-  border-color: rgba(22, 101, 52, 0.34);
-  box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.1);
+  border-color: #166534;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 4px rgba(22, 101, 52, 0.16),
+    0 18px 34px rgba(23, 74, 47, 0.14);
+}
+
+.field-block input:disabled,
+.review-slider:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.review-slider {
+  width: 100%;
+  height: 28px;
+  accent-color: #166534;
+  cursor: pointer;
+}
+
+.review-limit-preview {
+  min-height: 76px;
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #174a2f;
+  background: rgba(217, 249, 157, 0.34);
+  border: 1px solid rgba(22, 101, 52, 0.14);
+}
+
+.review-limit-preview strong {
+  font-family: var(--sl-display-font);
+  font-size: 42px;
+  line-height: 1;
 }
 
 .preset-row {
