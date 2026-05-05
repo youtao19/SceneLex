@@ -1,4 +1,4 @@
-import { del, get, post } from './http'
+import { del, get, patch, post } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   ReadingArticle,
@@ -18,6 +18,10 @@ export function deleteReadingArticle(articleId: number) {
   return del<ApiResponse<null>>(`/reading/articles/${articleId}`)
 }
 
+export function updateReadingArticleTitle(articleId: number, title: string) {
+  return patch<ApiResponse<null>>(`/reading/articles/${articleId}/title`, { title })
+}
+
 /**
  * 单词查询带上句子上下文，避免多义词脱离语境。
  */
@@ -30,4 +34,8 @@ export function lookupReadingWord(word: string, sentence: string) {
  */
 export function translateReadingSentence(sentence: string) {
   return post<ApiResponse<ReadingSentenceTranslateData>>('/reading/sentence', { sentence })
+}
+
+export function chatWithAssistant(content: string, question: string) {
+  return post<ApiResponse<{ text: string }>>('/reading/chat', { content, question })
 }

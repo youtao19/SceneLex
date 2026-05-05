@@ -77,21 +77,49 @@
               v-for="article in historyArticles"
               :key="article.id"
               class="history-item"
+              :class="{ 'is-editing': editingArticleId === article.id }"
             >
-              <button class="history-open" type="button" @click="openHistoryArticle(article)">
-                <strong>{{ article.title }}</strong>
-                <span>{{ article.charCount }} characters · {{ formatHistoryTime(article.updatedAt) }}</span>
-              </button>
-              <button
-                class="history-delete"
-                type="button"
-                :disabled="deletingArticleId === article.id"
-                aria-label="删除阅读历史"
-                title="删除"
-                @click.stop="deleteHistoryArticle(article)"
-              >
-                {{ deletingArticleId === article.id ? '…' : '×' }}
-              </button>
+              <template v-if="editingArticleId === article.id">
+                <input
+                  v-focus
+                  v-model="editingTitle"
+                  class="history-title-input"
+                  type="text"
+                  placeholder="文章标题..."
+                  @keydown.enter="saveTitle(article)"
+                  @keydown.esc="cancelEditTitle"
+                />
+                <div class="history-edit-actions">
+                  <button class="history-save-btn" type="button" @click="saveTitle(article)">保存</button>
+                  <button class="history-cancel-btn" type="button" @click="cancelEditTitle">取消</button>
+                </div>
+              </template>
+              <template v-else>
+                <button class="history-open" type="button" @click="openHistoryArticle(article)">
+                  <strong>{{ article.title }}</strong>
+                  <span>{{ article.charCount }} characters · {{ formatHistoryTime(article.updatedAt) }}</span>
+                </button>
+                <div class="history-item-actions">
+                  <button
+                    class="history-edit-trigger"
+                    type="button"
+                    title="修改标题"
+                    @click.stop="startEditTitle(article)"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    class="history-delete"
+                    type="button"
+                    :disabled="deletingArticleId === article.id"
+                    aria-label="删除阅读历史"
+                    title="删除"
+                    @click.stop="deleteHistoryArticle(article)"
+                  >
+                    {{ deletingArticleId === article.id ? '…' : '×' }}
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
         </section>
@@ -154,8 +182,72 @@
             </span>
           </div>
         </article>
+
+        <button
+          class="assistant-trigger"
+          :class="{ 'is-active': assistantOpen }"
+          type="button"
+          title="问问助手"
+          @click="toggleAssistant"
+        >
+          <span class="assistant-icon">✨</span>
+          <span class="assistant-label">助手</span>
+        </button>
       </section>
     </main>
+
+    <aside class="assistant-panel" :class="{ 'is-open': assistantOpen }">
+      <div class="assistant-head">
+        <h3>阅读助手</h3>
+        <button class="assistant-close" type="button" @click="assistantOpen = false">×</button>
+      </div>
+      <div class="assistant-body" ref="chatBodyRef">
+        <div v-if="chatMessages.length === 0" class="assistant-welcome">
+          <p>我是你的 AI 阅读助手，你可以问我关于这篇文章的任何问题。</p>
+          <div class="suggested-questions">
+            <button
+              v-for="q in suggestedQuestions"
+              :key="q"
+              type="button"
+              class="suggestion-chip"
+              @click="askQuestion(q)"
+            >
+              {{ q }}
+            </button>
+          </div>
+        </div>
+        <div
+          v-for="(msg, index) in chatMessages"
+          :key="index"
+          class="chat-message"
+          :class="msg.role"
+        >
+          <div class="message-bubble">{{ msg.content }}</div>
+        </div>
+        <div v-if="assistantLoading" class="chat-message assistant">
+          <div class="message-bubble loading">
+            <span class="mini-loader"></span>
+            思考中...
+          </div>
+        </div>
+      </div>
+      <div class="assistant-footer">
+        <textarea
+          v-model="userQuestion"
+          class="assistant-input"
+          placeholder="问问助手..."
+          @keydown.enter.prevent="askQuestion()"
+        ></textarea>
+        <button
+          class="assistant-send"
+          type="button"
+          :disabled="assistantLoading || !userQuestion.trim()"
+          @click="askQuestion()"
+        >
+          发送
+        </button>
+      </div>
+    </aside>
 
     <aside class="word-panel" :class="{ 'is-open': wordPanel.open }" @click.stop>
       <button class="panel-close" type="button" aria-label="关闭释义" @click="closeWordPanel">×</button>
@@ -209,17 +301,20 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
+  chatWithAssistant,
   deleteReadingArticle,
   fetchReadingArticles,
   lookupReadingWord,
   saveReadingArticle,
-  translateReadingSentence
+  translateReadingSentence,
+  updateReadingArticleTitle
 } from '../services/reading.service'
 import { recognizeArticleFromImage, type OcrMethod } from '../services/ocr.service'
 import type { ReadingArticle } from '../types/reading'
 import { fetchWordBooks } from '../services/word-book.service'
 import { addWord, generateWord } from '../services/word.service'
 import type { WordBook } from '../types/word-book'
+import { nextTick } from 'vue'
 
 interface ReadingToken {
   id: string
@@ -241,25 +336,43 @@ interface ReadingParagraph {
   sentences: ReadingSentence[]
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 const sourceText = ref('')
 const mode = ref<'input' | 'reading'>('input')
 const articleText = ref('')
 const paragraphs = ref<ReadingParagraph[]>([])
 const imageInputRef = ref<HTMLInputElement | null>(null)
+const chatBodyRef = ref<HTMLElement | null>(null)
 const errorMessage = ref('')
 const activeTokenId = ref('')
 const ocrMethod = ref<OcrMethod>('tesseract')
 const ocrLoading = ref(false)
 const saveLoading = ref(false)
 const historyLoading = ref(false)
+const assistantLoading = ref(false)
+const assistantOpen = ref(false)
+const userQuestion = ref('')
+const chatMessages = ref<ChatMessage[]>([])
 const bookLoading = ref(false)
 const deletingArticleId = ref<number | null>(null)
+const editingArticleId = ref<number | null>(null)
+const editingTitle = ref('')
 const historyArticles = ref<ReadingArticle[]>([])
 const wordBooks = ref<WordBook[]>([])
 const selectedBookIds = ref<number[]>([])
 const showBookOptions = ref(false)
 const wordCache = ref(new Map<string, string>())
 const sentenceCache = ref(new Map<string, string>())
+
+const suggestedQuestions = [
+  '总结文章大意',
+  '解释文中的长难句',
+  '列出文中的核心词汇'
+]
 const wordPanel = reactive({
   open: false,
   word: '',
@@ -269,6 +382,10 @@ const wordPanel = reactive({
   saveMessage: '',
   error: ''
 })
+
+const vFocus = {
+  mounted: (el: HTMLInputElement) => el.focus()
+}
 
 const ocrMethods: Array<{ value: OcrMethod; label: string }> = [
   { value: 'tesseract', label: 'Tesseract' },
@@ -456,6 +573,35 @@ function openHistoryArticle(article: ReadingArticle) {
   errorMessage.value = ''
 }
 
+function startEditTitle(article: ReadingArticle) {
+  editingArticleId.value = article.id
+  editingTitle.value = article.title
+}
+
+function cancelEditTitle() {
+  editingArticleId.value = null
+  editingTitle.value = ''
+}
+
+async function saveTitle(article: ReadingArticle) {
+  const title = editingTitle.value.trim()
+  if (!title) {
+    errorMessage.value = '标题不能为空'
+    return
+  }
+
+  try {
+    await updateReadingArticleTitle(article.id, title)
+    article.title = title
+    cancelEditTitle()
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = error instanceof Error && error.message
+      ? error.message
+      : '更新标题失败'
+  }
+}
+
 /**
  * 删除历史只更新历史列表，不清空输入区，避免误删时连当前编辑内容也丢掉。
  */
@@ -527,7 +673,47 @@ async function handleImageUpload(event: Event) {
  */
 function backToInput() {
   mode.value = 'input'
+  articleText.value = ''
+  paragraphs.value = []
+  activeTokenId.value = ''
+  chatMessages.value = []
+  assistantOpen.value = false
   closeWordPanel()
+}
+
+function toggleAssistant() {
+  assistantOpen.value = !assistantOpen.value
+  if (assistantOpen.value) {
+    wordPanel.open = false
+  }
+}
+
+async function scrollToBottom() {
+  await nextTick()
+  if (chatBodyRef.value) {
+    chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+  }
+}
+
+async function askQuestion(question?: string) {
+  const text = (question || userQuestion.value).trim()
+  if (!text || assistantLoading.value) return
+
+  chatMessages.value.push({ role: 'user', content: text })
+  userQuestion.value = ''
+  assistantLoading.value = true
+  scrollToBottom()
+
+  try {
+    const response = await chatWithAssistant(articleText.value, text)
+    chatMessages.value.push({ role: 'assistant', content: response.data.text })
+  } catch (error) {
+    console.error(error)
+    chatMessages.value.push({ role: 'assistant', content: '抱歉，助手暂时无法回答，请重试。' })
+  } finally {
+    assistantLoading.value = false
+    scrollToBottom()
+  }
 }
 
 /**
@@ -917,6 +1103,70 @@ onMounted(() => {
   opacity: 0.6;
 }
 
+.history-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.history-edit-trigger {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-mute);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.history-edit-trigger:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--sl-text-soft);
+}
+
+.history-title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--sl-peach-200);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--sl-text-main);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.history-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.history-save-btn,
+.history-cancel-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--sl-glass-border-strong);
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.history-save-btn {
+  border-color: var(--sl-peach-200);
+  background: var(--sl-peach-50);
+  color: var(--sl-peach-500);
+}
+
+.history-save-btn:hover {
+  background: var(--sl-peach-100);
+}
+
+.history-cancel-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .reader-stage {
   display: grid;
   gap: 18px;
@@ -937,6 +1187,220 @@ onMounted(() => {
 
 .dark-theme .reading-content {
   background: rgba(24, 20, 30, 0.68);
+}
+
+.assistant-trigger {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: none;
+  border-radius: 999px;
+  background: var(--sl-peach-500);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(255, 90, 113, 0.4);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.assistant-trigger:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 12px 28px rgba(255, 90, 113, 0.5);
+}
+
+.assistant-trigger.is-active {
+  background: #333;
+  transform: scale(0.9);
+}
+
+.assistant-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.assistant-label {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+.assistant-panel {
+  position: fixed;
+  top: 28px;
+  right: -400px;
+  bottom: 28px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+  transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark-theme .assistant-panel {
+  background: rgba(30, 25, 35, 0.9);
+}
+
+.assistant-panel.is-open {
+  right: 28px;
+}
+
+.assistant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--sl-glass-border);
+}
+
+.assistant-head h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--sl-text-main);
+}
+
+.assistant-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.assistant-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.assistant-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.assistant-welcome {
+  padding: 20px;
+  text-align: center;
+  color: var(--sl-text-soft);
+}
+
+.suggested-questions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.suggestion-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--sl-peach-200);
+  border-radius: 999px;
+  background: var(--sl-peach-50);
+  color: var(--sl-peach-500);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.suggestion-chip:hover {
+  background: var(--sl-peach-100);
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+}
+
+.chat-message.assistant {
+  align-self: flex-start;
+}
+
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.user .message-bubble {
+  background: var(--sl-peach-500);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.assistant .message-bubble {
+  background: var(--sl-peach-50);
+  color: var(--sl-text-main);
+  border-bottom-left-radius: 4px;
+}
+
+.dark-theme .assistant .message-bubble {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.message-bubble.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sl-text-mute);
+}
+
+.assistant-footer {
+  padding: 16px;
+  border-top: 1px solid var(--sl-glass-border);
+  display: flex;
+  gap: 10px;
+}
+
+.assistant-input {
+  flex: 1;
+  height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--sl-glass-border-strong);
+  border-radius: 12px;
+  background: var(--sl-surface);
+  color: var(--sl-text-main);
+  font-size: 14px;
+  resize: none;
+}
+
+.assistant-send {
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: var(--sl-peach-500);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.assistant-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .reading-paragraph {

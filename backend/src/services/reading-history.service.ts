@@ -1,6 +1,7 @@
 import {
   deleteReadingArticle,
   listReadingArticles,
+  updateReadingArticleTitle,
   upsertReadingArticle
 } from '../repositories/reading-history.repository'
 import { HttpError } from '../utils/http-error'
@@ -45,6 +46,30 @@ export const readingHistoryService = {
     const deleted = await deleteReadingArticle(userId, articleId)
 
     if (!deleted) {
+      throw new HttpError(404, '阅读历史不存在')
+    }
+  },
+
+  /**
+   * 更新阅读历史标题。
+   */
+  async updateTitle(userId: number, articleId: number, title: string) {
+    if (!Number.isInteger(articleId) || articleId <= 0) {
+      throw new HttpError(400, '文章历史 id 非法')
+    }
+
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) {
+      throw new HttpError(400, '标题不能为空')
+    }
+
+    if (trimmedTitle.length > 200) {
+      throw new HttpError(400, '标题太长')
+    }
+
+    const updated = await updateReadingArticleTitle(userId, articleId, trimmedTitle)
+
+    if (!updated) {
       throw new HttpError(404, '阅读历史不存在')
     }
   }

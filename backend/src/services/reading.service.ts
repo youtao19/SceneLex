@@ -52,6 +52,26 @@ function buildSentencePrompt(sentence: string) {
 英文句子：${sentence}`
 }
 
+/**
+ * 阅读助手 prompt，包含文章背景，让 AI 回答更有针对性。
+ */
+function buildChatPrompt(content: string, question: string) {
+  return `你是一个英语阅读助手。用户正在阅读下面的英语文章。请根据文章内容回答用户的问题。
+
+文章内容：
+"""
+${content}
+"""
+
+用户问题：${question}
+
+要求：
+- 使用中文回答
+- 回答要简练、准确，针对文章内容
+- 可以解释文章里的难句、生词或背景知识
+- 不要输出 Markdown 标记或多余的客套话`
+}
+
 export const readingService = {
   /**
    * 单词查询必须带句子上下文，否则多义词会给出错误义项。
@@ -70,6 +90,17 @@ export const readingService = {
   async translateSentence(sentence: string): Promise<ReadingSentenceTranslateResult> {
     const cleanSentence = normalizeInput(sentence, 'sentence', 800)
     const text = await generatePlainWithLocalModel(buildSentencePrompt(cleanSentence))
+
+    return { text }
+  },
+
+  /**
+   * 阅读助手对话接口。
+   */
+  async chat(content: string, question: string): Promise<{ text: string }> {
+    const cleanContent = normalizeInput(content, 'content', 10000)
+    const cleanQuestion = normalizeInput(question, 'question', 1000)
+    const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion))
 
     return { text }
   }
