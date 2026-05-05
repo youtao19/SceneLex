@@ -6,7 +6,10 @@ import { readFromStorage } from '../utils/storage'
 // - 生产模式：后端直接 serve 前端静态资源，请求走同源
 const BASE_URL = '/api'
 
-function readAuthToken() {
+/**
+ * 流式 fetch 不能复用 request<T>，但仍要沿用同一份登录 token。
+ */
+export function readAuthToken() {
   const authState = readFromStorage<AuthState>(AUTH_STORAGE_KEY)
   return authState?.token ?? ''
 }

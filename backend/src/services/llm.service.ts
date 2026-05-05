@@ -1,4 +1,5 @@
 import { aiConfig } from '../config/ai'
+import { wordJsonFormat, wordJsonSystemPrompt } from '../prompts/word-output.prompt'
 
 interface OllamaGenerateResponse {
   response: string
@@ -20,6 +21,16 @@ interface ChatCompletionResponse {
   }>
 }
 
+interface ChatCompletionStreamChunk {
+  choices?: Array<{
+    delta?: {
+      content?: string | null
+    }
+  }>
+}
+
+type StreamDeltaHandler = (delta: string) => void | Promise<void>
+
 /**
  * 去掉模型常见的包裹符号，让阅读页拿到能直接展示的短文本。
  */
@@ -31,44 +42,6 @@ function cleanPlainText(text: string) {
     .trim()
     .replace(/^["“”]+|["“”]+$/g, '')
     .trim()
-}
-
-// 用 schema 约束输出，减少小模型漏字段或乱改结构。
-const jsonFormat = {
-  type: 'object',
-  properties: {
-    word: { type: 'string' },
-    phonetic: { type: 'string' },
-    coreFeeling: { type: 'string' },
-    meanings: {
-      type: 'array',
-      minItems: 1,
-      items: {
-        type: 'object',
-        properties: {
-          partOfSpeech: { type: 'string' },
-          meaning: { type: 'string' },
-          sceneTitle: { type: 'string' },
-          examples: {
-            type: 'array',
-            minItems: 2,
-            maxItems: 3,
-            items: { type: 'string' }
-          },
-          explanation: { type: 'string' },
-          imageQueries: {
-            type: 'array',
-            minItems: 3,
-            maxItems: 4,
-            items: { type: 'string' }
-          },
-          tip: { type: 'string' }
-        },
-        required: ['partOfSpeech', 'meaning', 'sceneTitle', 'examples', 'explanation', 'imageQueries', 'tip']
-      }
-    }
-  },
-  required: ['word', 'phonetic', 'coreFeeling', 'meanings']
 }
 
 function hasWordMeanings(value: object) {
@@ -154,7 +127,7 @@ export async function generateWithOllama(prompt: string): Promise<string> {
       think: false,
       // 这里先关掉流式，后端逻辑更简单。
       stream: false,
-      format: jsonFormat,
+      format: wordJsonFormat,
       // 保留一段时间，避免频繁重载模型。
       keep_alive: '10m',
       options: {
@@ -209,7 +182,7 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: 'You are a JSON API. Return only valid JSON. Do not include reasoning, markdown, or explanations.'
+          content: wordJsonSystemPrompt
         },
         {
           role: 'user',
@@ -277,7 +250,7 @@ export async function generateWithDeepseek(prompt: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: 'You are a JSON API. Return only valid JSON. Do not include reasoning, markdown, or explanations.'
+          content: wordJsonSystemPrompt
         },
         {
           role: 'user',
@@ -315,6 +288,116 @@ export async function generateWithDeepseek(prompt: string): Promise<string> {
   }
 
   throw new Error('DeepSeek 未返回 message.content')
+}
+
+/**
+ * OpenAI-compatible stream 用 SSE 包装 JSON，这里只抽出正文增量。
+ */
+async function readChatCompletionStream(response: Response, onDelta: StreamDeltaHandler) {
+  if (!response.body) {
+    throw new Error('模型没有返回可读取的流')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let fullText = ''
+
+  /**
+   * 一个 SSE event 可能包含多行 data，先拼成完整 JSON 再读 delta。
+   */
+  async function readEvent(event: string) {
+    const payload = event
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim())
+      .join('\n')
+
+    if (!payload || payload === '[DONE]') {
+      return
+    }
+
+    const data = JSON.parse(payload) as ChatCompletionStreamChunk
+    const delta = data.choices?.[0]?.delta?.content ?? ''
+
+    if (delta) {
+      fullText += delta
+      await onDelta(delta)
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split(/\r?\n\r?\n/)
+    buffer = events.pop() ?? ''
+
+    for (const event of events) {
+      await readEvent(event)
+    }
+  }
+
+  if (buffer.trim()) {
+    await readEvent(buffer)
+  }
+
+  return cleanPlainText(fullText)
+}
+
+/**
+ * Ollama generate stream 是逐行 JSON，不是 SSE。
+ */
+async function readOllamaGenerateStream(response: Response, onDelta: StreamDeltaHandler) {
+  if (!response.body) {
+    throw new Error('Ollama 没有返回可读取的流')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let fullText = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const payload = line.trim()
+
+      if (!payload) {
+        continue
+      }
+
+      const data = JSON.parse(payload) as OllamaGenerateResponse
+      const delta = data.response || data.thinking || ''
+
+      if (delta) {
+        fullText += delta
+        await onDelta(delta)
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const data = JSON.parse(buffer.trim()) as OllamaGenerateResponse
+    const delta = data.response || data.thinking || ''
+
+    if (delta) {
+      fullText += delta
+      await onDelta(delta)
+    }
+  }
+
+  return cleanPlainText(fullText)
 }
 
 /**
@@ -373,6 +456,45 @@ export async function generatePlainWithOllama(prompt: string): Promise<string> {
 }
 
 /**
+ * Ollama 原生支持流式 generate，阅读助手可以边生成边展示。
+ */
+export async function streamPlainWithOllama(prompt: string, onDelta: StreamDeltaHandler): Promise<string> {
+  const config = aiConfig.ollama
+
+  const response = await fetch(`${config.baseURL}/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      think: false,
+      stream: true,
+      keep_alive: '10m',
+      options: {
+        temperature: 0.3,
+        num_predict: 220
+      }
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Ollama 调用失败：${response.status} ${errorText}`)
+  }
+
+  const text = await readOllamaGenerateStream(response, onDelta)
+
+  if (text.trim()) {
+    return text
+  }
+
+  throw new Error('Ollama 返回了空 response')
+}
+
+/**
  * oMLX 的阅读问答走普通 chat completion，避免被 JSON mode 约束。
  */
 export async function generatePlainWithOmlx(prompt: string): Promise<string> {
@@ -420,6 +542,58 @@ export async function generatePlainWithOmlx(prompt: string): Promise<string> {
 
   if (content && content.trim()) {
     return cleanPlainText(content)
+  }
+
+  throw new Error('oMLX 未返回 message.content')
+}
+
+/**
+ * oMLX 兼容 OpenAI chat completions，能用 SSE 增量读取。
+ */
+export async function streamPlainWithOmlx(prompt: string, onDelta: StreamDeltaHandler): Promise<string> {
+  const config = aiConfig.omlx
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+
+  if (config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`
+  }
+
+  const response = await fetch(`${config.baseURL}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a concise bilingual English-Chinese reading teacher. Answer in Chinese unless asked otherwise.'
+        },
+        {
+          role: 'user',
+          content: `/no_think\n${prompt}`
+        }
+      ],
+      chat_template_kwargs: {
+        enable_thinking: false
+      },
+      temperature: 0.3,
+      max_tokens: 220,
+      stream: true
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
+  }
+
+  const text = await readChatCompletionStream(response, onDelta)
+
+  if (text.trim()) {
+    return text
   }
 
   throw new Error('oMLX 未返回 message.content')
@@ -481,6 +655,55 @@ export async function generatePlainWithDeepseek(prompt: string): Promise<string>
 }
 
 /**
+ * DeepSeek 使用 OpenAI-compatible SSE，前端能看到实时 token。
+ */
+export async function streamPlainWithDeepseek(prompt: string, onDelta: StreamDeltaHandler): Promise<string> {
+  const config = aiConfig.deepseek
+
+  if (!config.apiKey) {
+    throw new Error('DeepSeek 调用失败：请先配置 DEEPSEEK_API_KEY')
+  }
+
+  const response = await fetch(`${config.baseURL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a concise bilingual English-Chinese reading teacher. Answer in Chinese unless asked otherwise.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 220,
+      stream: true
+    }),
+    signal: AbortSignal.timeout(config.timeout)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`DeepSeek 调用失败：${response.status} ${errorText}`)
+  }
+
+  const text = await readChatCompletionStream(response, onDelta)
+
+  if (text.trim()) {
+    return text
+  }
+
+  throw new Error('DeepSeek 未返回 message.content')
+}
+
+/**
  * 根据当前 AI_PROVIDER 生成普通文本，供阅读助手复用同一套模型切换配置。
  */
 export async function generatePlainWithLocalModel(prompt: string): Promise<string> {
@@ -493,4 +716,22 @@ export async function generatePlainWithLocalModel(prompt: string): Promise<strin
   }
 
   return generatePlainWithOllama(prompt)
+}
+
+/**
+ * 阅读助手的流式入口，保持 provider 切换逻辑只在 LLM 层出现一次。
+ */
+export async function streamPlainWithLocalModel(
+  prompt: string,
+  onDelta: StreamDeltaHandler,
+): Promise<string> {
+  if (aiConfig.provider === 'omlx') {
+    return streamPlainWithOmlx(prompt, onDelta)
+  }
+
+  if (aiConfig.provider === 'deepseek') {
+    return streamPlainWithDeepseek(prompt, onDelta)
+  }
+
+  return streamPlainWithOllama(prompt, onDelta)
 }
