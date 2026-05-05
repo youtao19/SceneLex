@@ -11,6 +11,10 @@ import routes from './routes'
 import { errorMiddleware } from './middlewares/error.middleware'
 
 const app = express()
+const backendRootPath = path.resolve(__dirname, '..')
+const repoRootPath = path.resolve(backendRootPath, '..')
+const uploadRootPath = path.join(backendRootPath, 'uploads')
+const frontendDistPath = path.join(repoRootPath, 'frontend/dist')
 
 /**
  * 允许前端跨域访问。
@@ -27,7 +31,7 @@ app.use(express.json())
  * 静态资源访问。
  * 用于访问上传的用户头像等文件。
  */
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+app.use('/uploads', express.static(uploadRootPath))
 
 /**
  * 注册统一路由。
@@ -49,10 +53,8 @@ app.get('/health', (_req, res) => {
  * 生产模式：serve 前端打包产物 + SPA history 模式 fallback。
  * 仅当 frontend/dist 存在时启用，避免影响纯后端开发流程。
  *
- * 路径计算：
- * 始终相对于当前工作目录（项目根目录），兼容开发与编译后运行。
+ * 路径必须从编译文件位置推导，避免不同启动目录导致找不到 dist。
  */
-const frontendDistPath = path.resolve(process.cwd(), '../frontend/dist')
 if (fs.existsSync(frontendDistPath)) {
   // 提供静态资源（assets/*.js, *.css, favicon 等）
   app.use(express.static(frontendDistPath))
