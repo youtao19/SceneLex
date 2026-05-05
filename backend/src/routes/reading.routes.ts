@@ -1,5 +1,11 @@
 import { Router } from 'express'
 import {
+  createAssistantChat,
+  listAssistantChats,
+  listAssistantMessages,
+  sendAssistantMessage
+} from '../controllers/reading-assistant.controller'
+import {
   deleteReadingArticle,
   listReadingArticles,
   lookupReadingWord,
@@ -15,6 +21,10 @@ router.get('/articles', listReadingArticles)
 router.post('/articles', saveReadingArticle)
 router.delete('/articles/:articleId', deleteReadingArticle)
 router.patch('/articles/:articleId/title', updateReadingArticleTitle)
+router.get('/assistant-chats', listAssistantChats)
+router.post('/assistant-chats', createAssistantChat)
+router.get('/assistant-chats/:chatId/messages', listAssistantMessages)
+router.post('/assistant-chats/:chatId/messages', sendAssistantMessage)
 router.post('/word', lookupReadingWord)
 router.post('/sentence', translateReadingSentence)
 router.post('/chat', chatWithAssistant)

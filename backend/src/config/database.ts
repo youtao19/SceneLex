@@ -518,4 +518,43 @@ export async function initializeDatabase() {
       ON reading_articles (user_id, updated_at DESC)
     `,
   );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS reading_assistant_chats (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        article_content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_reading_assistant_chats_user_updated
+      ON reading_assistant_chats (user_id, updated_at DESC)
+    `,
+  );
+
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS reading_assistant_messages (
+        id BIGSERIAL PRIMARY KEY,
+        chat_id BIGINT NOT NULL REFERENCES reading_assistant_chats(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_reading_assistant_messages_chat_created
+      ON reading_assistant_messages (chat_id, created_at ASC, id ASC)
+    `,
+  );
 }

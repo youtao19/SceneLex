@@ -237,11 +237,34 @@
 
     <aside class="assistant-panel" :class="{ 'is-open': assistantOpen }">
       <div class="assistant-head">
-        <h3>阅读助手</h3>
+        <div>
+          <h3>阅读助手</h3>
+          <span>{{ activeAssistantChat ? activeAssistantChat.title : '新聊天' }}</span>
+        </div>
+        <button class="assistant-new-chat" type="button" :disabled="assistantChatLoading" @click="startNewAssistantChat">
+          新聊天
+        </button>
         <button class="assistant-close" type="button" @click="assistantOpen = false">×</button>
       </div>
+      <div v-if="assistantChats.length > 0" class="assistant-history">
+        <button
+          v-for="chat in assistantChats"
+          :key="chat.id"
+          class="assistant-history-item"
+          :class="{ 'is-active': activeAssistantChatId === chat.id }"
+          type="button"
+          :disabled="assistantChatLoading"
+          @click="openAssistantChat(chat)"
+        >
+          {{ chat.title }}
+        </button>
+      </div>
       <div class="assistant-body" ref="chatBodyRef">
-        <div v-if="chatMessages.length === 0" class="assistant-welcome">
+        <div v-if="assistantChatLoading" class="assistant-welcome">
+          <span class="mini-loader"></span>
+          <p>正在读取聊天...</p>
+        </div>
+        <div v-else-if="chatMessages.length === 0" class="assistant-welcome">
           <p>我是你的 AI 阅读助手，你可以问我关于这篇文章的任何问题。</p>
           <div class="suggested-questions">
             <button
@@ -340,16 +363,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  chatWithAssistant,
+  createAssistantChat,
   deleteReadingArticle,
+  fetchAssistantChats,
+  fetchAssistantMessages,
   fetchReadingArticles,
   lookupReadingWord,
   saveReadingArticle,
+  sendAssistantMessage,
   translateReadingSentence,
   updateReadingArticleTitle
 } from '../services/reading.service'
 import { recognizeArticleFromImage, type OcrMethod } from '../services/ocr.service'
-import type { ReadingArticle } from '../types/reading'
+import type { ReadingArticle, ReadingAssistantChat, ReadingAssistantMessage } from '../types/reading'
 import { fetchWordBooks } from '../services/word-book.service'
 import { addWord, generateWord } from '../services/word.service'
 import type { WordBook } from '../types/word-book'
@@ -374,11 +400,6 @@ interface ReadingParagraph {
   sentences: ReadingSentence[]
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
-
 const sourceText = ref('')
 const mode = ref<'input' | 'reading'>('input')
 const articleText = ref('')
@@ -397,7 +418,10 @@ const assistantOpen = ref(false)
 const userQuestion = ref('')
 const selectedText = ref('')
 const selectionActionStyle = ref<Record<string, string>>({})
-const chatMessages = ref<ChatMessage[]>([])
+const chatMessages = ref<ReadingAssistantMessage[]>([])
+const assistantChats = ref<ReadingAssistantChat[]>([])
+const activeAssistantChatId = ref<number | null>(null)
+const assistantChatLoading = ref(false)
 const bookLoading = ref(false)
 const deletingArticleId = ref<number | null>(null)
 const editingArticleId = ref<number | null>(null)
@@ -449,6 +473,9 @@ const selectedBookSummary = computed(() => {
   }
 
   return selectedNames.length > 0 ? selectedNames.join('、') : '未选择单词本'
+})
+const activeAssistantChat = computed(() => {
+  return assistantChats.value.find((chat) => chat.id === activeAssistantChatId.value) ?? null
 })
 
 function selectDefaultBook() {
@@ -741,7 +768,6 @@ function backToInput() {
   articleText.value = ''
   paragraphs.value = []
   activeTokenId.value = ''
-  chatMessages.value = []
   assistantOpen.value = false
   closeWordPanel()
 }
@@ -760,21 +786,95 @@ async function scrollToBottom() {
   }
 }
 
+/**
+ * 读取助手历史列表，失败不阻塞阅读主流程。
+ */
+async function loadAssistantChats() {
+  try {
+    const response = await fetchAssistantChats()
+    assistantChats.value = response.data
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+/**
+ * 新聊天只清空当前消息，不清空文章；下一次发送时会用当前文章创建会话。
+ */
+function startNewAssistantChat() {
+  activeAssistantChatId.value = null
+  chatMessages.value = []
+  userQuestion.value = ''
+  assistantOpen.value = true
+}
+
+/**
+ * 打开历史聊天时恢复对应文章上下文，后续追问仍围绕这篇文章。
+ */
+async function openAssistantChat(chat: ReadingAssistantChat) {
+  assistantChatLoading.value = true
+  assistantOpen.value = true
+  wordPanel.open = false
+
+  try {
+    activeAssistantChatId.value = chat.id
+    articleText.value = chat.articleContent
+    sourceText.value = chat.articleContent
+    paragraphs.value = buildParagraphs(chat.articleContent)
+    mode.value = 'reading'
+    const response = await fetchAssistantMessages(chat.id)
+    chatMessages.value = response.data
+    await scrollToBottom()
+  } catch (error) {
+    console.error(error)
+  } finally {
+    assistantChatLoading.value = false
+  }
+}
+
+/**
+ * 没有当前聊天时自动创建一个，保持“直接提问”体验。
+ */
+async function ensureAssistantChat() {
+  if (activeAssistantChatId.value) {
+    return activeAssistantChatId.value
+  }
+
+  const response = await createAssistantChat(articleText.value)
+  activeAssistantChatId.value = response.data.id
+  assistantChats.value = [
+    response.data,
+    ...assistantChats.value.filter((chat) => chat.id !== response.data.id),
+  ]
+
+  return response.data.id
+}
+
 async function askQuestion(question?: string) {
   const text = (question || userQuestion.value).trim()
   if (!text || assistantLoading.value) return
 
-  chatMessages.value.push({ role: 'user', content: text })
+  const chatId = await ensureAssistantChat()
   userQuestion.value = ''
   assistantLoading.value = true
-  scrollToBottom()
 
   try {
-    const response = await chatWithAssistant(articleText.value, text)
-    chatMessages.value.push({ role: 'assistant', content: response.data.text })
+    const response = await sendAssistantMessage(chatId, text)
+    chatMessages.value = [
+      ...chatMessages.value,
+      response.data.userMessage,
+      response.data.assistantMessage,
+    ]
+    await loadAssistantChats()
   } catch (error) {
     console.error(error)
-    chatMessages.value.push({ role: 'assistant', content: '抱歉，助手暂时无法回答，请重试。' })
+    const now = new Date().toISOString()
+    chatMessages.value.push({
+      id: Date.now(),
+      role: 'assistant',
+      content: '抱歉，助手暂时无法回答，请重试。',
+      createdAt: now,
+    })
   } finally {
     assistantLoading.value = false
     scrollToBottom()
@@ -1004,6 +1104,7 @@ function closeWordPanel() {
 onMounted(() => {
   loadReadingHistory()
   loadWordBooks()
+  loadAssistantChats()
   document.addEventListener('selectionchange', updateSelectedTextFromSelection)
 })
 
@@ -1435,7 +1536,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 22px;
+  gap: 10px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--sl-glass-border);
 }
 
@@ -1443,6 +1545,35 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 18px;
   color: var(--sl-text-main);
+}
+
+.assistant-head span {
+  display: block;
+  max-width: 180px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--sl-text-mute);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-new-chat {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--sl-glass-border-strong);
+  border-radius: 999px;
+  background: var(--sl-peach-50);
+  color: var(--sl-peach-500);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.assistant-new-chat:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .assistant-close {
@@ -1458,6 +1589,46 @@ onBeforeUnmount(() => {
 
 .assistant-close:hover {
   background: rgba(0, 0, 0, 0.05);
+}
+
+.assistant-history {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sl-glass-border);
+  overflow-x: auto;
+}
+
+.assistant-history::-webkit-scrollbar {
+  display: none;
+}
+
+.assistant-history-item {
+  flex: 0 0 auto;
+  max-width: 190px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--sl-glass-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--sl-text-soft);
+  font-size: 12px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.assistant-history-item.is-active {
+  border-color: rgba(255, 90, 113, 0.35);
+  background: var(--sl-peach-50);
+  color: var(--sl-peach-500);
+}
+
+.assistant-history-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .assistant-body {
@@ -2023,11 +2194,24 @@ onBeforeUnmount(() => {
   }
 
   .assistant-head {
-    padding: 12px 16px;
+    padding: 10px 14px;
   }
 
   .assistant-head h3 {
     font-size: 16px;
+  }
+
+  .assistant-head span {
+    max-width: 132px;
+  }
+
+  .assistant-new-chat {
+    min-height: 30px;
+    padding: 0 10px;
+  }
+
+  .assistant-history {
+    padding: 8px 12px;
   }
 
   .assistant-body {

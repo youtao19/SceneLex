@@ -1,6 +1,8 @@
 import { del, get, patch, post } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
+  ReadingAssistantChat,
+  ReadingAssistantMessage,
   ReadingArticle,
   ReadingSentenceTranslateData,
   ReadingWordLookupData
@@ -38,4 +40,23 @@ export function translateReadingSentence(sentence: string) {
 
 export function chatWithAssistant(content: string, question: string) {
   return post<ApiResponse<{ text: string }>>('/reading/chat', { content, question })
+}
+
+export function fetchAssistantChats() {
+  return get<ApiResponse<ReadingAssistantChat[]>>('/reading/assistant-chats')
+}
+
+export function createAssistantChat(content: string, title?: string) {
+  return post<ApiResponse<ReadingAssistantChat>>('/reading/assistant-chats', { content, title })
+}
+
+export function fetchAssistantMessages(chatId: number) {
+  return get<ApiResponse<ReadingAssistantMessage[]>>(`/reading/assistant-chats/${chatId}/messages`)
+}
+
+export function sendAssistantMessage(chatId: number, question: string) {
+  return post<ApiResponse<{
+    userMessage: ReadingAssistantMessage
+    assistantMessage: ReadingAssistantMessage
+  }>>(`/reading/assistant-chats/${chatId}/messages`, { question })
 }
