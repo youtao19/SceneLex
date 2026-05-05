@@ -41,10 +41,9 @@ export async function addWord(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const { word, phonetic, coreFeeling, meanings, bookIds } = req.body as {
+    const { word, phonetic, meanings, bookIds } = req.body as {
       word?: string
       phonetic?: string
-      coreFeeling?: string
       meanings?: WordMeaningItem[]
       bookIds?: number[]
     }
@@ -52,7 +51,6 @@ export async function addWord(
       authUser.id,
       word ?? '',
       phonetic,
-      coreFeeling,
       meanings,
       bookIds
     )

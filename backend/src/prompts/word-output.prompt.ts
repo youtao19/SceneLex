@@ -6,7 +6,6 @@ export const wordJsonFormat = {
   properties: {
     word: { type: 'string' },
     phonetic: { type: 'string' },
-    coreFeeling: { type: 'string' },
     meanings: {
       type: 'array',
       minItems: 1,
@@ -35,7 +34,7 @@ export const wordJsonFormat = {
       },
     },
   },
-  required: ['word', 'phonetic', 'coreFeeling', 'meanings'],
+  required: ['word', 'phonetic', 'meanings'],
 }
 
 /**
@@ -43,34 +42,36 @@ export const wordJsonFormat = {
  */
 export function buildWordOutputRequirement(word: string) {
   return `
-输出要求（固定）：
-只输出一个纯 JSON object，不输出解释、markdown、代码块或多余文字。
+# Output Contract
+Return one valid JSON object only.
+Do not return markdown, code fences, comments, reasoning, or extra text.
 
-JSON 必须符合以下结构：
+# JSON Shape
 
 {
   "word": "${word}",
   "phonetic": "/美式IPA/",
-  "coreFeeling": "一句有画面感的中文，串起所有意思",
   "meanings": [
     {
       "partOfSpeech": "adv./adj./v./n./prep.",
       "meaning": "极短中文释义，2-8字，不能和其他 meaning 重复",
       "sceneTitle": "2-6字中文场景",
       "imageQueries": ["3-4个短英文关键词", "像搜图用的短语", "不要长句"],
-      "examples": ["极简场景短语", "3-7个英文词", "必须包含${word}"],
+      "examples": ["2-5词英文短语", "必须用原词${word}", "不要完整句子"],
       "explanation": "一句话说明这个短语画面如何体现该义项",
-      "tip": "8-14字中文画面钩子"
+      "tip": "按顺序翻译 examples，用中文分号分隔"
     }
   ]
 }
 
-字段硬性要求：
+# Hard Requirements
 - word 必须是 "${word}"
 - phonetic 写美式 IPA；不知道时输出空字符串
 - meanings 数量 1-5 个
-- examples 输出 2 条；每条 3-7 个英文词，必须包含 "${word}"
+- examples 输出 2 条；每条 2-5 个英文词，必须包含原词 "${word}"，不要使用变形
+- examples 只写能理解意思的短语，不写完整句子，不用 I/she/he/they/please 等句子框架
 - imageQueries 输出 3 条；每条不超过 6 个英文单词
 - explanation 不超过 30 个中文字符
+- tip 只翻译 examples，不写联想、比喻或记忆钩子
 `.trim()
 }

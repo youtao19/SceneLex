@@ -162,7 +162,6 @@
             <WordMeaningsPanel
               :word="preview.word"
               :phonetic="preview.phonetic"
-              :core-feeling="preview.coreFeeling"
               :meanings="preview.meanings"
             />
           </div>
@@ -391,7 +390,6 @@ async function savePreview() {
     const response = await addWord(
       currentPreview.word,
       currentPreview.phonetic,
-      currentPreview.coreFeeling,
       currentPreview.meanings,
     )
     successMessage.value = `${response.data.word} 已加入个人词库`

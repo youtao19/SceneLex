@@ -65,9 +65,6 @@ export async function upsertReadingArticle(userId: number, content: string) {
       VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (user_id, content_hash)
       DO UPDATE SET
-        title = EXCLUDED.title,
-        content = EXCLUDED.content,
-        char_count = EXCLUDED.char_count,
         updated_at = NOW()
       RETURNING
         id,
@@ -131,8 +128,7 @@ export async function updateReadingArticleTitle(userId: number, articleId: numbe
   const result = await query<{ id: string }>(
     `
       UPDATE reading_articles
-      SET title = $1,
-          updated_at = NOW()
+      SET title = $1
       WHERE user_id = $2
         AND id = $3
       RETURNING id

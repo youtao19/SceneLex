@@ -56,7 +56,6 @@ function mapWordRow(row: WordRow): StoredWord {
     word: row.word,
     phonetic: row.phonetic,
     primaryMeaning: buildPrimaryMeaning(row.meanings),
-    coreFeeling: row.primary_meaning,
     meanings: row.meanings,
     ease: Number(row.ease),
     interval: Number(row.interval),
