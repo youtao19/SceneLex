@@ -88,10 +88,10 @@
                 <button
                   class="peach-button-secondary compact-btn"
                   type="button"
-                  :disabled="item.learned || previewingWord === item.word"
+                  :disabled="previewingWord === item.word"
                   @click="previewWord(item)"
                 >
-                  {{ item.learned ? '已加入' : previewingWord === item.word ? '生成中...' : '查看词卡' }}
+                  {{ previewingWord === item.word ? '读取中...' : '查看词卡' }}
                 </button>
               </div>
               <p v-if="item.examMeanings.length > 0" class="exam-meanings">
@@ -154,11 +154,50 @@
           </button>
         </header>
 
-        <div v-if="previewingWord && !preview" class="modal-loading" role="status">
-          正在生成 {{ previewingWord }} 的词卡...
+        <div v-if="previewingWord && !previewItem" class="modal-loading" role="status">
+          正在读取 {{ previewingWord }} 的词卡...
+        </div>
+        <div v-else-if="previewItem && !preview" class="preview-modal-scroll">
+          <section class="basic-preview" aria-label="系统词书义项预览">
+            <header class="basic-preview-head">
+              <div>
+                <h2>{{ previewItem.word }}</h2>
+                <p>{{ selectedBook?.name ?? '系统词书' }} · {{ previewItem.unit || 'Unit 1' }}</p>
+              </div>
+              <span class="source-badge">来源：系统词书</span>
+            </header>
+
+            <div v-if="previewItem.examMeanings.length > 0" class="basic-meanings">
+              <article v-for="meaning in previewItem.examMeanings" :key="meaning.priority">
+                <span>{{ meaning.partOfSpeech }}</span>
+                <strong>{{ meaning.meaning }}</strong>
+              </article>
+            </div>
+            <p v-else class="basic-empty">这条词书记录暂时没有考试义项。</p>
+
+            <div v-if="previewingWord" class="inline-loading" role="status">
+              正在生成完整词卡...
+            </div>
+          </section>
+          <footer class="preview-actions basic-preview-actions">
+            <button class="peach-button-ghost compact-btn" type="button" @click="closePreview">
+              先不加入
+            </button>
+            <button
+              class="peach-button compact-btn"
+              type="button"
+              :disabled="previewingWord !== ''"
+              @click="generatePreview(false)"
+            >
+              {{ previewingWord ? '生成中...' : '生成完整词卡' }}
+            </button>
+          </footer>
         </div>
         <template v-else-if="preview">
           <div class="preview-modal-scroll">
+            <p class="preview-source">
+              {{ preview.source === 'database' ? '来源：个人词库' : '来源：本次生成' }}
+            </p>
             <WordMeaningsPanel
               :word="preview.word"
               :phonetic="preview.phonetic"
@@ -170,12 +209,20 @@
               先不加入
             </button>
             <button
+              class="peach-button-secondary compact-btn"
+              type="button"
+              :disabled="!previewItem || previewingWord !== ''"
+              @click="generatePreview(true)"
+            >
+              {{ previewingWord ? '生成中...' : '重新生成' }}
+            </button>
+            <button
               class="peach-button compact-btn"
               type="button"
-              :disabled="savingPreview"
+              :disabled="savingPreview || preview.saved"
               @click="savePreview"
             >
-              {{ savingPreview ? '加入中...' : '加入个人词库' }}
+              {{ preview.saved ? '已在个人词库' : savingPreview ? '加入中...' : '加入个人词库' }}
             </button>
           </footer>
         </template>
@@ -209,13 +256,14 @@ const savingPreview = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const preview = ref<WordGenerateData | null>(null)
+const previewItem = ref<SystemWordBookItem | null>(null)
 const previewRequestId = ref(0)
 const DEFAULT_SYSTEM_BOOK_CODE = 'cet6'
 const page = ref(1)
 const pageSize = ref(100)
 
-const showPreviewModal = computed(() => Boolean(previewingWord.value || preview.value))
-const previewTitle = computed(() => preview.value?.word ?? previewingWord.value)
+const showPreviewModal = computed(() => Boolean(previewingWord.value || previewItem.value || preview.value))
+const previewTitle = computed(() => preview.value?.word ?? previewItem.value?.word ?? previewingWord.value)
 const selectedBook = computed(() => {
   return books.value.find((book) => book.id === selectedBookId.value) ?? null
 })
@@ -332,7 +380,7 @@ async function handleBookSelectChange(event: Event) {
 }
 
 /**
- * 先用强制生成模式展示词卡，不写入用户 words，避免“点一下就保存”。
+ * 考试义项来自系统词书，可以先秒开展示，完整词卡再按用户需要生成。
  */
 function formatExamMeanings(meanings: WordRequiredMeaning[]) {
   return meanings
@@ -340,7 +388,21 @@ function formatExamMeanings(meanings: WordRequiredMeaning[]) {
     .join('；')
 }
 
-async function previewWord(item: SystemWordBookItem) {
+function previewWord(item: SystemWordBookItem) {
+  previewRequestId.value += 1
+  preview.value = null
+  previewItem.value = item
+  previewingWord.value = ''
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+async function generatePreview(forceRegenerate: boolean) {
+  if (!previewItem.value) {
+    return
+  }
+
+  const item = previewItem.value
   const requestId = previewRequestId.value + 1
   previewRequestId.value = requestId
   preview.value = null
@@ -349,7 +411,7 @@ async function previewWord(item: SystemWordBookItem) {
   successMessage.value = ''
 
   try {
-    const response = await generateWord(item.word, true, item.examMeanings)
+    const response = await generateWord(item.word, forceRegenerate, item.examMeanings)
     if (previewRequestId.value !== requestId) {
       return
     }
@@ -370,6 +432,7 @@ async function previewWord(item: SystemWordBookItem) {
 function closePreview() {
   previewRequestId.value += 1
   preview.value = null
+  previewItem.value = null
   previewingWord.value = ''
 }
 
@@ -734,6 +797,89 @@ onMounted(loadBooks)
   font-weight: 800;
 }
 
+.inline-loading,
+.preview-source {
+  margin: 0 0 12px;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.basic-preview {
+  display: grid;
+  gap: 18px;
+  padding: 12px 0 6px;
+}
+
+.basic-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--sl-glass-border);
+}
+
+.basic-preview-head h2 {
+  margin: 0;
+  color: var(--sl-text-main);
+  font-family: var(--sl-display-font);
+  font-size: 36px;
+  line-height: 1.05;
+}
+
+.basic-preview-head p {
+  margin: 6px 0 0;
+  color: var(--sl-text-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.source-badge {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.09);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.basic-meanings {
+  display: grid;
+  gap: 10px;
+}
+
+.basic-meanings article {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(31, 41, 55, 0.08);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.78);
+}
+
+.basic-meanings span {
+  min-width: 30px;
+  color: var(--sl-peach-500);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.basic-meanings strong {
+  color: var(--sl-text-main);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.basic-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .preview-modal-scroll {
   max-height: calc(100vh - 270px);
   padding: 8px 28px 18px;
@@ -746,6 +892,10 @@ onMounted(loadBooks)
   gap: 12px;
   padding: 16px 28px 22px;
   border-top: 1px solid var(--sl-glass-border);
+}
+
+.basic-preview-actions {
+  margin: 18px -28px -18px;
 }
 
 .pagination-bar {
