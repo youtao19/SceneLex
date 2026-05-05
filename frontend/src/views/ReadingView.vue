@@ -196,7 +196,7 @@
               <button
                 class="sentence-ask-btn"
                 type="button"
-                title="发送这句话给助手"
+                title="把这句话放到助手输入框"
                 @click.stop="askAboutSentence(sentence.text)"
               >
                 问
@@ -296,6 +296,7 @@
       <div class="assistant-footer">
         <textarea
           v-model="userQuestion"
+          ref="assistantInputRef"
           class="assistant-input"
           placeholder="问问助手..."
           @keydown.enter.prevent="askQuestion()"
@@ -370,7 +371,7 @@ import {
   fetchReadingArticles,
   lookupReadingWord,
   saveReadingArticle,
-  sendAssistantMessage,
+  sendAssistantMessageStream,
   translateReadingSentence,
   updateReadingArticleTitle
 } from '../services/reading.service'
@@ -406,6 +407,7 @@ const articleText = ref('')
 const paragraphs = ref<ReadingParagraph[]>([])
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const chatBodyRef = ref<HTMLElement | null>(null)
+const assistantInputRef = ref<HTMLTextAreaElement | null>(null)
 const readingContentRef = ref<HTMLElement | null>(null)
 const errorMessage = ref('')
 const activeTokenId = ref('')
@@ -857,14 +859,50 @@ async function askQuestion(question?: string) {
   const chatId = await ensureAssistantChat()
   userQuestion.value = ''
   assistantLoading.value = true
+  let assistantMessageIndex = -1
 
   try {
-    const response = await sendAssistantMessage(chatId, text)
-    chatMessages.value = [
-      ...chatMessages.value,
-      response.data.userMessage,
-      response.data.assistantMessage,
-    ]
+    await sendAssistantMessageStream(chatId, text, {
+      onUserMessage(message) {
+        chatMessages.value = [
+          ...chatMessages.value,
+          message,
+          {
+            id: Date.now(),
+            role: 'assistant',
+            content: '',
+            createdAt: new Date().toISOString(),
+          },
+        ]
+        assistantMessageIndex = chatMessages.value.length - 1
+        void scrollToBottom()
+      },
+      onDelta(delta) {
+        if (assistantMessageIndex < 0) {
+          return
+        }
+
+        const nextMessages = [...chatMessages.value]
+        const currentMessage = nextMessages[assistantMessageIndex]
+
+        nextMessages[assistantMessageIndex] = {
+          ...currentMessage,
+          content: `${currentMessage.content}${delta}`,
+        }
+        chatMessages.value = nextMessages
+        void scrollToBottom()
+      },
+      onDone(message) {
+        if (assistantMessageIndex < 0) {
+          chatMessages.value = [...chatMessages.value, message]
+          return
+        }
+
+        const nextMessages = [...chatMessages.value]
+        nextMessages[assistantMessageIndex] = message
+        chatMessages.value = nextMessages
+      },
+    })
     await loadAssistantChats()
   } catch (error) {
     console.error(error)
@@ -961,12 +999,21 @@ async function sendSelectedTextToAssistant() {
 /**
  * 每句旁边的快捷入口，解决手机长按选择不稳定的问题。
  */
-async function askAboutSentence(sentence: string) {
+function askAboutSentence(sentence: string) {
   assistantOpen.value = true
   wordPanel.open = false
   selectedText.value = ''
   window.getSelection()?.removeAllRanges()
-  await askQuestion(buildSelectedTextQuestion(sentence))
+  prepareAssistantQuestion(buildSelectedTextQuestion(sentence))
+}
+
+/**
+ * 快捷“问”只预填问题，避免用户还没确认就消耗一次模型请求。
+ */
+async function prepareAssistantQuestion(question: string) {
+  userQuestion.value = question
+  await nextTick()
+  assistantInputRef.value?.focus()
 }
 
 /**
@@ -1723,14 +1770,28 @@ onBeforeUnmount(() => {
 
 .assistant-input {
   flex: 1;
-  height: 44px;
+  height: 92px;
+  min-height: 92px;
   padding: 10px 14px;
-  border: 1px solid var(--sl-glass-border-strong);
+  border: 2px solid rgba(244, 143, 177, 0.78);
   border-radius: 12px;
-  background: var(--sl-surface);
+  background: linear-gradient(180deg, rgba(255, 246, 250, 0.96), var(--sl-surface));
   color: var(--sl-text-main);
   font-size: 14px;
-  resize: none;
+  line-height: 1.55;
+  resize: vertical;
+  box-shadow: 0 0 0 3px rgba(244, 143, 177, 0.12);
+  outline: none;
+}
+
+.assistant-input:focus {
+  border-color: #ec6f9d;
+  box-shadow: 0 0 0 4px rgba(236, 111, 157, 0.22);
+}
+
+.dark-theme .assistant-input {
+  background: rgba(38, 27, 34, 0.96);
+  border-color: rgba(244, 143, 177, 0.7);
 }
 
 .assistant-send {
@@ -2249,8 +2310,8 @@ onBeforeUnmount(() => {
   }
 
   .assistant-input {
-    height: 40px;
-    min-height: 40px;
+    height: 84px;
+    min-height: 84px;
   }
 
   .assistant-send {

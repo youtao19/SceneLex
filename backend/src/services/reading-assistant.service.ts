@@ -69,6 +69,11 @@ function buildRecentHistory(messages: ReadingAssistantMessage[]) {
   }))
 }
 
+interface StreamMessageHandlers {
+  onUserMessage: (message: ReadingAssistantMessage) => void | Promise<void>
+  onDelta: (delta: string) => void | Promise<void>
+}
+
 export const readingAssistantService = {
   /**
    * 读取当前用户的助手聊天历史。
@@ -121,6 +126,41 @@ export const readingAssistantService = {
       chat.articleContent,
       question,
       buildRecentHistory(previousMessages),
+    )
+    const assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
+
+    return {
+      userMessage,
+      assistantMessage,
+    }
+  },
+
+  /**
+   * 流式发送时先落用户消息，助手完整回复在 token 收齐后再落库。
+   */
+  async streamMessage(
+    userId: number,
+    chatIdInput: string,
+    payload: SendReadingAssistantMessagePayload,
+    handlers: StreamMessageHandlers,
+  ) {
+    const chatId = readId(chatIdInput)
+    const question = normalizeQuestion(payload.question ?? '')
+    const chat = await findReadingAssistantChat(userId, chatId)
+
+    if (!chat) {
+      throw new HttpError(404, '聊天不存在')
+    }
+
+    const previousMessages = await listReadingAssistantMessages(chat.id)
+    const userMessage = await createReadingAssistantMessage(chat.id, 'user', question)
+    await handlers.onUserMessage(userMessage)
+
+    const answer = await readingService.chatWithHistoryStream(
+      chat.articleContent,
+      question,
+      buildRecentHistory(previousMessages),
+      handlers.onDelta,
     )
     const assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
 

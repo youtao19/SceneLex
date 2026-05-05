@@ -3,7 +3,8 @@ import {
   createAssistantChat,
   listAssistantChats,
   listAssistantMessages,
-  sendAssistantMessage
+  sendAssistantMessage,
+  streamAssistantMessage
 } from '../controllers/reading-assistant.controller'
 import {
   deleteReadingArticle,
@@ -25,6 +26,7 @@ router.get('/assistant-chats', listAssistantChats)
 router.post('/assistant-chats', createAssistantChat)
 router.get('/assistant-chats/:chatId/messages', listAssistantMessages)
 router.post('/assistant-chats/:chatId/messages', sendAssistantMessage)
+router.post('/assistant-chats/:chatId/messages/stream', streamAssistantMessage)
 router.post('/word', lookupReadingWord)
 router.post('/sentence', translateReadingSentence)
 router.post('/chat', chatWithAssistant)

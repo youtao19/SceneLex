@@ -1,4 +1,4 @@
-import { generatePlainWithLocalModel } from './llm.service'
+import { generatePlainWithLocalModel, streamPlainWithLocalModel } from './llm.service'
 import { HttpError } from '../utils/http-error'
 import type {
   ReadingSentenceTranslateResult,
@@ -127,6 +127,25 @@ export const readingService = {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 1000)
     const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion, history))
+
+    return { text }
+  },
+
+  /**
+   * 流式回答复用同一个 prompt，避免普通接口和流式接口回答风格分叉。
+   */
+  async chatWithHistoryStream(
+    content: string,
+    question: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }>,
+    onDelta: (delta: string) => void | Promise<void>,
+  ): Promise<{ text: string }> {
+    const cleanContent = normalizeInput(content, 'content', 10000)
+    const cleanQuestion = normalizeInput(question, 'question', 1000)
+    const text = await streamPlainWithLocalModel(
+      buildChatPrompt(cleanContent, cleanQuestion, history),
+      onDelta,
+    )
 
     return { text }
   }
