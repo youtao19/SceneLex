@@ -123,3 +123,22 @@ export async function deleteReadingArticle(userId: number, articleId: number) {
 
   return result.rows.length > 0
 }
+
+/**
+ * 更新用户自己文章的标题。
+ */
+export async function updateReadingArticleTitle(userId: number, articleId: number, title: string) {
+  const result = await query<{ id: string }>(
+    `
+      UPDATE reading_articles
+      SET title = $1,
+          updated_at = NOW()
+      WHERE user_id = $2
+        AND id = $3
+      RETURNING id
+    `,
+    [title.trim(), userId, articleId],
+  )
+
+  return result.rows.length > 0
+}

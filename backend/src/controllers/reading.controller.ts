@@ -94,3 +94,41 @@ export async function deleteReadingArticle(
     next(error)
   }
 }
+
+/**
+ * 更新用户的一条阅读历史标题。
+ */
+export async function updateReadingArticleTitle(
+  req: Request<{ articleId: string }, object, { title: string }>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req)
+    await readingHistoryService.updateTitle(
+      authUser.id,
+      Number(req.params.articleId),
+      req.body.title ?? '',
+    )
+
+    return res.json(ok(null, 'Reading article title updated'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * 询问阅读助手关于文章内容的问题。
+ */
+export async function chatWithAssistant(
+  req: Request<Record<string, never>, object, { content: string; question: string }>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const result = await readingService.chat(req.body.content ?? '', req.body.question ?? '')
+    return res.json(ok(result, 'Assistant replied'))
+  } catch (error) {
+    next(error)
+  }
+}
