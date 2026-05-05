@@ -218,6 +218,7 @@ export async function initializeDatabase() {
         id BIGSERIAL PRIMARY KEY,
         email TEXT NOT NULL UNIQUE,
         nickname TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
         access_status TEXT NOT NULL DEFAULT 'active',
         access_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         password_salt TEXT NOT NULL,
@@ -226,6 +227,13 @@ export async function initializeDatabase() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
     `,
   );
 

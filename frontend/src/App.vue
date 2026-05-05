@@ -26,7 +26,7 @@
 
         <nav v-if="showNavigation" class="nav-rail" aria-label="主导航">
           <RouterLink
-            v-for="item in navigationItems"
+            v-for="item in visibleNavigationItems"
             :key="item.to"
             :to="item.to"
             class="nav-item"
@@ -87,6 +87,16 @@
             >
               <span class="menu-icon icon-profile" aria-hidden="true"></span>
               <span>个人资料</span>
+            </RouterLink>
+            <RouterLink
+              v-if="userStore.isAdmin"
+              to="/admin"
+              class="profile-menu-item"
+              role="menuitem"
+              @click="closeProfileMenu"
+            >
+              <span class="menu-icon icon-settings" aria-hidden="true"></span>
+              <span>用户与密钥</span>
             </RouterLink>
             <RouterLink
               to="/settings"
@@ -190,6 +200,17 @@ const navigationItems: NavItem[] = [
   { to: '/history', label: '归档册', icon: 'history' },
   { to: '/settings', label: '更多', icon: 'more' },
 ]
+
+const visibleNavigationItems = computed(() => {
+  if (!userStore.isAdmin) {
+    return navigationItems
+  }
+
+  return [
+    ...navigationItems,
+    { to: '/admin', label: '管理', icon: 'admin' },
+  ]
+})
 
 /**
  * 菜单只作为账号入口，状态放在 App 顶层能避免跨路由后残留展开层。
@@ -769,6 +790,12 @@ onBeforeUnmount(() => {
 
 .nav-icon {
   width: 22px;
+  height: 22px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   font-size: 16px;
   line-height: 1;
   text-align: center;
@@ -781,6 +808,7 @@ onBeforeUnmount(() => {
 .icon-books::before { content: "▤"; }
 .icon-history::before { content: "📋"; }
 .icon-more::before { content: "⋯"; }
+.icon-admin::before { content: "⚙"; }
 
 @media (max-height: 620px) and (min-width: 861px) {
   .has-sidebar .shell-header {
@@ -854,9 +882,18 @@ onBeforeUnmount(() => {
     bottom: auto;
     left: 0;
     width: 100%;
-    padding: 12px;
+    padding: 10px 14px;
     border-width: 0 0 1px;
-    border-radius: 0;
+    border-radius: 0 0 22px 22px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 10px 32px rgba(255, 90, 113, 0.1);
+  }
+
+  .dark-theme .shell-header,
+  .dark-theme .has-sidebar .shell-header {
+    background: rgba(24, 20, 30, 0.9);
   }
 
   .header-content,
@@ -864,24 +901,59 @@ onBeforeUnmount(() => {
     height: auto;
     max-width: 100%;
     margin: 0;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .brand-link {
     gap: 10px;
   }
 
+  .has-sidebar .brand-link {
+    justify-content: flex-start;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .brand-copy {
+    display: block;
+  }
+
+  .brand-copy h1 {
+    font-size: 20px;
+  }
+
   .nav-rail {
-    flex: none;
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 210;
+    width: auto;
+    max-width: calc(100vw - 20px);
     min-width: 0;
+    min-height: 58px;
     flex-direction: row;
-    justify-content: center;
-    gap: 4px;
-    padding: 4px;
-    border-radius: 999px;
-    background: var(--sl-glass-bg);
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 7px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.88);
     border: 1px solid var(--sl-glass-border);
-    box-shadow: var(--sl-shadow);
+    box-shadow: 0 18px 55px rgba(40, 22, 28, 0.18);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
     overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .dark-theme .nav-rail {
+    background: rgba(24, 20, 30, 0.9);
   }
 
   .nav-rail::-webkit-scrollbar {
@@ -889,14 +961,43 @@ onBeforeUnmount(() => {
   }
 
   .nav-item {
-    min-width: 36px;
-    min-height: 36px;
-    padding: 4px;
-    border-radius: 999px;
+    min-width: 64px;
+    min-height: 44px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 5px 8px;
+    border-radius: 17px;
+    scroll-snap-align: start;
+    font-size: 11px;
+  }
+
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 15px;
+  }
+
+  .icon-reading::before {
+    font-size: 11px;
+  }
+
+  .nav-label,
+  .has-sidebar .nav-label {
+    position: static;
+    width: auto;
+    height: auto;
+    max-width: 52px;
+    overflow: hidden;
+    clip: auto;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .nav-item.router-link-exact-active {
     background: var(--sl-bg);
+    box-shadow: 0 8px 20px rgba(255, 90, 113, 0.14);
   }
 
   .utility-row {
@@ -937,6 +1038,7 @@ onBeforeUnmount(() => {
   .has-sidebar .shell-main {
     padding-left: 0;
     padding-top: 0;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
   }
 }
 </style>

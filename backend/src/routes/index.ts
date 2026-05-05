@@ -5,7 +5,9 @@
 
 import { Router } from 'express'
 import { accessMiddleware } from '../middlewares/access.middleware'
+import { adminMiddleware } from '../middlewares/admin.middleware'
 import { authMiddleware } from '../middlewares/auth.middleware'
+import adminRoutes from './admin.routes'
 import authRoutes from './auth.routes'
 import historyRoutes from './history.routes'
 import ocrRoutes from './ocr.routes'
@@ -19,6 +21,7 @@ import wordStudyRoutes from './word-study.routes'
 const router = Router()
 
 router.use('/auth', authRoutes)
+router.use('/admin', authMiddleware, accessMiddleware, adminMiddleware, adminRoutes)
 router.use('/history', authMiddleware, accessMiddleware, historyRoutes)
 router.use('/ocr', authMiddleware, accessMiddleware, ocrRoutes)
 router.use('/reading', authMiddleware, accessMiddleware, readingRoutes)

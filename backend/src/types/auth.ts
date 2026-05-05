@@ -5,11 +5,14 @@ export interface AuthUser {
   email: string;
   nickname: string;
   avatarUrl?: string | null;
+  role: UserRole;
   accessStatus: AccessStatus;
   accessExpiresAt: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type UserRole = 'user' | 'admin';
 
 export type AccessStatus = 'active' | 'suspended' | 'expired';
 
