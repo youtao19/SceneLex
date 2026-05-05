@@ -20,6 +20,7 @@ export const useUserStore = defineStore('user', {
   state: (): AuthState => readInitialAuthState(),
   getters: {
     isAuthenticated: (state) => Boolean(state.token && state.user),
+    isAdmin: (state) => state.user?.role === 'admin',
     nickname: (state) => state.user?.nickname ?? 'Guest',
   },
   actions: {

@@ -86,12 +86,27 @@
                   class="history-title-input"
                   type="text"
                   placeholder="文章标题..."
+                  :disabled="savingTitleId === article.id"
                   @keydown.enter="saveTitle(article)"
                   @keydown.esc="cancelEditTitle"
                 />
                 <div class="history-edit-actions">
-                  <button class="history-save-btn" type="button" @click="saveTitle(article)">保存</button>
-                  <button class="history-cancel-btn" type="button" @click="cancelEditTitle">取消</button>
+                  <button
+                    class="history-save-btn"
+                    type="button"
+                    :disabled="savingTitleId === article.id"
+                    @click="saveTitle(article)"
+                  >
+                    {{ savingTitleId === article.id ? '保存中' : '保存' }}
+                  </button>
+                  <button
+                    class="history-cancel-btn"
+                    type="button"
+                    :disabled="savingTitleId === article.id"
+                    @click="cancelEditTitle"
+                  >
+                    取消
+                  </button>
                 </div>
               </template>
               <template v-else>
@@ -136,7 +151,13 @@
           </button>
         </header>
 
-        <article class="reading-content surface-card" @click="handleArticleClick">
+        <article
+          ref="readingContentRef"
+          class="reading-content surface-card"
+          @click="handleArticleClick"
+          @mouseup="updateSelectedTextFromSelection"
+          @touchend="scheduleSelectionRead"
+        >
           <div
             v-for="paragraph in paragraphs"
             :key="paragraph.id"
@@ -146,6 +167,7 @@
               v-for="sentence in paragraph.sentences"
               :key="sentence.id"
               class="sentence-block"
+              :data-sentence-text="sentence.text"
             >
               <span class="sentence-content">
                 <button
@@ -171,6 +193,14 @@
               >
                 {{ sentence.loading ? '…' : '译' }}
               </button>
+              <button
+                class="sentence-ask-btn"
+                type="button"
+                title="发送这句话给助手"
+                @click.stop="askAboutSentence(sentence.text)"
+              >
+                问
+              </button>
               <div
                 v-if="sentence.translation || sentence.loading || sentence.error"
                 class="sentence-translation"
@@ -192,6 +222,15 @@
         >
           <span class="assistant-icon">✨</span>
           <span class="assistant-label">助手</span>
+        </button>
+        <button
+          v-if="selectedText"
+          class="selection-send"
+          type="button"
+          :style="selectionActionStyle"
+          @click="sendSelectedTextToAssistant"
+        >
+          发送给助手
         </button>
       </section>
     </main>
@@ -299,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   chatWithAssistant,
   deleteReadingArticle,
@@ -314,7 +353,6 @@ import type { ReadingArticle } from '../types/reading'
 import { fetchWordBooks } from '../services/word-book.service'
 import { addWord, generateWord } from '../services/word.service'
 import type { WordBook } from '../types/word-book'
-import { nextTick } from 'vue'
 
 interface ReadingToken {
   id: string
@@ -347,6 +385,7 @@ const articleText = ref('')
 const paragraphs = ref<ReadingParagraph[]>([])
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const chatBodyRef = ref<HTMLElement | null>(null)
+const readingContentRef = ref<HTMLElement | null>(null)
 const errorMessage = ref('')
 const activeTokenId = ref('')
 const ocrMethod = ref<OcrMethod>('tesseract')
@@ -356,10 +395,13 @@ const historyLoading = ref(false)
 const assistantLoading = ref(false)
 const assistantOpen = ref(false)
 const userQuestion = ref('')
+const selectedText = ref('')
+const selectionActionStyle = ref<Record<string, string>>({})
 const chatMessages = ref<ChatMessage[]>([])
 const bookLoading = ref(false)
 const deletingArticleId = ref<number | null>(null)
 const editingArticleId = ref<number | null>(null)
+const savingTitleId = ref<number | null>(null)
 const editingTitle = ref('')
 const historyArticles = ref<ReadingArticle[]>([])
 const wordBooks = ref<WordBook[]>([])
@@ -525,6 +567,9 @@ async function startReading() {
   paragraphs.value = buildParagraphs(text)
   closeWordPanel()
   mode.value = 'reading'
+  void nextTick(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  })
 }
 
 /**
@@ -590,15 +635,35 @@ async function saveTitle(article: ReadingArticle) {
     return
   }
 
+  if (savingTitleId.value !== null) {
+    return
+  }
+
+  savingTitleId.value = article.id
+  errorMessage.value = ''
+
   try {
     await updateReadingArticleTitle(article.id, title)
-    article.title = title
+    const updatedAt = new Date().toISOString()
+    historyArticles.value = historyArticles.value.map((item) => {
+      if (item.id !== article.id) {
+        return item
+      }
+
+      return {
+        ...item,
+        title,
+        updatedAt,
+      }
+    })
     cancelEditTitle()
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error && error.message
       ? error.message
       : '更新标题失败'
+  } finally {
+    savingTitleId.value = null
   }
 }
 
@@ -714,6 +779,94 @@ async function askQuestion(question?: string) {
     assistantLoading.value = false
     scrollToBottom()
   }
+}
+
+/**
+ * 发送选中文本时带上明确任务，助手不会只收到一句孤立原文。
+ */
+function buildSelectedTextQuestion(text: string) {
+  return `请解释这句话，并指出重点表达：\n${text}`
+}
+
+/**
+ * 桌面和手机的文本选择事件触发时机不同，touchend 后稍等浏览器完成选区计算。
+ */
+function scheduleSelectionRead() {
+  window.setTimeout(updateSelectedTextFromSelection, 80)
+}
+
+/**
+ * 只接受阅读正文里的选区，避免误把助手输入框或页面其它文字发出去。
+ */
+function updateSelectedTextFromSelection() {
+  const selection = window.getSelection()
+  const text = selection?.toString().trim() ?? ''
+
+  if (!selection || !text || !readingContentRef.value || selection.rangeCount === 0) {
+    selectedText.value = ''
+    return
+  }
+
+  const range = selection.getRangeAt(0)
+  const container = range.commonAncestorContainer
+  const selectedNode = container.nodeType === Node.TEXT_NODE
+    ? container.parentElement
+    : container
+
+  if (!(selectedNode instanceof Node) || !readingContentRef.value.contains(selectedNode)) {
+    selectedText.value = ''
+    return
+  }
+
+  const rect = range.getBoundingClientRect()
+  const buttonWidth = 116
+  const left = Math.min(
+    window.innerWidth - buttonWidth - 12,
+    Math.max(12, rect.left + rect.width / 2 - buttonWidth / 2),
+  )
+  const top = rect.top > 58 ? rect.top - 48 : rect.bottom + 10
+
+  const sentenceBlock = selectedNode instanceof Element
+    ? selectedNode.closest<HTMLElement>('.sentence-block')
+    : selectedNode.parentElement?.closest<HTMLElement>('.sentence-block')
+  const sentenceText = sentenceBlock?.dataset.sentenceText?.trim()
+  const textForAssistant = sentenceText && !text.includes(' ')
+    ? sentenceText
+    : text
+
+  selectedText.value = textForAssistant.slice(0, 800)
+  selectionActionStyle.value = {
+    left: `${left}px`,
+    top: `${Math.max(72, top)}px`,
+  }
+}
+
+/**
+ * 选中的句子直接进入助手对话，并打开手机半屏助手。
+ */
+async function sendSelectedTextToAssistant() {
+  const text = selectedText.value.trim()
+
+  if (!text) {
+    return
+  }
+
+  selectedText.value = ''
+  window.getSelection()?.removeAllRanges()
+  assistantOpen.value = true
+  wordPanel.open = false
+  await askQuestion(buildSelectedTextQuestion(text))
+}
+
+/**
+ * 每句旁边的快捷入口，解决手机长按选择不稳定的问题。
+ */
+async function askAboutSentence(sentence: string) {
+  assistantOpen.value = true
+  wordPanel.open = false
+  selectedText.value = ''
+  window.getSelection()?.removeAllRanges()
+  await askQuestion(buildSelectedTextQuestion(sentence))
 }
 
 /**
@@ -851,6 +1004,11 @@ function closeWordPanel() {
 onMounted(() => {
   loadReadingHistory()
   loadWordBooks()
+  document.addEventListener('selectionchange', updateSelectedTextFromSelection)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('selectionchange', updateSelectedTextFromSelection)
 })
 </script>
 
@@ -858,11 +1016,13 @@ onMounted(() => {
 .reading-page {
   min-height: calc(100vh - 52px);
   padding: 44px 20px 120px;
+  overflow-x: clip;
 }
 
 .reading-shell {
   width: min(980px, 100%);
   margin: 0 auto;
+  min-width: 0;
 }
 
 .reader-input-card,
@@ -985,6 +1145,7 @@ onMounted(() => {
   margin-top: 28px;
   padding-top: 22px;
   border-top: 1px solid var(--sl-glass-border);
+  min-width: 0;
 }
 
 .history-head {
@@ -1028,6 +1189,7 @@ onMounted(() => {
 .history-list {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .history-item {
@@ -1042,6 +1204,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.36);
   color: var(--sl-text-main);
   text-align: left;
+  min-width: 0;
 }
 
 .dark-theme .history-item {
@@ -1066,10 +1229,11 @@ onMounted(() => {
 
 .history-open strong {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-size: 15px;
+  line-height: 1.45;
 }
 
 .history-open span {
@@ -1078,6 +1242,7 @@ onMounted(() => {
   color: var(--sl-text-mute);
   font-size: 12px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .history-delete {
@@ -1107,6 +1272,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
 }
 
 .history-edit-trigger {
@@ -1128,6 +1294,7 @@ onMounted(() => {
 .history-title-input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   padding: 6px 12px;
   border: 1px solid var(--sl-peach-200);
   border-radius: 8px;
@@ -1163,6 +1330,12 @@ onMounted(() => {
   background: var(--sl-peach-100);
 }
 
+.history-save-btn:disabled,
+.history-cancel-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .history-cancel-btn:hover {
   background: rgba(0, 0, 0, 0.05);
 }
@@ -1183,6 +1356,8 @@ onMounted(() => {
 .reading-content {
   padding: clamp(22px, 4vw, 44px);
   background: rgba(255, 255, 255, 0.64);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dark-theme .reading-content {
@@ -1407,6 +1582,8 @@ onMounted(() => {
   margin-bottom: 28px;
   color: var(--sl-text-main);
   font: 20px/1.85 var(--sl-display-font);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .reading-paragraph:last-child {
@@ -1416,6 +1593,7 @@ onMounted(() => {
 .sentence-block {
   display: inline;
   position: relative;
+  overflow-wrap: anywhere;
 }
 
 .sentence-content {
@@ -1425,6 +1603,7 @@ onMounted(() => {
 .word-token,
 .text-token {
   display: inline;
+  max-width: 100%;
   padding: 0 1px;
   border: none;
   border-radius: 5px;
@@ -1432,6 +1611,10 @@ onMounted(() => {
   color: inherit;
   font: inherit;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .word-token {
@@ -1470,6 +1653,46 @@ onMounted(() => {
 .sentence-translate-btn:hover {
   background: var(--sl-peach-500);
   color: #fff;
+}
+
+.sentence-ask-btn {
+  width: 26px;
+  height: 26px;
+  margin: 0 8px 0 0;
+  border: none;
+  border-radius: 999px;
+  vertical-align: middle;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sentence-ask-btn:hover {
+  background: #047857;
+  color: #fff;
+}
+
+.selection-send {
+  position: fixed;
+  z-index: 1200;
+  min-width: 116px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.22);
+  cursor: pointer;
+}
+
+.selection-send:hover {
+  background: var(--sl-peach-500);
+  transform: translateY(-1px);
 }
 
 .sentence-translation {
@@ -1693,11 +1916,17 @@ onMounted(() => {
 
 @media (max-width: 900px) {
   .reading-page {
-    padding: 24px 14px 112px;
+    padding: 18px 10px 112px;
+  }
+
+  .reading-page:has(.assistant-panel.is-open) {
+    padding-bottom: calc(50vh + 96px);
   }
 
   .reader-input-card {
-    padding: 22px;
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: 22px;
   }
 
   .reader-input-actions,
@@ -1728,8 +1957,121 @@ onMounted(() => {
     flex-direction: column;
   }
 
+  .history-item {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .history-item-actions,
+  .history-edit-actions {
+    justify-content: flex-start;
+  }
+
+  .history-edit-actions {
+    flex-wrap: wrap;
+  }
+
+  .history-save-btn,
+  .history-cancel-btn,
+  .history-edit-trigger,
+  .history-delete {
+    min-width: 44px;
+    min-height: 36px;
+  }
+
   .reading-paragraph {
     font-size: 18px;
+  }
+
+  .assistant-trigger {
+    right: 18px;
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
+    z-index: 190;
+  }
+
+  .assistant-trigger.is-active {
+    transform: none;
+  }
+
+  .assistant-icon {
+    font-size: 21px;
+  }
+
+  .assistant-label {
+    font-size: 10px;
+  }
+
+  .assistant-panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: min(50vh, 430px);
+    max-height: 50vh;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(110%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .assistant-panel.is-open {
+    right: 0;
+    transform: translateY(0);
+  }
+
+  .assistant-head {
+    padding: 12px 16px;
+  }
+
+  .assistant-head h3 {
+    font-size: 16px;
+  }
+
+  .assistant-body {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .assistant-welcome {
+    padding: 10px;
+  }
+
+  .suggested-questions {
+    justify-content: flex-start;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .suggestion-chip {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .chat-message {
+    max-width: 92%;
+  }
+
+  .message-bubble {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .assistant-footer {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .assistant-input {
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .assistant-send {
+    min-width: 58px;
+    padding: 0 12px;
   }
 
   .word-panel {

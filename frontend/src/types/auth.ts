@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string
   nickname: string
   avatarUrl?: string | null
+  role: 'user' | 'admin'
   accessStatus: 'active' | 'suspended' | 'expired'
   accessExpiresAt: string
   createdAt: string

@@ -7,6 +7,7 @@ interface UserRow {
   email: string;
   nickname: string;
   avatar_url: string | null;
+  role: 'user' | 'admin';
   access_status: 'active' | 'suspended' | 'expired';
   access_expires_at: string | Date;
   password_salt: string;
@@ -28,6 +29,7 @@ function mapUserRow(row: UserRow): AuthUser {
     email: row.email,
     nickname: row.nickname,
     avatarUrl: row.avatar_url,
+    role: row.role,
     accessStatus: row.access_status,
     accessExpiresAt: new Date(row.access_expires_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
@@ -57,6 +59,7 @@ export async function findUserByEmail(email: string) {
         email,
         nickname,
         avatar_url,
+        role,
         access_status,
         access_expires_at,
         password_salt,
@@ -103,6 +106,7 @@ export async function createUser(
         email,
         nickname,
         avatar_url,
+        role,
         access_status,
         access_expires_at,
         password_salt,
@@ -149,6 +153,7 @@ export async function findUserByTokenHash(tokenHash: string) {
         u.email,
         u.nickname,
         u.avatar_url,
+        u.role,
         u.access_status,
         u.access_expires_at,
         u.password_salt,
@@ -202,6 +207,7 @@ export async function updateUserProfile(userId: number, nickname: string) {
         email,
         nickname,
         avatar_url,
+        role,
         access_status,
         access_expires_at,
         password_salt,
@@ -235,6 +241,7 @@ export async function updateUserAvatar(userId: number, avatarUrl: string) {
         email,
         nickname,
         avatar_url,
+        role,
         access_status,
         access_expires_at,
         password_salt,

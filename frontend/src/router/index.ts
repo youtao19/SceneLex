@@ -8,6 +8,7 @@ import SettingsView from '../views/SettingsView.vue';
 import ProfileView from '../views/ProfileView.vue';
 import WordBooksView from '../views/WordBooksView.vue';
 import SystemWordBooksView from '../views/SystemWordBooksView.vue';
+import AdminView from '../views/AdminView.vue';
 import { AUTH_STORAGE_KEY, type AuthState } from '../types/auth';
 import { readFromStorage } from '../utils/storage';
 
@@ -23,6 +24,7 @@ const router = createRouter({
     { path: '/word-books', name: 'word-books', component: WordBooksView, meta: { requiresAuth: true } },
     { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
+    { path: '/admin', name: 'admin', component: AdminView, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });
@@ -31,6 +33,7 @@ router.beforeEach((to) => {
   const authState = readFromStorage<AuthState>(AUTH_STORAGE_KEY);
   const isAuthenticated = Boolean(authState?.token && authState.user);
   const requiresAuth = Boolean(to.meta.requiresAuth);
+  const requiresAdmin = Boolean(to.meta.requiresAdmin);
   const guestOnly = Boolean(to.meta.guestOnly);
 
   if (requiresAuth && !isAuthenticated) {
@@ -38,6 +41,10 @@ router.beforeEach((to) => {
   }
 
   if (guestOnly && isAuthenticated) {
+    return { name: 'dashboard' };
+  }
+
+  if (requiresAdmin && authState?.user?.role !== 'admin') {
     return { name: 'dashboard' };
   }
 
