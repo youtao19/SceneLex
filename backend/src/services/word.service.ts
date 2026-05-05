@@ -454,7 +454,7 @@ export const wordService = {
     const dictionaryEntry = dictionaryService.findByWord(cleanWord);
     const requiredMeanings = normalizeRequiredMeanings(requiredMeaningsInput);
 
-    if (!forceRegenerate && requiredMeanings.length === 0) {
+    if (!forceRegenerate) {
       const storedWord = await findWordByText(userId, cleanWord);
 
       if (storedWord && canUseStoredWord(storedWord)) {
@@ -490,7 +490,7 @@ export const wordService = {
       contentSource,
     };
 
-    if (forceRegenerate) {
+    if (forceRegenerate || requiredMeanings.length > 0) {
       return {
         ...generated,
         source: 'generated',
