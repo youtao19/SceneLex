@@ -14,3 +14,18 @@ export interface ReadingArticle {
   createdAt: string
   updatedAt: string
 }
+
+export interface ReadingAssistantChat {
+  id: number
+  title: string
+  articleContent: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ReadingAssistantMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}

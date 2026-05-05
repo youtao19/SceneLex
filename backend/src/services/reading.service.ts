@@ -55,13 +55,24 @@ function buildSentencePrompt(sentence: string) {
 /**
  * 阅读助手 prompt，包含文章背景，让 AI 回答更有针对性。
  */
-function buildChatPrompt(content: string, question: string) {
+function buildChatPrompt(
+  content: string,
+  question: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+) {
+  const historyText = history.length > 0
+    ? history.map((item) => `${item.role === 'user' ? '用户' : '助手'}：${item.content}`).join('\n')
+    : '暂无'
+
   return `你是一个英语阅读助手。用户正在阅读下面的英语文章。请根据文章内容回答用户的问题。
 
 文章内容：
 """
 ${content}
 """
+
+最近对话：
+${historyText}
 
 用户问题：${question}
 
@@ -101,6 +112,21 @@ export const readingService = {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 1000)
     const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion))
+
+    return { text }
+  },
+
+  /**
+   * 带最近对话历史的阅读助手接口，用于历史聊天继续追问。
+   */
+  async chatWithHistory(
+    content: string,
+    question: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }>,
+  ): Promise<{ text: string }> {
+    const cleanContent = normalizeInput(content, 'content', 10000)
+    const cleanQuestion = normalizeInput(question, 'question', 1000)
+    const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion, history))
 
     return { text }
   }
