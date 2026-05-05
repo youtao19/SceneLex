@@ -640,16 +640,17 @@ async function loadWordBooks() {
 }
 
 /**
- * 历史文章恢复到输入区，让用户可以先编辑再开始阅读。
+ * 历史文章是已保存内容，点击后直接进入阅读，少一步重复确认。
  */
 function openHistoryArticle(article: ReadingArticle) {
   sourceText.value = article.content
   errorMessage.value = ''
+  void startReading()
 }
 
 function startEditTitle(article: ReadingArticle) {
   editingArticleId.value = article.id
-  editingTitle.value = article.title
+  editingTitle.value = ''
 }
 
 function cancelEditTitle() {
@@ -1080,7 +1081,6 @@ async function handleSaveReadingWord() {
     await addWord(
       preview.word,
       preview.phonetic,
-      preview.coreFeeling,
       preview.meanings,
       currentBookIds
     )

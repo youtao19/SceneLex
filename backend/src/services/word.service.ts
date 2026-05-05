@@ -25,7 +25,6 @@ function buildFallback(word: string): WordGenerateResult {
   return {
     word,
     phonetic: '',
-    coreFeeling: `${word} 像一个正在发生的画面`,
     meanings: [
       {
         partOfSpeech: '词性',
@@ -163,7 +162,6 @@ function normalizeGeneratedResult(
   const fallback = buildFallback(fallbackWord);
   let word = fallbackWord;
   let phonetic = fallback.phonetic;
-  let coreFeeling = fallback.coreFeeling;
   let meanings = fallback.meanings;
 
   if (raw && typeof raw === 'object') {
@@ -175,10 +173,6 @@ function normalizeGeneratedResult(
     }
 
     phonetic = normalizePhonetic(data.phonetic);
-    coreFeeling =
-      typeof data.coreFeeling === 'string' && data.coreFeeling.trim()
-        ? data.coreFeeling.trim()
-        : coreFeeling;
 
     const meaningItems = readMeaningItems(data.meanings);
     const validMeaningItems = filterMeaningsByWord(meaningItems, fallbackWord);
@@ -197,7 +191,6 @@ function normalizeGeneratedResult(
   return {
     word,
     phonetic,
-    coreFeeling,
     meanings,
     source: 'generated',
     contentSource: 'agent',
@@ -279,14 +272,6 @@ function normalizeIncomingMeanings(value: unknown) {
   }
 
   return meanings;
-}
-
-function normalizeCoreFeeling(value: unknown, meanings: WordMeaningItem[]) {
-  if (typeof value === 'string' && value.trim()) {
-    return value.trim();
-  }
-
-  return buildPrimaryMeaning(meanings);
 }
 
 function normalizeBookIds(value: unknown) {
@@ -375,7 +360,6 @@ function toGenerateResultFromStoredWord(
   return {
     word: word.word,
     phonetic: word.phonetic,
-    coreFeeling: word.coreFeeling,
     meanings: word.meanings,
     source: 'database',
     contentSource,
@@ -514,7 +498,7 @@ export const wordService = {
       };
     }
 
-    const primaryMeaning = generated.coreFeeling;
+    const primaryMeaning = buildPrimaryMeaning(generated.meanings);
     const saved = await saveWordCard(
       userId,
       generated.word,
@@ -524,10 +508,9 @@ export const wordService = {
     );
 
     return {
-	      word: saved.card.word,
-	      phonetic: saved.card.phonetic,
-	      coreFeeling: saved.card.coreFeeling,
-	      meanings: saved.card.meanings,
+      word: saved.card.word,
+      phonetic: saved.card.phonetic,
+      meanings: saved.card.meanings,
       source: 'generated',
       contentSource,
       saved: true,
@@ -541,7 +524,6 @@ export const wordService = {
     userId: number,
     word: string,
     phoneticInput: unknown,
-    coreFeelingInput: unknown,
     meaningsInput: unknown,
     bookIdsInput: unknown,
   ): Promise<SaveWordResult> {
@@ -553,7 +535,7 @@ export const wordService = {
 
     const meanings = normalizeIncomingMeanings(meaningsInput);
     const phonetic = normalizePhonetic(phoneticInput);
-    const primaryMeaning = normalizeCoreFeeling(coreFeelingInput, meanings);
+    const primaryMeaning = buildPrimaryMeaning(meanings);
     const bookIds = normalizeBookIds(bookIdsInput);
 
     return saveWordCard(userId, cleanWord, phonetic, primaryMeaning, meanings, bookIds);

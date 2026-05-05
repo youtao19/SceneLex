@@ -21,7 +21,6 @@
         <WordMeaningsPanel
           :word="word.word"
           :phonetic="word.phonetic"
-          :core-feeling="word.coreFeeling"
           :meanings="word.meanings"
         />
       </div>

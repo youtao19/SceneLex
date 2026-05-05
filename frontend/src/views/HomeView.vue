@@ -31,7 +31,6 @@
                 <WordMeaningsPanel
                   :word="preview.word"
                   :phonetic="preview.phonetic"
-                  :core-feeling="preview.coreFeeling"
                   :meanings="preview.meanings"
                 />
               </div>
@@ -225,7 +224,6 @@ async function handleAddWord() {
     await addWord(
       currentPreview.word,
       currentPreview.phonetic,
-      currentPreview.coreFeeling,
       currentPreview.meanings,
       selectedBookIds.value
     )

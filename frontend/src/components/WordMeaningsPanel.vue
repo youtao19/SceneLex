@@ -17,10 +17,6 @@
           🔊
         </button>
       </div>
-      <div v-if="coreFeeling" class="core-feeling">
-        <span>核心感觉</span>
-        <p>{{ coreFeeling }}</p>
-      </div>
     </header>
 
     <!-- 场景列表 -->
@@ -37,7 +33,6 @@
           </div>
         </div>
 
-        <!-- 场景例句与联想卡片结构 -->
         <div class="teaching-content">
           <div class="teaching-block example-block">
             <div class="block-icon">💬</div>
@@ -51,11 +46,15 @@
             </div>
           </div>
           
-          <div v-if="memoryHint(item)" class="teaching-block tip-block">
+          <div v-if="associationLines(item).length > 0" class="teaching-block tip-block">
             <div class="block-icon">💡</div>
             <div class="block-body">
               <span class="block-title">联想</span>
-              <p class="block-text">{{ memoryHint(item) }}</p>
+              <ul class="association-list">
+                <li v-for="line in associationLines(item)" :key="line">
+                  {{ line }}
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -75,7 +74,6 @@ import type { WordMeaningItem } from '../types/word'
 const props = defineProps<{
   word: string
   phonetic?: string
-  coreFeeling?: string
   meanings: WordMeaningItem[]
 }>()
 
@@ -95,10 +93,15 @@ function displayExamples(item: WordMeaningItem) {
 }
 
 /**
- * 优先展示更短的联想词，避免场景标题和解释重复同一个画面。
+ * 模型用中文分号输出多条联想；拆开显示能和左侧短语一一对应。
  */
-function memoryHint(item: WordMeaningItem) {
-  return item.tip || item.sceneTitle
+function associationLines(item: WordMeaningItem) {
+  const text = item.tip || item.sceneTitle
+
+  return text
+    .split(/[；;]\s*/)
+    .map((line) => line.trim())
+    .filter(Boolean)
 }
 </script>
 
@@ -162,29 +165,6 @@ function memoryHint(item: WordMeaningItem) {
 .speak-button:hover {
   border-color: var(--sl-peach-200);
   background: var(--sl-peach-50);
-}
-
-.core-feeling {
-  padding: 12px 14px;
-  border-left: 3px solid var(--sl-peach-500);
-  border-radius: 10px;
-  background: rgba(255, 90, 113, 0.06);
-}
-
-.core-feeling span {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--sl-peach-500);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.core-feeling p {
-  margin: 0;
-  color: var(--sl-text-main);
-  font-size: 15px;
-  line-height: 1.45;
-  font-weight: 700;
 }
 
 /* 列表容器 */
@@ -266,6 +246,7 @@ function memoryHint(item: WordMeaningItem) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .block-title {
@@ -280,19 +261,17 @@ function memoryHint(item: WordMeaningItem) {
   color: var(--sl-peach-500);
 }
 
-.block-text {
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--sl-text-main);
-  margin: 0;
-}
-
-.example-list {
+.example-list,
+.association-list {
   margin: 0;
   padding-left: 18px;
   color: var(--sl-text-main);
   font-size: 14px;
   line-height: 1.5;
+}
+
+.association-list {
+  list-style: disc;
 }
 
 .scene-explanation {
@@ -310,8 +289,9 @@ function memoryHint(item: WordMeaningItem) {
 
 @media (min-width: 768px) {
   .teaching-content {
-    grid-template-columns: 1fr 1fr; /* 在大屏幕上，例句和联想并排显示 */
+    grid-template-columns: 1fr 1fr;
     align-items: stretch;
   }
 }
+
 </style>

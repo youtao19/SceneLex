@@ -18,7 +18,6 @@ export interface WordRequiredMeaning {
 export interface WordGenerateData {
   word: string
   phonetic: string
-  coreFeeling: string
   meanings: WordMeaningItem[]
   source: 'database' | 'generated'
   contentSource: 'dictionary' | 'agent'
@@ -30,7 +29,6 @@ export interface StoredWord {
   word: string
   phonetic: string
   primaryMeaning: string
-  coreFeeling: string
   meanings: WordMeaningItem[]
   ease: number
   interval: number
