@@ -3,201 +3,68 @@ import path from 'node:path';
 import { env } from '../config/env';
 import type { DictionaryEntry, DictionaryMeaning } from '../types/dictionary';
 
-interface EcdictRow {
-  word: string;
-  phonetic: string;
-  definition: string;
-  translation: string;
-  pos: string;
-}
+type CompactDictionaryEntry = [
+  word: string,
+  phonetic: string,
+  definitions: string[],
+  meanings: [partOfSpeech: string, meaning: string][],
+];
 
 let dictionaryCache: Map<string, DictionaryEntry> | null = null;
+let dictionarySource = 'none';
 
 /**
- * 词库默认放在 backend/data 下，方便本地替换而不把大 CSV 提交进仓库。
+ * 预编译 JSON 只保留业务字段，避免启动后第一次查词再解析完整 CSV。
  */
-function getDictionaryCsvPath() {
-  if (env.dictionaryCsvPath) {
-    return path.resolve(env.dictionaryCsvPath);
+function getDictionaryJsonPath() {
+  if (env.dictionaryJsonPath) {
+    return path.resolve(env.dictionaryJsonPath);
   }
 
-  return path.resolve(__dirname, '..', '..', 'data', 'ecdict.csv');
+  return path.resolve(__dirname, '..', '..', 'data', 'ecdict.compact.json');
 }
 
 /**
- * CSV 里会有带换行的 quoted field，不能按行 split。
+ * 读取脚本生成的紧凑缓存，运行时只接受 JSON 词库，避免重新走 CSV 解析路径。
  */
-function parseCsv(text: string) {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let inQuotes = false;
+function loadCompactDictionary(jsonPath: string) {
+  const dictionary = new Map<string, DictionaryEntry>();
+  const raw = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as { entries?: unknown };
+  const entries = Array.isArray(raw.entries) ? raw.entries : [];
 
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        cell += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-
+  for (const entry of entries) {
+    if (!Array.isArray(entry)) {
       continue;
     }
 
-    if (char === ',' && !inQuotes) {
-      row.push(cell);
-      cell = '';
+    const [word, phonetic, definitions, rawMeanings] = entry as CompactDictionaryEntry;
+
+    if (typeof word !== 'string' || typeof phonetic !== 'string') continue;
+    if (!Array.isArray(definitions) || !Array.isArray(rawMeanings)) continue;
+
+    const meanings = rawMeanings
+      .map((item): DictionaryMeaning | null => {
+        const [partOfSpeech, meaning] = item;
+
+        return typeof partOfSpeech === 'string' && typeof meaning === 'string'
+          ? { partOfSpeech, meaning }
+          : null;
+      })
+      .filter((item): item is DictionaryMeaning => item !== null);
+
+    if (meanings.length === 0) {
       continue;
     }
 
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && next === '\n') {
-        i += 1;
-      }
-
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = '';
-      continue;
-    }
-
-    cell += char;
+    dictionary.set(word.toLowerCase(), {
+      word: word.toLowerCase(),
+      phonetic,
+      definitions: definitions.filter((item): item is string => typeof item === 'string'),
+      meanings,
+    });
   }
 
-  if (cell || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-/**
- * ECDICT 的 pos 可能是 n/vt/vi，这里保留及物/不及物区别，避免义项来源失真。
- */
-function normalizePartOfSpeech(value: string) {
-  const text = value.trim().toLowerCase().replace(/\.$/, '');
-
-  if (!text) {
-    return '';
-  }
-  const map: Record<string, string> = {
-    n: 'n.',
-    noun: 'n.',
-    v: 'v.',
-    vi: 'vi.',
-    vt: 'vt.',
-    verb: 'v.',
-    adj: 'adj.',
-    a: 'adj.',
-    adv: 'adv.',
-    prep: 'prep.',
-    pron: 'pron.',
-    conj: 'conj.',
-    interj: 'interj.',
-    num: 'num.',
-  };
-
-  return map[text] ?? `${text}.`;
-}
-
-/**
- * 中文释义里常带词性前缀，拆出来后才能稳定覆盖模型返回。
- */
-function splitMeaningLine(line: string, fallbackPartOfSpeech: string): DictionaryMeaning | null {
-  const text = line.trim();
-
-  if (!text) {
-    return null;
-  }
-
-  const match = text.match(/^([a-zA-Z]{1,6}\.)\s*(.+)$/);
-
-  if (!match) {
-    return {
-      partOfSpeech: fallbackPartOfSpeech,
-      meaning: text,
-    };
-  }
-
-  return {
-    partOfSpeech: normalizePartOfSpeech(match[1]),
-    meaning: match[2].trim(),
-  };
-}
-
-/**
- * ECDICT 的 translation 一行一个义项，保留顺序能让常见释义排在前面。
- */
-function buildMeanings(row: EcdictRow) {
-  const posItems = row.pos
-    .split('/')
-    .map(normalizePartOfSpeech)
-    .filter(Boolean);
-  const fallbackPartOfSpeech = posItems[0] ?? '词性';
-  const result: DictionaryMeaning[] = [];
-  let currentPartOfSpeech = fallbackPartOfSpeech;
-
-  for (const line of row.translation.split(/\\n|\n/)) {
-    if (line.trim().startsWith(`${row.word}的`)) {
-      continue;
-    }
-
-    const item = splitMeaningLine(line, currentPartOfSpeech);
-
-    if (!item) {
-      continue;
-    }
-
-    currentPartOfSpeech = item.partOfSpeech;
-    const duplicate = result.some(
-      (current) =>
-        current.partOfSpeech === item.partOfSpeech && current.meaning === item.meaning,
-    );
-
-    if (!duplicate) {
-      result.push(item);
-    }
-  }
-
-  return result;
-}
-
-/**
- * 只读取业务需要的列，避免把 ECDICT 的扩展字段泄漏到生成流程。
- */
-function mapEcdictRow(headers: string[], values: string[]): EcdictRow | null {
-  const getValue = (name: string) => {
-    const index = headers.indexOf(name);
-
-    return index >= 0 ? values[index]?.trim() ?? '' : '';
-  };
-  const word = getValue('word').toLowerCase();
-  const translation = getValue('translation');
-
-  if (!word || !translation) {
-    return null;
-  }
-
-  return {
-    word,
-    phonetic: getValue('phonetic'),
-    definition: getValue('definition'),
-    translation,
-    pos: getValue('pos'),
-  };
-}
-
-function buildDefinitions(row: EcdictRow) {
-  return row.definition
-    .split(/\\n|\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return dictionary;
 }
 
 /**
@@ -208,43 +75,34 @@ function loadDictionary() {
     return dictionaryCache;
   }
 
-  const csvPath = getDictionaryCsvPath();
-  const dictionary = new Map<string, DictionaryEntry>();
+  const jsonPath = getDictionaryJsonPath();
 
-  if (!fs.existsSync(csvPath)) {
-    dictionaryCache = dictionary;
-    return dictionary;
+  if (!fs.existsSync(jsonPath)) {
+    throw new Error(
+      `词典 JSON 缓存不存在，请先运行 npm --prefix backend run dict:build-cache：${jsonPath}`,
+    );
   }
 
-  const rows = parseCsv(fs.readFileSync(csvPath, 'utf8'));
-  const headers = rows[0] ?? [];
-
-  for (let i = 1; i < rows.length; i += 1) {
-    const row = mapEcdictRow(headers, rows[i]);
-
-    if (!row) {
-      continue;
-    }
-
-    const meanings = buildMeanings(row);
-
-    if (meanings.length === 0) {
-      continue;
-    }
-
-    dictionary.set(row.word, {
-      word: row.word,
-      phonetic: row.phonetic,
-      definitions: buildDefinitions(row),
-      meanings,
-    });
-  }
-
-  dictionaryCache = dictionary;
-  return dictionary;
+  dictionaryCache = loadCompactDictionary(jsonPath);
+  dictionarySource = jsonPath;
+  return dictionaryCache;
 }
 
 export const dictionaryService = {
+  /**
+   * 启动后主动预热，避免第一个真实查词请求承担词库加载成本。
+   */
+  warmup() {
+    const startedAt = Date.now();
+    const dictionary = loadDictionary();
+
+    return {
+      entries: dictionary.size,
+      source: dictionarySource,
+      durationMs: Date.now() - startedAt,
+    };
+  },
+
   /**
    * 只做精确查词；词形还原后续单独加，避免第一版把错误映射带进来。
    */
