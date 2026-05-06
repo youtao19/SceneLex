@@ -14,16 +14,18 @@ export async function generateWordContent(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const { word, forceRegenerate, requiredMeanings } = req.body as {
+    const { word, forceRegenerate, requiredMeanings, systemBookItemId } = req.body as {
       word?: string
       forceRegenerate?: boolean
       requiredMeanings?: WordRequiredMeaning[]
+      systemBookItemId?: number
     }
     const result = await wordService.generateWordContent(
       authUser.id,
       word ?? '',
       forceRegenerate === true,
-      requiredMeanings
+      requiredMeanings,
+      systemBookItemId
     )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {

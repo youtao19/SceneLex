@@ -11,6 +11,8 @@
     "dict:build-cache": "node scripts/build-dictionary-cache.js",
     "wordbook:import:cet6": "node scripts/import-cet6-word-book.js",
     "wordbook:import:cet6:json": "node scripts/import-cet6-from-json.js",
+    "wordbook:prewarm": "node -r ../node_modules/ts-node/register/transpile-only scripts/prewarm-system-word-cards.ts",
+    "wordbook:prewarm:cet6": "npm run wordbook:prewarm -- --book cet6 --limit 99999",
     "key:create": "node scripts/create-access-key.js"
   },
   "dependencies": {
