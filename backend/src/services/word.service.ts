@@ -10,6 +10,10 @@ import {
   saveWordCard,
   updateReviewSchedule,
 } from '../repositories/word.repository';
+import {
+  findSystemWordCardPreview,
+  saveSystemWordCardPreview,
+} from '../repositories/system-word-card-preview.repository';
 import { HttpError } from '../utils/http-error';
 import type {
   ReviewRating,
@@ -371,6 +375,12 @@ function canUseStoredWord(word: StoredWord) {
   return word.meanings.length > 0;
 }
 
+function readPositiveInteger(value: unknown) {
+  const number = Number(value);
+
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
 const MIN_ANKI_EASE = 1.3;
 const DEFAULT_ANKI_EASE = 2.5;
 const ANKI_HARD_INTERVAL = 1.2;
@@ -444,6 +454,7 @@ export const wordService = {
     word: string,
     forceRegenerate = false,
     requiredMeaningsInput: unknown = [],
+    systemBookItemIdInput: unknown = null,
   ): Promise<WordGenerateResult> {
     const cleanWord = normalizeWord(word);
 
@@ -453,6 +464,7 @@ export const wordService = {
 
     const dictionaryEntry = dictionaryService.findByWord(cleanWord);
     const requiredMeanings = normalizeRequiredMeanings(requiredMeaningsInput);
+    const systemBookItemId = readPositiveInteger(systemBookItemIdInput);
 
     if (!forceRegenerate) {
       const storedWord = await findWordByText(userId, cleanWord);
@@ -460,6 +472,14 @@ export const wordService = {
       if (storedWord && canUseStoredWord(storedWord)) {
         const storedContentSource = dictionaryEntry ? 'dictionary' : 'agent';
         return toGenerateResultFromStoredWord(storedWord, storedContentSource);
+      }
+
+      if (systemBookItemId && requiredMeanings.length > 0) {
+        const cachedPreview = await findSystemWordCardPreview(systemBookItemId);
+
+        if (cachedPreview) {
+          return cachedPreview;
+        }
       }
     }
 
@@ -491,6 +511,10 @@ export const wordService = {
     };
 
     if (forceRegenerate || requiredMeanings.length > 0) {
+      if (systemBookItemId && requiredMeanings.length > 0) {
+        await saveSystemWordCardPreview(systemBookItemId, generated);
+      }
+
       return {
         ...generated,
         source: 'generated',

@@ -196,7 +196,7 @@
         <template v-else-if="preview">
           <div class="preview-modal-scroll">
             <p class="preview-source">
-              {{ preview.source === 'database' ? '来源：个人词库' : '来源：本次生成' }}
+              {{ previewSourceText }}
             </p>
             <WordMeaningsPanel
               :word="preview.word"
@@ -411,7 +411,7 @@ async function generatePreview(forceRegenerate: boolean) {
   successMessage.value = ''
 
   try {
-    const response = await generateWord(item.word, forceRegenerate, item.examMeanings)
+    const response = await generateWord(item.word, forceRegenerate, item.examMeanings, item.id)
     if (previewRequestId.value !== requestId) {
       return
     }
@@ -439,6 +439,27 @@ function closePreview() {
 /**
  * 用户确认理解后才保存，个人 SRS 仍然只由 words 表负责。
  */
+function markPreviewAsLearned(word: string) {
+  if (!detail.value) {
+    return
+  }
+
+  const item = detail.value.nextWords.find((current) => current.word === word)
+
+  if (!item || item.learned) {
+    return
+  }
+
+  item.learned = true
+  detail.value.learnedWords += 1
+
+  const book = books.value.find((current) => current.id === detail.value?.id)
+
+  if (book) {
+    book.learnedWords += 1
+  }
+}
+
 async function savePreview() {
   if (!preview.value) {
     return
@@ -456,9 +477,8 @@ async function savePreview() {
       currentPreview.meanings,
     )
     successMessage.value = `${response.data.word} 已加入个人词库`
+    markPreviewAsLearned(response.data.word)
     closePreview()
-    await loadBooks()
-    await loadDetail()
   } catch (error) {
     console.error(error)
     errorMessage.value = '加入个人词库失败，请稍后再试。'
@@ -468,6 +488,22 @@ async function savePreview() {
 }
 
 onMounted(loadBooks)
+
+const previewSourceText = computed(() => {
+  if (!preview.value) {
+    return ''
+  }
+
+  if (preview.value.source === 'database') {
+    return '来源：个人词库'
+  }
+
+  if (preview.value.source === 'system-cache') {
+    return '来源：系统缓存'
+  }
+
+  return '来源：本次生成'
+})
 </script>
 
 <style scoped>

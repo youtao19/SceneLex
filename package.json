@@ -24,6 +24,7 @@
     "start:prod": "node backend/dist/server.js",
     "start:tunnel": "sh ./scripts/start-tunnel.sh",
     "dict:download": "npm --prefix backend run dict:download",
+    "prewarm:cet6": "npm --prefix backend run wordbook:prewarm:cet6",
     "install:all": "npm install && npm --prefix frontend install && npm --prefix backend install",
     "key:create": "sh ./scripts/create-access-key.sh",
     "user:suspend": "sh ./scripts/user-suspend.sh",

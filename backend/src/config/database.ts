@@ -488,6 +488,28 @@ export async function initializeDatabase() {
     `,
   );
 
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS system_word_card_previews (
+        id BIGSERIAL PRIMARY KEY,
+        book_item_id BIGINT NOT NULL UNIQUE REFERENCES system_word_book_items(id) ON DELETE CASCADE,
+        word TEXT NOT NULL,
+        phonetic TEXT NOT NULL DEFAULT '',
+        meanings JSONB NOT NULL,
+        content_source TEXT NOT NULL DEFAULT 'agent',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
+  await query(
+    `
+      CREATE INDEX IF NOT EXISTS idx_system_word_card_previews_word
+      ON system_word_card_previews (word)
+    `,
+  );
+
   await seedSystemWordBooks();
 
   await query(

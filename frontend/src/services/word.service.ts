@@ -11,12 +11,14 @@ import type {
 export async function generateWord(
   word: string,
   forceRegenerate = false,
-  requiredMeanings: WordRequiredMeaning[] = []
+  requiredMeanings: WordRequiredMeaning[] = [],
+  systemBookItemId?: number
 ) {
   return post<ApiResponse<WordGenerateData>>('/words/generate', {
     word,
     forceRegenerate,
     requiredMeanings,
+    systemBookItemId,
   })
 }
 

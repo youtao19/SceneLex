@@ -19,7 +19,7 @@ export interface WordGenerateResult {
   word: string;
   phonetic: string;
   meanings: WordMeaningItem[];
-  source: 'database' | 'generated';
+  source: 'database' | 'generated' | 'system-cache';
   contentSource: 'dictionary' | 'agent';
   saved: boolean;
 }
