@@ -437,7 +437,7 @@ export const wordService = {
       throw new HttpError(400, 'word 不能为空');
     }
 
-    const dictionaryEntry = dictionaryService.findByWord(cleanWord);
+    const dictionaryEntry = await dictionaryService.findByWord(cleanWord);
 
     if (!dictionaryEntry) {
       throw new HttpError(404, '词库中暂未找到该单词');
@@ -469,7 +469,7 @@ export const wordService = {
       throw new HttpError(400, 'word 不能为空');
     }
 
-    const dictionaryEntry = dictionaryService.findByWord(cleanWord);
+    const dictionaryEntry = await dictionaryService.findByWord(cleanWord);
     const requiredMeanings = normalizeRequiredMeanings(requiredMeaningsInput);
     const systemBookItemId = readPositiveInteger(systemBookItemIdInput);
 
