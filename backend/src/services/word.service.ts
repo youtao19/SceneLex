@@ -21,6 +21,7 @@ import type {
   SaveWordResult,
   StoredWord,
   WordGenerateResult,
+  WordLookupResult,
   WordMeaningItem,
   WordRequiredMeaning,
 } from '../types/word';
@@ -426,6 +427,33 @@ function getNextAnkiSchedule(word: StoredWord, rating: ReviewRating): AnkiSchedu
 }
 
 export const wordService = {
+  /**
+   * 仪表盘先展示词典事实，不调用模型，用户确认需要场景时再生成完整词卡。
+   */
+  async lookupWord(word: string): Promise<WordLookupResult> {
+    const cleanWord = normalizeWord(word);
+
+    if (!cleanWord) {
+      throw new HttpError(400, 'word 不能为空');
+    }
+
+    const dictionaryEntry = dictionaryService.findByWord(cleanWord);
+
+    if (!dictionaryEntry) {
+      throw new HttpError(404, '词库中暂未找到该单词');
+    }
+
+    return {
+      word: dictionaryEntry.word,
+      phonetic: dictionaryEntry.phonetic,
+      meanings: dictionaryEntry.meanings.slice(0, 6).map((meaning, index) => ({
+        partOfSpeech: meaning.partOfSpeech,
+        meaning: meaning.meaning,
+        priority: index + 1,
+      })),
+    };
+  },
+
   /**
    * 普通查词默认走系统缓存，个人 words 只保存用户确认学习的进度。
    */

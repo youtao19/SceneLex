@@ -4,9 +4,14 @@ import type {
   ReviewRating,
   StoredWord,
   WordGenerateData,
+  WordLookupData,
   WordMeaningItem,
   WordRequiredMeaning,
 } from '../types/word'
+
+export async function lookupWord(word: string) {
+  return post<ApiResponse<WordLookupData>>('/words/lookup', { word })
+}
 
 export async function generateWord(
   word: string,

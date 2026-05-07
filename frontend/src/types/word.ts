@@ -24,6 +24,12 @@ export interface WordGenerateData {
   saved: boolean
 }
 
+export interface WordLookupData {
+  word: string
+  phonetic: string
+  meanings: WordRequiredMeaning[]
+}
+
 export interface StoredWord {
   id: number
   word: string
