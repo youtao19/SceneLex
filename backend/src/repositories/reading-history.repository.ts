@@ -105,6 +105,33 @@ export async function listReadingArticles(userId: number, limit = 20) {
 }
 
 /**
+ * 助手会话只允许关联当前用户自己的阅读历史，避免跨用户 id 被误绑定。
+ */
+export async function findReadingArticle(userId: number, articleId: number) {
+  const result = await query<ReadingArticleRow>(
+    `
+      SELECT
+        id,
+        title,
+        content,
+        char_count,
+        created_at,
+        updated_at
+      FROM reading_articles
+      WHERE user_id = $1
+        AND id = $2
+    `,
+    [userId, articleId],
+  )
+
+  if (result.rowCount === 0) {
+    return null
+  }
+
+  return mapArticleRow(result.rows[0])
+}
+
+/**
  * 删除时带上 user_id，避免用户通过猜 id 删除别人的阅读历史。
  */
 export async function deleteReadingArticle(userId: number, articleId: number) {

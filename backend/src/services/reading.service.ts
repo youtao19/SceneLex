@@ -70,6 +70,11 @@ function buildChatPrompt(
   if (questionMode === 'sentence') {
     return `你是一个英语阅读助手。用户正在针对一个英语句子提问，请直接完成用户给出的任务。
 
+文章内容：
+"""
+${content}
+"""
+
 最近对话：
 ${historyText}
 
@@ -142,9 +147,7 @@ export const readingService = {
     history: Array<{ role: 'user' | 'assistant'; content: string }>,
     questionMode: ChatQuestionMode = 'article',
   ): Promise<{ text: string }> {
-    const cleanContent = questionMode === 'article'
-      ? normalizeInput(content, 'content', 10000)
-      : ''
+    const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await generatePlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
@@ -163,9 +166,7 @@ export const readingService = {
     onDelta: (delta: string) => void | Promise<void>,
     questionMode: ChatQuestionMode = 'article',
   ): Promise<{ text: string }> {
-    const cleanContent = questionMode === 'article'
-      ? normalizeInput(content, 'content', 10000)
-      : ''
+    const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await streamPlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),

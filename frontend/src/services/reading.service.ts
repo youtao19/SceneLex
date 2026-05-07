@@ -46,8 +46,8 @@ export function fetchAssistantChats() {
   return get<ApiResponse<ReadingAssistantChat[]>>('/reading/assistant-chats')
 }
 
-export function createAssistantChat(content: string, title?: string) {
-  return post<ApiResponse<ReadingAssistantChat>>('/reading/assistant-chats', { content, title })
+export function createAssistantChat(content: string, title?: string, articleId?: number | null) {
+  return post<ApiResponse<ReadingAssistantChat>>('/reading/assistant-chats', { content, title, articleId })
 }
 
 export function fetchAssistantMessages(chatId: number) {

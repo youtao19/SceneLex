@@ -8,6 +8,7 @@ interface ChatRow {
   id: string
   title: string
   article_content: string
+  reading_article_id: string | null
   created_at: string | Date
   updated_at: string | Date
 }
@@ -27,6 +28,7 @@ function mapChatRow(row: ChatRow): ReadingAssistantChat {
     id: Number(row.id),
     title: row.title,
     articleContent: row.article_content,
+    articleId: row.reading_article_id ? Number(row.reading_article_id) : null,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   }
@@ -51,6 +53,7 @@ export async function listReadingAssistantChats(userId: number) {
         id,
         title,
         article_content,
+        reading_article_id,
         created_at,
         updated_at
       FROM reading_assistant_chats
@@ -68,23 +71,26 @@ export async function createReadingAssistantChat(
   userId: number,
   title: string,
   articleContent: string,
+  articleId: number | null = null,
 ) {
   const result = await query<ChatRow>(
     `
       INSERT INTO reading_assistant_chats (
         user_id,
+        reading_article_id,
         title,
         article_content
       )
-      VALUES ($1, $2, $3)
+      VALUES ($1, $2, $3, $4)
       RETURNING
         id,
         title,
         article_content,
+        reading_article_id,
         created_at,
         updated_at
     `,
-    [userId, title, articleContent],
+    [userId, articleId, title, articleContent],
   )
 
   return mapChatRow(result.rows[0])
@@ -97,6 +103,7 @@ export async function findReadingAssistantChat(userId: number, chatId: number) {
         id,
         title,
         article_content,
+        reading_article_id,
         created_at,
         updated_at
       FROM reading_assistant_chats
