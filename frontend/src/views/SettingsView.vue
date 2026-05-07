@@ -2,23 +2,26 @@
   <section class="settings-page">
     <header class="settings-hero">
       <div class="hero-copy">
-        <p class="card-label">MODEL ROOM</p>
+        <p class="card-label">{{ canManageModelSettings ? 'MODEL ROOM' : 'REVIEW ROOM' }}</p>
         <h2 class="section-title">更多</h2>
-        <p>
+        <p v-if="canManageModelSettings">
           这里直接控制后端当前进程使用的模型。保存后，新词生成和阅读问答都会走选中的服务与模型名。
+        </p>
+        <p v-else>
+          这里调整你的复习推送节奏。模型运行配置仅管理员可见。
         </p>
       </div>
 
-      <div class="hero-meter" aria-label="当前模型">
+      <div v-if="canManageModelSettings" class="hero-meter" aria-label="当前模型">
         <span class="meter-label">ACTIVE</span>
         <strong>{{ activeProviderName }}</strong>
         <small>{{ activeModelName }}</small>
       </div>
     </header>
 
-    <section class="settings-board">
+    <section class="settings-board" :class="{ 'is-learning-only': !canManageModelSettings }">
       <div class="settings-stack">
-        <article class="model-panel surface-card" aria-labelledby="model-title">
+        <article v-if="canManageModelSettings" class="model-panel surface-card" aria-labelledby="model-title">
           <div class="panel-head">
             <div>
               <p class="card-label">GENERATION</p>
@@ -161,7 +164,7 @@
         </article>
       </div>
 
-      <aside class="diagnostic-panel surface-card" aria-label="运行诊断">
+      <aside v-if="canManageModelSettings" class="diagnostic-panel surface-card" aria-label="运行诊断">
         <p class="card-label">RUNTIME</p>
         <h3>运行诊断</h3>
 
@@ -201,8 +204,10 @@ import {
   updateAiSettings,
   updateLearningSettings,
 } from '../services/settings.service';
+import { useUserStore } from '../stores/user';
 import type { AiProvider, AiSettings } from '../types/settings';
 
+const userStore = useUserStore();
 const settings = ref<AiSettings | null>(null);
 const selectedProvider = ref<AiProvider>('ollama');
 const selectedModel = ref('');
@@ -217,6 +222,7 @@ const modelErrorMessage = ref('');
 const learningErrorMessage = ref('');
 const modelSuccessMessage = ref('');
 const learningSuccessMessage = ref('');
+const canManageModelSettings = computed(() => userStore.isAdmin);
 
 const providerMeta: Record<AiProvider, { icon: string; tone: string; description: string; presets: string[] }> = {
   ollama: {
@@ -285,30 +291,40 @@ const keyStatus = computed(() => {
 });
 
 /**
- * 后端返回的是当前真实运行态，页面加载时用它初始化选择器。
+ * 普通用户不请求模型配置，避免只靠前端隐藏敏感运行态。
  */
 async function loadSettings() {
-  isLoading.value = true;
+  isLoading.value = canManageModelSettings.value;
   modelErrorMessage.value = '';
   learningErrorMessage.value = '';
 
-  try {
-    const [modelResponse, learningResponse] = await Promise.all([
-      fetchAiSettings(),
-      fetchLearningSettings(),
-    ]);
-    settings.value = modelResponse.data;
-    selectedProvider.value = modelResponse.data.provider;
-    selectedModel.value = modelResponse.data.providers.find((provider) => provider.id === modelResponse.data.provider)?.model ?? '';
-    savedDailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
-    dailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
-    savedDailyReviewLimit.value = learningResponse.data.dailyReviewLimit;
-    dailyReviewLimit.value = learningResponse.data.dailyReviewLimit;
-  } catch (error) {
-    modelErrorMessage.value = error instanceof Error ? error.message : '读取设置失败';
-  } finally {
-    isLoading.value = false;
-  }
+  const modelRequest = canManageModelSettings.value
+    ? fetchAiSettings()
+      .then((modelResponse) => {
+        settings.value = modelResponse.data;
+        selectedProvider.value = modelResponse.data.provider;
+        selectedModel.value = modelResponse.data.providers.find((provider) => provider.id === modelResponse.data.provider)?.model ?? '';
+      })
+      .catch((error) => {
+        modelErrorMessage.value = error instanceof Error ? error.message : '读取模型设置失败';
+      })
+      .finally(() => {
+        isLoading.value = false;
+      })
+    : Promise.resolve();
+
+  const learningRequest = fetchLearningSettings()
+    .then((learningResponse) => {
+      savedDailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
+      dailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
+      savedDailyReviewLimit.value = learningResponse.data.dailyReviewLimit;
+      dailyReviewLimit.value = learningResponse.data.dailyReviewLimit;
+    })
+    .catch((error) => {
+      learningErrorMessage.value = error instanceof Error ? error.message : '读取复习设置失败';
+    });
+
+  await Promise.all([modelRequest, learningRequest]);
 }
 
 /**
@@ -457,6 +473,11 @@ onMounted(loadSettings);
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 20px;
   align-items: start;
+}
+
+.settings-board.is-learning-only {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
 }
 
 .model-panel,
