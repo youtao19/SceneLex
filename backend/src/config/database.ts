@@ -510,6 +510,20 @@ export async function initializeDatabase() {
     `,
   );
 
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS system_word_cards (
+        id BIGSERIAL PRIMARY KEY,
+        word TEXT NOT NULL UNIQUE,
+        phonetic TEXT NOT NULL DEFAULT '',
+        meanings JSONB NOT NULL,
+        content_source TEXT NOT NULL DEFAULT 'agent',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
   await seedSystemWordBooks();
 
   await query(

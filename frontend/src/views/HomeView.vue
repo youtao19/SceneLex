@@ -148,6 +148,10 @@ const previewStatusText = computed(() => {
     return `${countText} · 来自数据库`
   }
 
+  if (preview.value.source === 'system-cache') {
+    return `${countText} · 来自系统缓存`
+  }
+
   if (preview.value.saved) {
     return `${countText} · 已自动保存`
   }
