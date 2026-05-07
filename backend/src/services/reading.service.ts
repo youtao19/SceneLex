@@ -5,6 +5,8 @@ import type {
   ReadingWordLookupResult
 } from '../types/reading'
 
+type ChatQuestionMode = 'article' | 'sentence'
+
 /**
  * 阅读接口限制单次输入长度，避免本地模型被整篇文章请求拖住。
  */
@@ -59,10 +61,25 @@ function buildChatPrompt(
   content: string,
   question: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+  questionMode: ChatQuestionMode = 'article',
 ) {
   const historyText = history.length > 0
     ? history.map((item) => `${item.role === 'user' ? '用户' : '助手'}：${item.content}`).join('\n')
     : '暂无'
+
+  if (questionMode === 'sentence') {
+    return `你是一个英语阅读助手。用户正在针对一个英语句子提问，请直接完成用户给出的任务。
+
+最近对话：
+${historyText}
+
+用户问题：${question}
+
+要求：
+- 使用中文回答
+- 回答要直白、具体，适合英语新手
+- 不要输出多余的客套话`
+  }
 
   return `你是一个英语阅读助手。用户正在阅读下面的英语文章。请根据文章内容回答用户的问题。
 
@@ -110,7 +127,7 @@ export const readingService = {
    */
   async chat(content: string, question: string): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
-    const cleanQuestion = normalizeInput(question, 'question', 1000)
+    const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion))
 
     return { text }
@@ -123,10 +140,15 @@ export const readingService = {
     content: string,
     question: string,
     history: Array<{ role: 'user' | 'assistant'; content: string }>,
+    questionMode: ChatQuestionMode = 'article',
   ): Promise<{ text: string }> {
-    const cleanContent = normalizeInput(content, 'content', 10000)
-    const cleanQuestion = normalizeInput(question, 'question', 1000)
-    const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion, history))
+    const cleanContent = questionMode === 'article'
+      ? normalizeInput(content, 'content', 10000)
+      : ''
+    const cleanQuestion = normalizeInput(question, 'question', 3000)
+    const text = await generatePlainWithLocalModel(
+      buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
+    )
 
     return { text }
   },
@@ -139,11 +161,14 @@ export const readingService = {
     question: string,
     history: Array<{ role: 'user' | 'assistant'; content: string }>,
     onDelta: (delta: string) => void | Promise<void>,
+    questionMode: ChatQuestionMode = 'article',
   ): Promise<{ text: string }> {
-    const cleanContent = normalizeInput(content, 'content', 10000)
-    const cleanQuestion = normalizeInput(question, 'question', 1000)
+    const cleanContent = questionMode === 'article'
+      ? normalizeInput(content, 'content', 10000)
+      : ''
+    const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await streamPlainWithLocalModel(
-      buildChatPrompt(cleanContent, cleanQuestion, history),
+      buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
       onDelta,
     )
 

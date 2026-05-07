@@ -54,12 +54,18 @@ export function fetchAssistantMessages(chatId: number) {
   return get<ApiResponse<ReadingAssistantMessage[]>>(`/reading/assistant-chats/${chatId}/messages`)
 }
 
-export function sendAssistantMessage(chatId: number, question: string) {
+export function sendAssistantMessage(
+  chatId: number,
+  question: string,
+  questionMode: AssistantQuestionMode = 'article',
+) {
   return post<ApiResponse<{
     userMessage: ReadingAssistantMessage
     assistantMessage: ReadingAssistantMessage
-  }>>(`/reading/assistant-chats/${chatId}/messages`, { question })
+  }>>(`/reading/assistant-chats/${chatId}/messages`, { question, questionMode })
 }
+
+export type AssistantQuestionMode = 'article' | 'sentence'
 
 type AssistantStreamEvent =
   | { type: 'user_message'; message: ReadingAssistantMessage }
@@ -111,6 +117,7 @@ function parseAssistantStreamEvent(block: string): AssistantStreamEvent | null {
 export async function sendAssistantMessageStream(
   chatId: number,
   question: string,
+  questionMode: AssistantQuestionMode,
   handlers: AssistantStreamHandlers,
 ) {
   const headers = new Headers({
@@ -125,7 +132,7 @@ export async function sendAssistantMessageStream(
   const response = await fetch(`/api/reading/assistant-chats/${chatId}/messages/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ question })
+    body: JSON.stringify({ question, questionMode })
   })
 
   if (!response.ok) {

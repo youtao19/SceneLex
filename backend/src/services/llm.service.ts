@@ -30,6 +30,7 @@ interface ChatCompletionStreamChunk {
 }
 
 type StreamDeltaHandler = (delta: string) => void | Promise<void>
+const PLAIN_TEXT_MAX_TOKENS = 1600
 
 /**
  * 去掉模型常见的包裹符号，让阅读页拿到能直接展示的短文本。
@@ -434,7 +435,7 @@ export async function generatePlainWithOllama(prompt: string): Promise<string> {
       keep_alive: '10m',
       options: {
         temperature: 0.3,
-        num_predict: 220
+        num_predict: PLAIN_TEXT_MAX_TOKENS
       }
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -474,7 +475,7 @@ export async function streamPlainWithOllama(prompt: string, onDelta: StreamDelta
       keep_alive: '10m',
       options: {
         temperature: 0.3,
-        num_predict: 220
+        num_predict: PLAIN_TEXT_MAX_TOKENS
       }
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -526,7 +527,7 @@ export async function generatePlainWithOmlx(prompt: string): Promise<string> {
         enable_thinking: false
       },
       temperature: 0.3,
-      max_tokens: 220,
+      max_tokens: PLAIN_TEXT_MAX_TOKENS,
       stream: false
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -579,7 +580,7 @@ export async function streamPlainWithOmlx(prompt: string, onDelta: StreamDeltaHa
         enable_thinking: false
       },
       temperature: 0.3,
-      max_tokens: 220,
+      max_tokens: PLAIN_TEXT_MAX_TOKENS,
       stream: true
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -628,7 +629,7 @@ export async function generatePlainWithDeepseek(prompt: string): Promise<string>
         }
       ],
       temperature: 0.3,
-      max_tokens: 220,
+      max_tokens: PLAIN_TEXT_MAX_TOKENS,
       stream: false
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -683,7 +684,7 @@ export async function streamPlainWithDeepseek(prompt: string, onDelta: StreamDel
         }
       ],
       temperature: 0.3,
-      max_tokens: 220,
+      max_tokens: PLAIN_TEXT_MAX_TOKENS,
       stream: true
     }),
     signal: AbortSignal.timeout(config.timeout)

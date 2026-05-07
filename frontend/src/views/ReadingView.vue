@@ -284,7 +284,7 @@
           class="chat-message"
           :class="msg.role"
         >
-          <div class="message-bubble">{{ msg.content }}</div>
+          <div class="message-bubble">{{ formatMessageContent(msg.content) }}</div>
         </div>
         <div v-if="assistantLoading" class="chat-message assistant">
           <div class="message-bubble loading">
@@ -364,6 +364,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
+  type AssistantQuestionMode,
   createAssistantChat,
   deleteReadingArticle,
   fetchAssistantChats,
@@ -418,6 +419,7 @@ const historyLoading = ref(false)
 const assistantLoading = ref(false)
 const assistantOpen = ref(false)
 const userQuestion = ref('')
+const pendingQuestionMode = ref<AssistantQuestionMode>('article')
 const selectedText = ref('')
 const selectionActionStyle = ref<Record<string, string>>({})
 const chatMessages = ref<ReadingAssistantMessage[]>([])
@@ -853,17 +855,18 @@ async function ensureAssistantChat() {
   return response.data.id
 }
 
-async function askQuestion(question?: string) {
+async function askQuestion(question?: string, questionMode: AssistantQuestionMode = pendingQuestionMode.value) {
   const text = (question || userQuestion.value).trim()
   if (!text || assistantLoading.value) return
 
   const chatId = await ensureAssistantChat()
   userQuestion.value = ''
+  pendingQuestionMode.value = 'article'
   assistantLoading.value = true
   let assistantMessageIndex = -1
 
   try {
-    await sendAssistantMessageStream(chatId, text, {
+    await sendAssistantMessageStream(chatId, text, questionMode, {
       onUserMessage(message) {
         chatMessages.value = [
           ...chatMessages.value,
@@ -908,10 +911,13 @@ async function askQuestion(question?: string) {
   } catch (error) {
     console.error(error)
     const now = new Date().toISOString()
+    const errorText = error instanceof Error && error.message
+      ? error.message
+      : '助手暂时无法回答，请重试。'
     chatMessages.value.push({
       id: Date.now(),
       role: 'assistant',
-      content: '抱歉，助手暂时无法回答，请重试。',
+      content: `抱歉，${errorText}`,
       createdAt: now,
     })
   } finally {
@@ -921,10 +927,51 @@ async function askQuestion(question?: string) {
 }
 
 /**
- * 发送选中文本时带上明确任务，助手不会只收到一句孤立原文。
+ * “问”入口要给新手可执行的拆句任务，避免助手只泛泛解释原文。
  */
 function buildSelectedTextQuestion(text: string) {
-  return `请解释这句话，并指出重点表达：\n${text}`
+  return `你是一个英语老师。
+
+请帮我彻底理解下面这个句子：
+
+【${text}】
+
+请严格按下面格式输出，每一部分单独成段，不要挤在一段里。
+不要使用 Markdown，不要加 **、#、表格。
+
+1. 整句翻译
+用最简单、自然的中文翻译整句，不要逐字硬翻。
+
+2. 句子骨架
+先用一行说清楚：谁 + 做了什么 + 研究了什么。
+再拆主语、谓语、宾语/宾语从句、状语。
+每个成分都要引用原文，并说明它在句子里起什么作用。
+
+3. 难点拆解
+指出这个句子最容易卡住的 2-3 个地方。
+每个难点都要说明：为什么难、怎么读懂。
+
+4. 人话解释
+像讲给新手一样，用 2-4 句话解释这句话真正想表达什么。
+
+5. 语法顺带讲
+只讲这个句子里必要的语法点，不讲大段理论。
+如果有从句、介词短语、并列结构，要说明它们怎么连接。
+
+6. 模仿例句
+给一个同结构但更简单的英文例句。
+再给中文意思，并指出它和原句结构哪里一样。
+
+7. 记忆抓手
+最后用一句话总结读懂这个句子的关键。`
+}
+
+function formatMessageContent(content: string) {
+  return content
+    .replace(/\*\*/g, '')
+    .replace(/\s+(?=[1-7][.、]\s*(整句翻译|句子骨架|难点拆解|人话解释|语法顺带讲|模仿例句|记忆抓手))/g, '\n\n')
+    .replace(/\s+[-–]\s+/g, '\n- ')
+    .trim()
 }
 
 /**
@@ -994,7 +1041,7 @@ async function sendSelectedTextToAssistant() {
   window.getSelection()?.removeAllRanges()
   assistantOpen.value = true
   wordPanel.open = false
-  await askQuestion(buildSelectedTextQuestion(text))
+  await askQuestion(buildSelectedTextQuestion(text), 'sentence')
 }
 
 /**
@@ -1005,14 +1052,15 @@ function askAboutSentence(sentence: string) {
   wordPanel.open = false
   selectedText.value = ''
   window.getSelection()?.removeAllRanges()
-  prepareAssistantQuestion(buildSelectedTextQuestion(sentence))
+  prepareAssistantQuestion(buildSelectedTextQuestion(sentence), 'sentence')
 }
 
 /**
  * 快捷“问”只预填问题，避免用户还没确认就消耗一次模型请求。
  */
-async function prepareAssistantQuestion(question: string) {
+async function prepareAssistantQuestion(question: string, questionMode: AssistantQuestionMode = 'article') {
   userQuestion.value = question
+  pendingQuestionMode.value = questionMode
   await nextTick()
   assistantInputRef.value?.focus()
 }
@@ -1734,7 +1782,8 @@ onBeforeUnmount(() => {
   padding: 12px 16px;
   border-radius: 18px;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.75;
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -1748,6 +1797,7 @@ onBeforeUnmount(() => {
   background: var(--sl-peach-50);
   color: var(--sl-text-main);
   border-bottom-left-radius: 4px;
+  box-shadow: inset 4px 0 0 rgba(255, 90, 113, 0.24);
 }
 
 .dark-theme .assistant .message-bubble {
