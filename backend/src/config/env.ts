@@ -1,8 +1,11 @@
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config({
-  path: '.env.dev.local',
-});
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({
+    path: path.resolve(__dirname, '../../.env.dev.local'),
+  });
+}
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
