@@ -5,6 +5,23 @@ import { ok } from '../utils/response'
 import type { ReviewRating, WordMeaningItem, WordRequiredMeaning } from '../types/word'
 
 /**
+ * 轻量查词只返回词库释义，不触发模型生成场景。
+ */
+export async function lookupWord(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { word } = req.body as { word?: string }
+    const result = await wordService.lookupWord(word ?? '')
+    return res.json(ok(result, 'Word meanings fetched'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * 生成接口仍要求登录，但普通查词缓存已经是系统级内容。
  */
 export async function generateWordContent(

@@ -132,7 +132,7 @@ export async function generateWithOllama(prompt: string): Promise<string> {
       // 保留一段时间，避免频繁重载模型。
       keep_alive: '10m',
       options: {
-        temperature: 0.6,
+        temperature: 0.8,
         num_predict: 800
       }
     }),
@@ -261,7 +261,7 @@ export async function generateWithDeepseek(prompt: string): Promise<string> {
       response_format: {
         type: 'json_object'
       },
-      temperature: 0.6,
+      temperature: 0.8,
       max_tokens: 2400,
       stream: false
     }),

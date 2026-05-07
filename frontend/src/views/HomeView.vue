@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard-page">
     <main class="dashboard-container">
-      <article class="main-dashboard-card surface-card" :class="{ 'is-active': preview }">
+      <article class="main-dashboard-card surface-card" :class="{ 'is-active': preview || lookupPreview || lookupMissingWord }">
         
         <!-- 搜索头部 -->
         <header class="card-search-header">
@@ -12,11 +12,11 @@
               type="text"
               class="inline-input"
               placeholder="输入单词开始探索..."
-              @keyup.enter="handlePreview"
+              @keyup.enter="handleLookup"
             />
           </div>
-          <button class="peach-button search-btn" :disabled="previewLoading" @click="handlePreview">
-            {{ previewLoading ? 'Searching...' : '查询词卡' }}
+          <button class="peach-button search-btn" :disabled="lookupLoading || previewLoading" @click="handleLookup">
+            {{ lookupLoading ? 'Searching...' : '查询释义' }}
           </button>
         </header>
 
@@ -26,7 +26,39 @@
             {{ errorMessage }}
           </p>
           <transition name="expand-fade">
-            <div v-if="preview" class="result-body">
+            <div v-if="lookupPreview && !preview" class="result-body">
+              <div class="dictionary-preview">
+                <header class="dictionary-head">
+                  <div>
+                    <h2>{{ lookupPreview.word }}</h2>
+                    <p v-if="lookupPreview.phonetic">{{ lookupPreview.phonetic }}</p>
+                  </div>
+                  <span class="source-tag is-dictionary">来源：词库</span>
+                </header>
+                <div class="dictionary-meanings">
+                  <article v-for="item in lookupPreview.meanings" :key="`${item.partOfSpeech}-${item.priority}`" class="dictionary-meaning">
+                    <span>{{ item.partOfSpeech }}</span>
+                    <strong>{{ item.meaning }}</strong>
+                  </article>
+                </div>
+              </div>
+              <footer class="card-action-footer">
+                <div class="footer-info">
+                  <span class="count-tag">已找到 {{ lookupPreview.meanings.length }} 个词库义项</span>
+                </div>
+                <div class="footer-actions">
+                  <button
+                    class="peach-button save-btn"
+                    :disabled="previewLoading"
+                    @click="handleGenerateScene"
+                  >
+                    {{ previewLoading ? 'Generating...' : '生成场景词卡' }}
+                  </button>
+                </div>
+              </footer>
+            </div>
+
+            <div v-else-if="preview" class="result-body">
               <div class="result-scroll-pane">
                 <WordMeaningsPanel
                   :word="preview.word"
@@ -98,9 +130,15 @@
 
             <!-- 极简占位：移除原来开关所在的 meta-row -->
             <div v-else class="empty-placeholder">
-              <div class="zen-loading-placeholder" v-if="previewLoading">
+              <div class="zen-loading-placeholder" v-if="lookupLoading || previewLoading">
                 <div class="loader-dot"></div>
-                <p>AI 正在构思场景...</p>
+                <p>{{ lookupLoading ? '正在查询词库释义...' : 'AI 正在构思场景...' }}</p>
+              </div>
+              <div v-else-if="lookupMissingWord" class="missing-placeholder">
+                <p>词库里暂时没有这个单词。</p>
+                <button class="peach-button save-btn" type="button" :disabled="previewLoading" @click="handleGenerateScene">
+                  {{ previewLoading ? 'Generating...' : '直接生成场景词卡' }}
+                </button>
               </div>
             </div>
           </transition>
@@ -114,14 +152,17 @@
 import { computed, onMounted, ref } from 'vue'
 import WordMeaningsPanel from '../components/WordMeaningsPanel.vue'
 import { fetchWordBooks } from '../services/word-book.service'
-import { addWord, generateWord } from '../services/word.service'
+import { addWord, generateWord, lookupWord } from '../services/word.service'
 import type { WordBook } from '../types/word-book'
-import type { WordGenerateData } from '../types/word'
+import type { WordGenerateData, WordLookupData } from '../types/word'
 
 const word = ref('')
 const preview = ref<WordGenerateData | null>(null)
+const lookupPreview = ref<WordLookupData | null>(null)
+const lookupMissingWord = ref('')
 const wordBooks = ref<WordBook[]>([])
 const selectedBookIds = ref<number[]>([])
+const lookupLoading = ref(false)
 const previewLoading = ref(false)
 const bookLoading = ref(false)
 const saveLoading = ref(false)
@@ -195,15 +236,50 @@ async function loadWordBooks() {
   }
 }
 
-async function handlePreview() {
+/**
+ * 查询只读词库释义，避免搜索动作直接触发模型生成。
+ */
+async function handleLookup() {
   if (!word.value.trim()) return
+  lookupLoading.value = true
+  errorMessage.value = ''
+  preview.value = null
+  lookupPreview.value = null
+  lookupMissingWord.value = ''
+  showBookOptions.value = false
+  try {
+    const response = await lookupWord(word.value.trim())
+    lookupPreview.value = response.data
+    word.value = response.data.word
+  } catch (error) {
+    console.error(error)
+    lookupMissingWord.value = word.value.trim()
+    errorMessage.value = error instanceof Error && error.message
+      ? `${error.message}，可以直接生成场景词卡。`
+      : '词库查询失败，可以直接生成场景词卡。'
+  } finally {
+    lookupLoading.value = false
+  }
+}
+
+/**
+ * 只有用户明确需要场景时才调用模型生成完整词卡。
+ */
+async function handleGenerateScene(forceRegenerate = false) {
+  const targetWord = lookupPreview.value?.word || preview.value?.word || lookupMissingWord.value || word.value
+
+  if (!targetWord.trim()) return
   previewLoading.value = true
   errorMessage.value = ''
   preview.value = null
   showBookOptions.value = false
   try {
-    const response = await generateWord(word.value.trim())
+    const response = await generateWord(targetWord.trim(), forceRegenerate)
     preview.value = response.data
+    lookupPreview.value = null
+    lookupMissingWord.value = ''
+    word.value = response.data.word
+    selectDefaultBook()
     if (wordBooks.value.length === 0) {
       await loadWordBooks()
     }
@@ -253,26 +329,7 @@ async function handleAddWord() {
 
 // 重新生成可能产生不稳定内容，所以先让用户确认，再覆盖数据库里的词卡。
 async function handleRegenerate() {
-  const targetWord = preview.value?.word || word.value
-
-  if (!targetWord.trim()) return
-  previewLoading.value = true
-  errorMessage.value = ''
-  preview.value = null
-  showBookOptions.value = false
-  try {
-    const response = await generateWord(targetWord.trim(), true)
-    preview.value = response.data
-    word.value = response.data.word
-    selectDefaultBook()
-  } catch (error) {
-    console.error(error)
-    errorMessage.value = error instanceof Error && error.message
-      ? error.message
-      : '词卡重新生成失败，请稍后重试。'
-  } finally {
-    previewLoading.value = false
-  }
+  await handleGenerateScene(true)
 }
 
 onMounted(loadWordBooks)
@@ -367,6 +424,60 @@ onMounted(loadWordBooks)
   padding: 0 32px;
   max-height: 60vh;
   overflow-y: auto;
+}
+
+.dictionary-preview {
+  padding: 28px 32px 8px;
+}
+
+.dictionary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.dictionary-head h2 {
+  margin: 0;
+  color: var(--sl-text-main);
+  font-size: 36px;
+  line-height: 1.1;
+}
+
+.dictionary-head p {
+  margin: 6px 0 0;
+  color: var(--sl-text-soft);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dictionary-meanings {
+  display: grid;
+  gap: 10px;
+}
+
+.dictionary-meaning {
+  display: grid;
+  grid-template-columns: minmax(42px, auto) 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--sl-glass-border);
+  border-radius: var(--sl-radius-md);
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.dictionary-meaning span {
+  color: var(--sl-peach-500);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.dictionary-meaning strong {
+  color: var(--sl-text-main);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .book-picker {
@@ -527,6 +638,21 @@ onMounted(loadWordBooks)
   color: var(--sl-ink-300);
 }
 
+.missing-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--sl-text-soft);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.missing-placeholder p {
+  margin: 0;
+}
+
 .loader-dot {
   width: 8px;
   height: 8px;
@@ -552,5 +678,8 @@ onMounted(loadWordBooks)
   .inline-input { font-size: 18px; }
   .card-action-footer { flex-direction: column; gap: 16px; text-align: center; }
   .book-picker { margin: 0 20px 20px; }
+  .dictionary-preview { padding: 22px 20px 8px; }
+  .dictionary-head { flex-direction: column; }
+  .dictionary-meaning { grid-template-columns: 1fr; gap: 4px; }
 }
 </style>

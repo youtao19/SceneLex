@@ -24,6 +24,12 @@ export interface WordGenerateResult {
   saved: boolean;
 }
 
+export interface WordLookupResult {
+  word: string;
+  phonetic: string;
+  meanings: WordRequiredMeaning[];
+}
+
 export interface WordPayload {
   word: string;
 }
