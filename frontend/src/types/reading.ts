@@ -19,6 +19,7 @@ export interface ReadingAssistantChat {
   id: number
   title: string
   articleContent: string
+  articleId: number | null
   createdAt: string
   updatedAt: string
 }

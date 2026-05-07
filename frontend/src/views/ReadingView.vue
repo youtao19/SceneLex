@@ -286,7 +286,7 @@
         >
           <div class="message-bubble">{{ formatMessageContent(msg.content) }}</div>
         </div>
-        <div v-if="assistantLoading" class="chat-message assistant">
+        <div v-if="assistantLoading && !assistantHasResponsePlaceholder" class="chat-message assistant">
           <div class="message-bubble loading">
             <span class="mini-loader"></span>
             思考中...
@@ -299,7 +299,7 @@
           ref="assistantInputRef"
           class="assistant-input"
           placeholder="问问助手..."
-          @keydown.enter.prevent="askQuestion()"
+          @keydown.enter.exact.prevent="askQuestion()"
         ></textarea>
         <button
           class="assistant-send"
@@ -405,6 +405,7 @@ interface ReadingParagraph {
 const sourceText = ref('')
 const mode = ref<'input' | 'reading'>('input')
 const articleText = ref('')
+const currentArticleId = ref<number | null>(null)
 const paragraphs = ref<ReadingParagraph[]>([])
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const chatBodyRef = ref<HTMLElement | null>(null)
@@ -417,6 +418,7 @@ const ocrLoading = ref(false)
 const saveLoading = ref(false)
 const historyLoading = ref(false)
 const assistantLoading = ref(false)
+const assistantHasResponsePlaceholder = ref(false)
 const assistantOpen = ref(false)
 const userQuestion = ref('')
 const pendingQuestionMode = ref<AssistantQuestionMode>('article')
@@ -566,6 +568,21 @@ function buildParagraphs(text: string): ReadingParagraph[] {
 }
 
 /**
+ * 文章切换时必须断开旧会话，否则问题会继续发到旧文章的助手上下文里。
+ */
+function resetAssistantChatForArticle(text: string) {
+  if (activeAssistantChat.value?.articleContent === text) {
+    return
+  }
+
+  activeAssistantChatId.value = null
+  chatMessages.value = []
+  userQuestion.value = ''
+  pendingQuestionMode.value = 'article'
+  assistantHasResponsePlaceholder.value = false
+}
+
+/**
  * 入口只接受英文文本，避免把空白内容切成无意义阅读块。
  */
 async function startReading() {
@@ -578,9 +595,11 @@ async function startReading() {
 
   errorMessage.value = ''
   saveLoading.value = true
+  currentArticleId.value = null
 
   try {
     const response = await saveReadingArticle(text)
+    currentArticleId.value = response.data.id
     historyArticles.value = [
       response.data,
       ...historyArticles.value.filter((article) => article.id !== response.data.id)
@@ -594,6 +613,7 @@ async function startReading() {
     saveLoading.value = false
   }
 
+  resetAssistantChatForArticle(text)
   articleText.value = text
   paragraphs.value = buildParagraphs(text)
   closeWordPanel()
@@ -710,6 +730,9 @@ async function deleteHistoryArticle(article: ReadingArticle) {
 
   try {
     await deleteReadingArticle(article.id)
+    if (currentArticleId.value === article.id) {
+      currentArticleId.value = null
+    }
     historyArticles.value = historyArticles.value.filter((item) => item.id !== article.id)
   } catch (error) {
     console.error(error)
@@ -771,6 +794,7 @@ async function handleImageUpload(event: Event) {
 function backToInput() {
   mode.value = 'input'
   articleText.value = ''
+  currentArticleId.value = null
   paragraphs.value = []
   activeTokenId.value = ''
   assistantOpen.value = false
@@ -823,6 +847,7 @@ async function openAssistantChat(chat: ReadingAssistantChat) {
 
   try {
     activeAssistantChatId.value = chat.id
+    currentArticleId.value = chat.articleId
     articleText.value = chat.articleContent
     sourceText.value = chat.articleContent
     paragraphs.value = buildParagraphs(chat.articleContent)
@@ -845,7 +870,7 @@ async function ensureAssistantChat() {
     return activeAssistantChatId.value
   }
 
-  const response = await createAssistantChat(articleText.value)
+  const response = await createAssistantChat(articleText.value, undefined, currentArticleId.value)
   activeAssistantChatId.value = response.data.id
   assistantChats.value = [
     response.data,
@@ -859,13 +884,16 @@ async function askQuestion(question?: string, questionMode: AssistantQuestionMod
   const text = (question || userQuestion.value).trim()
   if (!text || assistantLoading.value) return
 
-  const chatId = await ensureAssistantChat()
-  userQuestion.value = ''
-  pendingQuestionMode.value = 'article'
   assistantLoading.value = true
+  assistantHasResponsePlaceholder.value = false
   let assistantMessageIndex = -1
 
   try {
+    const chatId = await ensureAssistantChat()
+
+    userQuestion.value = ''
+    pendingQuestionMode.value = 'article'
+
     await sendAssistantMessageStream(chatId, text, questionMode, {
       onUserMessage(message) {
         chatMessages.value = [
@@ -879,6 +907,7 @@ async function askQuestion(question?: string, questionMode: AssistantQuestionMod
           },
         ]
         assistantMessageIndex = chatMessages.value.length - 1
+        assistantHasResponsePlaceholder.value = true
         void scrollToBottom()
       },
       onDelta(delta) {
@@ -899,12 +928,14 @@ async function askQuestion(question?: string, questionMode: AssistantQuestionMod
       onDone(message) {
         if (assistantMessageIndex < 0) {
           chatMessages.value = [...chatMessages.value, message]
+          assistantHasResponsePlaceholder.value = true
           return
         }
 
         const nextMessages = [...chatMessages.value]
         nextMessages[assistantMessageIndex] = message
         chatMessages.value = nextMessages
+        void scrollToBottom()
       },
     })
     await loadAssistantChats()
@@ -914,14 +945,23 @@ async function askQuestion(question?: string, questionMode: AssistantQuestionMod
     const errorText = error instanceof Error && error.message
       ? error.message
       : '助手暂时无法回答，请重试。'
-    chatMessages.value.push({
+    const errorMessage: ReadingAssistantMessage = {
       id: Date.now(),
       role: 'assistant',
       content: `抱歉，${errorText}`,
       createdAt: now,
-    })
+    }
+
+    if (assistantMessageIndex >= 0) {
+      const nextMessages = [...chatMessages.value]
+      nextMessages[assistantMessageIndex] = errorMessage
+      chatMessages.value = nextMessages
+    } else {
+      chatMessages.value.push(errorMessage)
+    }
   } finally {
     assistantLoading.value = false
+    assistantHasResponsePlaceholder.value = false
     scrollToBottom()
   }
 }
@@ -937,7 +977,7 @@ function buildSelectedTextQuestion(text: string) {
 【${text}】
 
 请严格按下面格式输出，每一部分单独成段，不要挤在一段里。
-不要使用 Markdown，不要加 **、#、表格。
+不要使用 Markdown，不要加 、#、表格。
 
 1. 整句翻译
 用最简单、自然的中文翻译整句，不要逐字硬翻。
@@ -946,24 +986,30 @@ function buildSelectedTextQuestion(text: string) {
 先用一行说清楚：谁 + 做了什么 + 研究了什么。
 再拆主语、谓语、宾语/宾语从句、状语。
 每个成分都要引用原文，并说明它在句子里起什么作用。
+如果宾语是一个从句（例如由how、what、that等引导），请继续拆分该从句内部的主语、谓语、宾语/表语。
 
 3. 难点拆解
-指出这个句子最容易卡住的 2-3 个地方。
-每个难点都要说明：为什么难、怎么读懂。
+根据句子的实际复杂程度，列出所有可能让读者卡住的难点，数量不限。宁可多列，不要遗漏。
+至少检查以下方面：生词或熟词僻义、非常用的短语搭配、省略成分、倒装或前置、长定语或嵌套从句。
+每个难点说明：为什么难 + 怎么读懂。
+如果句子确实很简单，直接回复“本句没有真正的理解难点”。
 
 4. 人话解释
-像讲给新手一样，用 2-4 句话解释这句话真正想表达什么。
+像讲给新手一样，用2-4句话解释这句话真正想表达什么。
 
 5. 语法顺带讲
-只讲这个句子里必要的语法点，不讲大段理论。
-如果有从句、介词短语、并列结构，要说明它们怎么连接。
+只讲两点：
+第一，主句和从句之间用什么词连接（例如how、that、which、because），以及这个连接词在句中的作用。
+第二，句中的一个关键短语或结构（例如relate to、as...作状语、介词短语等）。
+不讲大段理论，每点用一句话带过即可。
 
 6. 模仿例句
 给一个同结构但更简单的英文例句。
 再给中文意思，并指出它和原句结构哪里一样。
 
 7. 记忆抓手
-最后用一句话总结读懂这个句子的关键。`
+最后用一句话总结读懂这个句子的关键。
+`
 }
 
 function formatMessageContent(content: string) {
@@ -1041,7 +1087,7 @@ async function sendSelectedTextToAssistant() {
   window.getSelection()?.removeAllRanges()
   assistantOpen.value = true
   wordPanel.open = false
-  await askQuestion(buildSelectedTextQuestion(text), 'sentence')
+  await prepareAssistantQuestion(buildSelectedTextQuestion(text), 'sentence')
 }
 
 /**

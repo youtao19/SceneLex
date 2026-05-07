@@ -560,11 +560,19 @@ export async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS reading_assistant_chats (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reading_article_id BIGINT REFERENCES reading_articles(id) ON DELETE SET NULL,
         title TEXT NOT NULL,
         article_content TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE reading_assistant_chats
+      ADD COLUMN IF NOT EXISTS reading_article_id BIGINT REFERENCES reading_articles(id) ON DELETE SET NULL
     `,
   );
 

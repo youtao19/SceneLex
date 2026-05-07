@@ -5,6 +5,7 @@ import {
   listReadingAssistantChats,
   listReadingAssistantMessages,
 } from '../repositories/reading-assistant.repository'
+import { findReadingArticle } from '../repositories/reading-history.repository'
 import { readingService } from './reading.service'
 import type {
   CreateReadingAssistantChatPayload,
@@ -64,6 +65,40 @@ function readQuestionMode(value: unknown) {
 }
 
 /**
+ * 文章关联是辅助信息，非法 id 直接拒绝，避免助手历史挂到错误文章上。
+ */
+async function readArticleId(userId: number, value: unknown) {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  const articleId = Number(value)
+
+  if (!Number.isInteger(articleId) || articleId <= 0) {
+    throw new HttpError(400, '文章历史 id 非法')
+  }
+
+  const article = await findReadingArticle(userId, articleId)
+
+  if (!article) {
+    throw new HttpError(404, '阅读历史不存在')
+  }
+
+  return article.id
+}
+
+/**
+ * 模型错误要落一条助手消息，刷新后聊天记录不会只剩用户问题。
+ */
+function buildAssistantFailureMessage(error: unknown) {
+  const detail = error instanceof Error && error.message
+    ? error.message
+    : '助手暂时无法回答，请重试。'
+
+  return `抱歉，${detail}`
+}
+
+/**
  * 只带最近几轮对话给模型，保留上下文但不让 prompt 随历史无限增长。
  */
 function buildRecentHistory(messages: ReadingAssistantMessage[]) {
@@ -91,7 +126,9 @@ export const readingAssistantService = {
    */
   async createChat(userId: number, payload: CreateReadingAssistantChatPayload) {
     const content = normalizeContent(payload.content ?? '')
-    return createReadingAssistantChat(userId, buildChatTitle(content, payload.title), content)
+    const articleId = await readArticleId(userId, payload.articleId)
+
+    return createReadingAssistantChat(userId, buildChatTitle(content, payload.title), content, articleId)
   },
 
   /**
@@ -127,13 +164,20 @@ export const readingAssistantService = {
 
     const previousMessages = await listReadingAssistantMessages(chat.id)
     const userMessage = await createReadingAssistantMessage(chat.id, 'user', question)
-    const answer = await readingService.chatWithHistory(
-      chat.articleContent,
-      question,
-      buildRecentHistory(previousMessages),
-      questionMode,
-    )
-    const assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
+    let assistantMessage: ReadingAssistantMessage
+
+    try {
+      const answer = await readingService.chatWithHistory(
+        chat.articleContent,
+        question,
+        buildRecentHistory(previousMessages),
+        questionMode,
+      )
+      assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
+    } catch (error) {
+      await createReadingAssistantMessage(chat.id, 'assistant', buildAssistantFailureMessage(error))
+      throw error
+    }
 
     return {
       userMessage,
@@ -163,14 +207,21 @@ export const readingAssistantService = {
     const userMessage = await createReadingAssistantMessage(chat.id, 'user', question)
     await handlers.onUserMessage(userMessage)
 
-    const answer = await readingService.chatWithHistoryStream(
-      chat.articleContent,
-      question,
-      buildRecentHistory(previousMessages),
-      handlers.onDelta,
-      questionMode,
-    )
-    const assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
+    let assistantMessage: ReadingAssistantMessage
+
+    try {
+      const answer = await readingService.chatWithHistoryStream(
+        chat.articleContent,
+        question,
+        buildRecentHistory(previousMessages),
+        handlers.onDelta,
+        questionMode,
+      )
+      assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
+    } catch (error) {
+      await createReadingAssistantMessage(chat.id, 'assistant', buildAssistantFailureMessage(error))
+      throw error
+    }
 
     return {
       userMessage,

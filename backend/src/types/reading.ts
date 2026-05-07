@@ -11,6 +11,7 @@ export interface ReadingAssistantChat {
   id: number;
   title: string;
   articleContent: string;
+  articleId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +26,7 @@ export interface ReadingAssistantMessage {
 export interface CreateReadingAssistantChatPayload {
   content: string;
   title?: string;
+  articleId?: number | null;
 }
 
 export interface SendReadingAssistantMessagePayload {
