@@ -4,14 +4,15 @@ import { dictionaryService } from './dictionary.service';
 import { settingsService } from './settings.service';
 import { buildPrimaryMeaning } from '../utils/word-meaning';
 import {
-  findWordByText,
   findWordById,
   listTodayWords,
   saveWordCard,
   updateReviewSchedule,
 } from '../repositories/word.repository';
 import {
+  findSystemWordCardByWord,
   findSystemWordCardPreview,
+  saveSystemWordCard,
   saveSystemWordCardPreview,
 } from '../repositories/system-word-card-preview.repository';
 import { HttpError } from '../utils/http-error';
@@ -354,27 +355,6 @@ function applyRequiredMeanings(
   };
 }
 
-/**
- * 查询缓存时只返回词卡预览需要的字段，避免前端误把复习进度当成可编辑内容。
- */
-function toGenerateResultFromStoredWord(
-  word: StoredWord,
-  contentSource: WordGenerateResult['contentSource'],
-): WordGenerateResult {
-  return {
-    word: word.word,
-    phonetic: word.phonetic,
-    meanings: word.meanings,
-    source: 'database',
-    contentSource,
-    saved: true,
-  };
-}
-
-function canUseStoredWord(word: StoredWord) {
-  return word.meanings.length > 0;
-}
-
 function readPositiveInteger(value: unknown) {
   const number = Number(value);
 
@@ -447,10 +427,9 @@ function getNextAnkiSchedule(word: StoredWord, rating: ReviewRating): AnkiSchedu
 
 export const wordService = {
   /**
-   * 默认先查库，避免同一个用户重复查同一个词时反复消耗本地模型。
+   * 普通查词默认走系统缓存，个人 words 只保存用户确认学习的进度。
    */
   async generateWordContent(
-    userId: number,
     word: string,
     forceRegenerate = false,
     requiredMeaningsInput: unknown = [],
@@ -467,18 +446,17 @@ export const wordService = {
     const systemBookItemId = readPositiveInteger(systemBookItemIdInput);
 
     if (!forceRegenerate) {
-      const storedWord = await findWordByText(userId, cleanWord);
-
-      if (storedWord && canUseStoredWord(storedWord)) {
-        const storedContentSource = dictionaryEntry ? 'dictionary' : 'agent';
-        return toGenerateResultFromStoredWord(storedWord, storedContentSource);
-      }
-
       if (systemBookItemId && requiredMeanings.length > 0) {
         const cachedPreview = await findSystemWordCardPreview(systemBookItemId);
 
         if (cachedPreview) {
           return cachedPreview;
+        }
+      } else {
+        const cachedCard = await findSystemWordCardByWord(cleanWord);
+
+        if (cachedCard) {
+          return cachedCard;
         }
       }
     }
@@ -513,6 +491,8 @@ export const wordService = {
     if (forceRegenerate || requiredMeanings.length > 0) {
       if (systemBookItemId && requiredMeanings.length > 0) {
         await saveSystemWordCardPreview(systemBookItemId, generated);
+      } else {
+        await saveSystemWordCard(generated);
       }
 
       return {
@@ -522,22 +502,15 @@ export const wordService = {
       };
     }
 
-    const primaryMeaning = buildPrimaryMeaning(generated.meanings);
-    const saved = await saveWordCard(
-      userId,
-      generated.word,
-      generated.phonetic,
-      primaryMeaning,
-      generated.meanings,
-    );
+    await saveSystemWordCard(generated);
 
     return {
-      word: saved.card.word,
-      phonetic: saved.card.phonetic,
-      meanings: saved.card.meanings,
+      word: generated.word,
+      phonetic: generated.phonetic,
+      meanings: generated.meanings,
       source: 'generated',
       contentSource,
-      saved: true,
+      saved: false,
     };
   },
 

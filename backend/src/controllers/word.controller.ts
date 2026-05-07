@@ -5,7 +5,7 @@ import { ok } from '../utils/response'
 import type { ReviewRating, WordMeaningItem, WordRequiredMeaning } from '../types/word'
 
 /**
- * 生成接口需要带上用户身份，因为词卡缓存按用户隔离。
+ * 生成接口仍要求登录，但普通查词缓存已经是系统级内容。
  */
 export async function generateWordContent(
   req: Request,
@@ -13,7 +13,6 @@ export async function generateWordContent(
   next: NextFunction
 ) {
   try {
-    const authUser = readAuthUser(req)
     const { word, forceRegenerate, requiredMeanings, systemBookItemId } = req.body as {
       word?: string
       forceRegenerate?: boolean
@@ -21,7 +20,6 @@ export async function generateWordContent(
       systemBookItemId?: number
     }
     const result = await wordService.generateWordContent(
-      authUser.id,
       word ?? '',
       forceRegenerate === true,
       requiredMeanings,
