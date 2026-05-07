@@ -524,6 +524,18 @@ export async function initializeDatabase() {
     `,
   );
 
+  await query(
+    `
+      CREATE TABLE IF NOT EXISTS dictionary_entries (
+        word TEXT PRIMARY KEY,
+        phonetic TEXT NOT NULL DEFAULT '',
+        definitions JSONB NOT NULL DEFAULT '[]'::jsonb,
+        meanings JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `,
+  );
+
   await seedSystemWordBooks();
 
   await query(

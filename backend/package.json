@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "dict:download": "node scripts/download-ecdict.js",
     "dict:build-cache": "node scripts/build-dictionary-cache.js",
+    "dict:import-db": "node scripts/import-dictionary-cache.js",
     "wordbook:import:cet6": "node scripts/import-cet6-word-book.js",
     "wordbook:import:cet6:json": "node scripts/import-cet6-from-json.js",
     "wordbook:prewarm": "node -r ../node_modules/ts-node/register/transpile-only scripts/prewarm-system-word-cards.ts",
