@@ -29,6 +29,7 @@ export interface CreateReadingAssistantChatPayload {
 
 export interface SendReadingAssistantMessagePayload {
   question: string;
+  questionMode?: 'article' | 'sentence';
 }
 
 export interface ReadingWordLookupResult {

@@ -52,11 +52,15 @@ function normalizeQuestion(question: string) {
     throw new HttpError(400, '问题不能为空')
   }
 
-  if (text.length > 1000) {
+  if (text.length > 3000) {
     throw new HttpError(400, '问题太长，请缩短后重试')
   }
 
   return text
+}
+
+function readQuestionMode(value: unknown) {
+  return value === 'sentence' ? 'sentence' : 'article'
 }
 
 /**
@@ -114,6 +118,7 @@ export const readingAssistantService = {
   ) {
     const chatId = readId(chatIdInput)
     const question = normalizeQuestion(payload.question ?? '')
+    const questionMode = readQuestionMode(payload.questionMode)
     const chat = await findReadingAssistantChat(userId, chatId)
 
     if (!chat) {
@@ -126,6 +131,7 @@ export const readingAssistantService = {
       chat.articleContent,
       question,
       buildRecentHistory(previousMessages),
+      questionMode,
     )
     const assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
 
@@ -146,6 +152,7 @@ export const readingAssistantService = {
   ) {
     const chatId = readId(chatIdInput)
     const question = normalizeQuestion(payload.question ?? '')
+    const questionMode = readQuestionMode(payload.questionMode)
     const chat = await findReadingAssistantChat(userId, chatId)
 
     if (!chat) {
@@ -161,6 +168,7 @@ export const readingAssistantService = {
       question,
       buildRecentHistory(previousMessages),
       handlers.onDelta,
+      questionMode,
     )
     const assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
 
