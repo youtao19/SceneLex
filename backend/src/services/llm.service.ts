@@ -35,6 +35,18 @@ const PLAIN_TEXT_MAX_TOKENS = 1600
 export interface UserAiSecrets {
   kimi?: string
   deepseek?: string
+  allowServerApiKey?: boolean
+}
+
+/**
+ * 服务器环境变量里的 key 只允许管理员或后台任务兜底使用。
+ */
+function chooseApiKey(userApiKey: string | undefined, serverApiKey: string | undefined, secrets: UserAiSecrets) {
+  if (userApiKey) {
+    return userApiKey
+  }
+
+  return secrets.allowServerApiKey === false ? '' : (serverApiKey ?? '')
 }
 
 /**
@@ -172,7 +184,7 @@ export async function generateWithOllama(prompt: string): Promise<string> {
  */
 export async function generateWithKimi(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
   const config = aiConfig.kimi
-  const apiKey = secrets.kimi || config.apiKey
+  const apiKey = chooseApiKey(secrets.kimi, config.apiKey, secrets)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
@@ -245,7 +257,7 @@ export async function generateWithKimi(prompt: string, secrets: UserAiSecrets = 
  */
 export async function generateWithDeepseek(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
   const config = aiConfig.deepseek
-  const apiKey = secrets.deepseek || config.apiKey
+  const apiKey = chooseApiKey(secrets.deepseek, config.apiKey, secrets)
 
   if (!apiKey) {
     throw new Error('DeepSeek 调用失败：请先在更多页面配置自己的 DeepSeek API Key')
@@ -511,7 +523,7 @@ export async function streamPlainWithOllama(prompt: string, onDelta: StreamDelta
  */
 export async function generatePlainWithKimi(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
   const config = aiConfig.kimi
-  const apiKey = secrets.kimi || config.apiKey
+  const apiKey = chooseApiKey(secrets.kimi, config.apiKey, secrets)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
@@ -573,7 +585,7 @@ export async function streamPlainWithKimi(
   secrets: UserAiSecrets = {},
 ): Promise<string> {
   const config = aiConfig.kimi
-  const apiKey = secrets.kimi || config.apiKey
+  const apiKey = chooseApiKey(secrets.kimi, config.apiKey, secrets)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
@@ -630,7 +642,7 @@ export async function streamPlainWithKimi(
  */
 export async function generatePlainWithDeepseek(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
   const config = aiConfig.deepseek
-  const apiKey = secrets.deepseek || config.apiKey
+  const apiKey = chooseApiKey(secrets.deepseek, config.apiKey, secrets)
 
   if (!apiKey) {
     throw new Error('DeepSeek 调用失败：请先在更多页面配置自己的 DeepSeek API Key')
@@ -690,7 +702,7 @@ export async function streamPlainWithDeepseek(
   secrets: UserAiSecrets = {},
 ): Promise<string> {
   const config = aiConfig.deepseek
-  const apiKey = secrets.deepseek || config.apiKey
+  const apiKey = chooseApiKey(secrets.deepseek, config.apiKey, secrets)
 
   if (!apiKey) {
     throw new Error('DeepSeek 调用失败：请先在更多页面配置自己的 DeepSeek API Key')

@@ -166,6 +166,7 @@ async function verifyUserApiKey(provider: UserApiKeyProvider, apiKey: string) {
  */
 function buildUserApiKeySettings(
   rows: Array<{ provider: UserApiKeyProvider }>,
+  canUseServerApiKey: boolean,
 ): UserApiKeySettings {
   const providers: UserApiKeyProvider[] = ['kimi', 'deepseek']
 
@@ -175,7 +176,7 @@ function buildUserApiKeySettings(
       id: provider,
       name: userApiKeyProviderNames[provider],
       hasUserApiKey: rows.some((row) => row.provider === provider),
-      hasServerApiKey: Boolean(aiConfig[provider].apiKey),
+      hasServerApiKey: canUseServerApiKey && Boolean(aiConfig[provider].apiKey),
     })),
   }
 }
@@ -205,8 +206,11 @@ export const settingsService = {
   /**
    * 只返回密钥状态，不把用户密钥明文送回浏览器。
    */
-  async getUserApiKeySettings(userId: number): Promise<UserApiKeySettings> {
-    return buildUserApiKeySettings(await listUserApiKeyRows(userId))
+  async getUserApiKeySettings(
+    userId: number,
+    canUseServerApiKey = false,
+  ): Promise<UserApiKeySettings> {
+    return buildUserApiKeySettings(await listUserApiKeyRows(userId), canUseServerApiKey)
   },
 
   /**
@@ -216,6 +220,7 @@ export const settingsService = {
     userId: number,
     providerInput: unknown,
     apiKeyInput: unknown,
+    canUseServerApiKey = false,
   ): Promise<UserApiKeySettings> {
     const provider = normalizeApiKeyProvider(providerInput)
     const apiKey = normalizeApiKey(apiKeyInput)
@@ -227,13 +232,16 @@ export const settingsService = {
       await deleteUserApiKey(userId, provider)
     }
 
-    return buildUserApiKeySettings(await listUserApiKeyRows(userId))
+    return buildUserApiKeySettings(await listUserApiKeyRows(userId), canUseServerApiKey)
   },
 
   /**
    * 模型调用只需要当前用户可解密的密钥，调用方不关心它来自数据库还是环境。
    */
-  async getUserAiSecrets(userId: number) {
-    return readUserApiKeys(userId)
+  async getUserAiSecrets(userId: number, canUseServerApiKey = false) {
+    return {
+      ...(await readUserApiKeys(userId)),
+      allowServerApiKey: canUseServerApiKey,
+    }
   },
 }

@@ -152,6 +152,7 @@ export const readingAssistantService = {
     userId: number,
     chatIdInput: string,
     payload: SendReadingAssistantMessagePayload,
+    canUseServerApiKey = false,
   ) {
     const chatId = readId(chatIdInput)
     const question = normalizeQuestion(payload.question ?? '')
@@ -173,6 +174,7 @@ export const readingAssistantService = {
         buildRecentHistory(previousMessages),
         questionMode,
         userId,
+        canUseServerApiKey,
       )
       assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
     } catch (error) {
@@ -193,6 +195,7 @@ export const readingAssistantService = {
     userId: number,
     chatIdInput: string,
     payload: SendReadingAssistantMessagePayload,
+    canUseServerApiKey: boolean,
     handlers: StreamMessageHandlers,
   ) {
     const chatId = readId(chatIdInput)
@@ -218,6 +221,7 @@ export const readingAssistantService = {
         handlers.onDelta,
         questionMode,
         userId,
+        canUseServerApiKey,
       )
       assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
     } catch (error) {

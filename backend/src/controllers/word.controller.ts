@@ -43,6 +43,7 @@ export async function generateWordContent(
       requiredMeanings,
       systemBookItemId,
       authUser.id,
+      authUser.role === 'admin',
     )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {

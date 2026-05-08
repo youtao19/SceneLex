@@ -74,7 +74,12 @@ export async function sendAssistantMessage(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await readingAssistantService.sendMessage(authUser.id, req.params.chatId, req.body)
+    const result = await readingAssistantService.sendMessage(
+      authUser.id,
+      req.params.chatId,
+      req.body,
+      authUser.role === 'admin',
+    )
     return res.json(ok(result, 'Assistant replied'))
   } catch (error) {
     next(error)
@@ -101,6 +106,7 @@ export async function streamAssistantMessage(
       authUser.id,
       req.params.chatId,
       req.body,
+      authUser.role === 'admin',
       {
         onUserMessage: (message) => {
           writeStreamEvent(res, {

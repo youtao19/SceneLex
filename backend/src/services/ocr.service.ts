@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import { aiConfig } from '../config/ai'
 import { settingsService } from './settings.service'
 import { HttpError } from '../utils/http-error'
+import type { UserAiSecrets } from './llm.service'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_VISION_OCR_TIMEOUT = 180_000
@@ -235,9 +236,16 @@ async function extractWithPaddleOcr(file: Express.Multer.File) {
 /**
  * Kimi vision 使用 OpenAI-compatible 图片 content 数组，适合远程多模态兜底。
  */
-async function extractWithKimiVision(file: Express.Multer.File, userId?: number) {
-  const userSecrets = userId ? await settingsService.getUserAiSecrets(userId) : {}
-  const apiKey = userSecrets.kimi || process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY || ''
+async function extractWithKimiVision(
+  file: Express.Multer.File,
+  userId?: number,
+  canUseServerApiKey = true,
+) {
+  const userSecrets: UserAiSecrets = userId
+    ? await settingsService.getUserAiSecrets(userId, canUseServerApiKey)
+    : {}
+  const serverApiKey = process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY || ''
+  const apiKey = userSecrets.kimi || (canUseServerApiKey ? serverApiKey : '')
   const baseURL = process.env.KIMI_BASE_URL ?? 'https://api.moonshot.cn/v1'
   const model = process.env.KIMI_MODEL ?? 'kimi-k2.6'
   const timeout = readKimiOcrTimeout()
@@ -308,9 +316,13 @@ async function extractWithKimiVision(file: Express.Multer.File, userId?: number)
 /**
  * 多模态 OCR 共用一个前端入口，启动时再决定走本地模型还是 Kimi。
  */
-async function extractWithVisionModel(file: Express.Multer.File, userId?: number) {
+async function extractWithVisionModel(
+  file: Express.Multer.File,
+  userId?: number,
+  canUseServerApiKey = true,
+) {
   if (readVisionOcrProvider() === 'kimi') {
-    return extractWithKimiVision(file, userId)
+    return extractWithKimiVision(file, userId, canUseServerApiKey)
   }
 
   return extractWithOllamaVision(file)
@@ -323,6 +335,7 @@ export async function extractArticleTextFromImage(
   file?: Express.Multer.File,
   methodValue?: unknown,
   userId?: number,
+  canUseServerApiKey = true,
 ) {
   if (!file) {
     throw new HttpError(400, '请上传需要识别的图片')
@@ -331,7 +344,7 @@ export async function extractArticleTextFromImage(
   const method = parseOcrMethod(methodValue)
   const text = await (async () => {
     if (method === 'vision') {
-      return extractWithVisionModel(file, userId)
+      return extractWithVisionModel(file, userId, canUseServerApiKey)
     }
 
     if (method === 'paddle') {
