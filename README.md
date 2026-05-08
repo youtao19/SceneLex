@@ -53,6 +53,8 @@ npm run dev:backend:deepseek
 如果 `OMLX_API_KEY` 留空，后端会尝试读取本机 `~/.omlx/settings.json` 里的 oMLX key；也可以在 `.env.dev.local` 里显式填写。
 使用 DeepSeek 前，在 `backend/.env.dev.local` 中配置 `DEEPSEEK_API_KEY`，必要时用 `DEEPSEEK_MODEL` 指定模型。
 
+阅读页图片识别的 “多模态大模型” 不受 `AI_PROVIDER` 影响，启动时通过 `OCR_VISION_PROVIDER` 选择模型来源：`ollama` 走本地 `OCR_MODEL`，`kimi` 走 Kimi API。使用 Kimi 前，在 `backend/.env.dev.local` 中配置 `OCR_VISION_PROVIDER=kimi` 和 `KIMI_API_KEY`（或 `MOONSHOT_API_KEY`）。默认请求 `KIMI_BASE_URL=https://api.moonshot.cn/v1` 和 `KIMI_MODEL=kimi-k2.6`。
+
 ## 当前状态
 
 - 已创建前后端基础目录结构

@@ -10,6 +10,8 @@ import { HttpError } from '../utils/http-error'
 const execFileAsync = promisify(execFile)
 const DEFAULT_VISION_OCR_TIMEOUT = 180_000
 
+type VisionOcrProvider = 'ollama' | 'kimi'
+
 interface OllamaVisionResponse {
   response?: string
   thinking?: string
@@ -19,6 +21,14 @@ export type OcrMethod = 'tesseract' | 'paddle' | 'vision'
 
 interface PaddleOcrResponse {
   text?: string
+}
+
+interface KimiVisionResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | null
+    }
+  }>
 }
 
 const extensionByMimeType: Record<string, string> = {
@@ -67,6 +77,29 @@ function readVisionOcrTimeout() {
  */
 function readPaddleOcrTimeout() {
   return Number(process.env.PADDLE_OCR_TIMEOUT ?? 60_000)
+}
+
+/**
+ * Kimi 走远程视觉模型，单独超时方便和本地 Ollama vision 分开调。
+ */
+function readKimiOcrTimeout() {
+  return Number(process.env.KIMI_OCR_TIMEOUT ?? process.env.OCR_TIMEOUT ?? DEFAULT_VISION_OCR_TIMEOUT)
+}
+
+/**
+ * 多模态按钮只表达能力类型，具体模型来源由启动环境变量决定。
+ */
+export function readVisionOcrProvider(): VisionOcrProvider {
+  const provider = (process.env.OCR_VISION_PROVIDER ?? 'ollama')
+    .split('#')[0]
+    .trim()
+    .toLowerCase()
+
+  if (provider === 'ollama' || provider === 'kimi') {
+    return provider
+  }
+
+  throw new Error(`OCR_VISION_PROVIDER 只支持 ollama 或 kimi，当前值是：${provider}`)
 }
 
 /**
@@ -199,6 +232,89 @@ async function extractWithPaddleOcr(file: Express.Multer.File) {
 }
 
 /**
+ * Kimi vision 使用 OpenAI-compatible 图片 content 数组，适合远程多模态兜底。
+ */
+async function extractWithKimiVision(file: Express.Multer.File) {
+  const apiKey = process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY ?? ''
+  const baseURL = process.env.KIMI_BASE_URL ?? 'https://api.moonshot.cn/v1'
+  const model = process.env.KIMI_MODEL ?? 'kimi-k2.6'
+  const timeout = readKimiOcrTimeout()
+
+  if (!apiKey) {
+    throw new HttpError(400, 'Kimi OCR 调用失败：请先配置 KIMI_API_KEY 或 MOONSHOT_API_KEY')
+  }
+
+  let response: Response
+
+  try {
+    response = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an OCR engine. Return only the text extracted from the image.'
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`
+                }
+              },
+              {
+                type: 'text',
+                text: buildArticleOcrPrompt()
+              }
+            ]
+          }
+        ],
+        max_tokens: 1800,
+        thinking: {
+          type: 'disabled'
+        },
+        stream: false
+      }),
+      signal: AbortSignal.timeout(timeout)
+    })
+  } catch (error) {
+    if (isTimeoutError(error)) {
+      throw new HttpError(504, `Kimi OCR 超时（${Math.round(timeout / 1000)} 秒）。请调大 KIMI_OCR_TIMEOUT 或换更清晰的图片。`)
+    }
+
+    throw error
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Kimi OCR 调用失败：${response.status} ${errorText}`)
+  }
+
+  const data = (await response.json()) as KimiVisionResponse
+  const text = data.choices?.[0]?.message?.content ?? ''
+
+  return cleanExtractedText(text)
+}
+
+/**
+ * 多模态 OCR 共用一个前端入口，启动时再决定走本地模型还是 Kimi。
+ */
+async function extractWithVisionModel(file: Express.Multer.File) {
+  if (readVisionOcrProvider() === 'kimi') {
+    return extractWithKimiVision(file)
+  }
+
+  return extractWithOllamaVision(file)
+}
+
+/**
  * 阅读页按用户选择调用单一识别引擎，失败原因能更直接地反馈给用户。
  */
 export async function extractArticleTextFromImage(file?: Express.Multer.File, methodValue?: unknown) {
@@ -209,7 +325,7 @@ export async function extractArticleTextFromImage(file?: Express.Multer.File, me
   const method = parseOcrMethod(methodValue)
   const text = await (async () => {
     if (method === 'vision') {
-      return extractWithOllamaVision(file)
+      return extractWithVisionModel(file)
     }
 
     if (method === 'paddle') {
