@@ -172,6 +172,7 @@ export const readingAssistantService = {
         question,
         buildRecentHistory(previousMessages),
         questionMode,
+        userId,
       )
       assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
     } catch (error) {
@@ -216,6 +217,7 @@ export const readingAssistantService = {
         buildRecentHistory(previousMessages),
         handlers.onDelta,
         questionMode,
+        userId,
       )
       assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
     } catch (error) {

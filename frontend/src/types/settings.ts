@@ -1,4 +1,5 @@
-export type AiProvider = 'ollama' | 'omlx' | 'deepseek';
+export type AiProvider = 'ollama' | 'kimi' | 'deepseek';
+export type UserApiKeyProvider = 'kimi' | 'deepseek';
 
 export interface AiProviderSettings {
   id: AiProvider;
@@ -17,6 +18,23 @@ export interface AiSettings {
 export interface UpdateAiSettingsPayload {
   provider: AiProvider;
   model: string;
+}
+
+export interface UserApiKeyProviderSettings {
+  id: UserApiKeyProvider;
+  name: string;
+  hasUserApiKey: boolean;
+  hasServerApiKey: boolean;
+}
+
+export interface UserApiKeySettings {
+  activeProvider: AiProvider;
+  providers: UserApiKeyProviderSettings[];
+}
+
+export interface UpdateUserApiKeyPayload {
+  provider: UserApiKeyProvider;
+  apiKey: string;
 }
 
 export interface LearningSettings {

@@ -32,6 +32,11 @@ interface ChatCompletionStreamChunk {
 type StreamDeltaHandler = (delta: string) => void | Promise<void>
 const PLAIN_TEXT_MAX_TOKENS = 1600
 
+export interface UserAiSecrets {
+  kimi?: string
+  deepseek?: string
+}
+
 /**
  * 去掉模型常见的包裹符号，让阅读页拿到能直接展示的短文本。
  */
@@ -163,16 +168,21 @@ export async function generateWithOllama(prompt: string): Promise<string> {
 }
 
 /**
- * 调用 oMLX 的 OpenAI-compatible 接口。
+ * 调用 Kimi 的 OpenAI-compatible 接口。
  */
-export async function generateWithOmlx(prompt: string): Promise<string> {
-  const config = aiConfig.omlx
+export async function generateWithKimi(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
+  const config = aiConfig.kimi
+  const apiKey = secrets.kimi || config.apiKey
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
 
-  if (config.apiKey) {
-    headers.Authorization = `Bearer ${config.apiKey}`
+  if (!apiKey) {
+    throw new Error('Kimi 调用失败：请先在更多页面配置自己的 Kimi API Key')
+  }
+
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`
   }
 
   const response = await fetch(`${config.baseURL}/chat/completions`, {
@@ -190,15 +200,15 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
           content: `/no_think\n${prompt}`
         }
       ],
-      // oMLX 走 OpenAI-compatible 协议，这里只要求 JSON object，不绑定某个厂商的 schema 扩展。
+      // Kimi 走 OpenAI-compatible 协议，这里只要求 JSON object，不绑定某个厂商的 schema 扩展。
       response_format: {
         type: 'json_object'
       },
-      chat_template_kwargs: {
-        enable_thinking: false
+      thinking: {
+        type: 'disabled'
       },
       temperature: 0.6,
-      max_tokens: 800,
+      max_tokens: 2400,
       stream: false
     }),
     signal: AbortSignal.timeout(config.timeout)
@@ -206,7 +216,7 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
+    throw new Error(`Kimi 调用失败：${response.status} ${errorText}`)
   }
 
   const data = (await response.json()) as ChatCompletionResponse
@@ -221,30 +231,31 @@ export async function generateWithOmlx(prompt: string): Promise<string> {
     }
 
     if (cleanContent.startsWith('{')) {
-      throw new Error('DeepSeek 未返回完整 JSON，请调大 max_tokens 或缩短提示词')
+      throw new Error('Kimi 未返回完整 JSON，请调大 max_tokens 或缩短提示词')
     }
 
     return cleanContent
   }
 
-  throw new Error('oMLX 未返回 message.content')
+  throw new Error('Kimi 未返回 message.content')
 }
 
 /**
  * 调用 DeepSeek 官方 OpenAI-compatible 接口。
  */
-export async function generateWithDeepseek(prompt: string): Promise<string> {
+export async function generateWithDeepseek(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
   const config = aiConfig.deepseek
+  const apiKey = secrets.deepseek || config.apiKey
 
-  if (!config.apiKey) {
-    throw new Error('DeepSeek 调用失败：请先配置 DEEPSEEK_API_KEY')
+  if (!apiKey) {
+    throw new Error('DeepSeek 调用失败：请先在更多页面配置自己的 DeepSeek API Key')
   }
 
   const response = await fetch(`${config.baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`
+      Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: config.model,
@@ -404,13 +415,13 @@ async function readOllamaGenerateStream(response: Response, onDelta: StreamDelta
 /**
  * 根据 AI_PROVIDER 选择模型服务，业务层不需要知道具体部署方式。
  */
-export async function generateWithLocalModel(prompt: string): Promise<string> {
-  if (aiConfig.provider === 'omlx') {
-    return generateWithOmlx(prompt)
+export async function generateWithLocalModel(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
+  if (aiConfig.provider === 'kimi') {
+    return generateWithKimi(prompt, secrets)
   }
 
   if (aiConfig.provider === 'deepseek') {
-    return generateWithDeepseek(prompt)
+    return generateWithDeepseek(prompt, secrets)
   }
 
   return generateWithOllama(prompt)
@@ -496,16 +507,21 @@ export async function streamPlainWithOllama(prompt: string, onDelta: StreamDelta
 }
 
 /**
- * oMLX 的阅读问答走普通 chat completion，避免被 JSON mode 约束。
+ * Kimi 的阅读问答走普通 chat completion，避免被 JSON mode 约束。
  */
-export async function generatePlainWithOmlx(prompt: string): Promise<string> {
-  const config = aiConfig.omlx
+export async function generatePlainWithKimi(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
+  const config = aiConfig.kimi
+  const apiKey = secrets.kimi || config.apiKey
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
 
-  if (config.apiKey) {
-    headers.Authorization = `Bearer ${config.apiKey}`
+  if (!apiKey) {
+    throw new Error('Kimi 调用失败：请先在更多页面配置自己的 Kimi API Key')
+  }
+
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`
   }
 
   const response = await fetch(`${config.baseURL}/chat/completions`, {
@@ -520,11 +536,11 @@ export async function generatePlainWithOmlx(prompt: string): Promise<string> {
         },
         {
           role: 'user',
-          content: `/no_think\n${prompt}`
+          content: prompt
         }
       ],
-      chat_template_kwargs: {
-        enable_thinking: false
+      thinking: {
+        type: 'disabled'
       },
       temperature: 0.3,
       max_tokens: PLAIN_TEXT_MAX_TOKENS,
@@ -535,7 +551,7 @@ export async function generatePlainWithOmlx(prompt: string): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
+    throw new Error(`Kimi 调用失败：${response.status} ${errorText}`)
   }
 
   const data = (await response.json()) as ChatCompletionResponse
@@ -545,20 +561,29 @@ export async function generatePlainWithOmlx(prompt: string): Promise<string> {
     return cleanPlainText(content)
   }
 
-  throw new Error('oMLX 未返回 message.content')
+  throw new Error('Kimi 未返回 message.content')
 }
 
 /**
- * oMLX 兼容 OpenAI chat completions，能用 SSE 增量读取。
+ * Kimi 兼容 OpenAI chat completions，能用 SSE 增量读取。
  */
-export async function streamPlainWithOmlx(prompt: string, onDelta: StreamDeltaHandler): Promise<string> {
-  const config = aiConfig.omlx
+export async function streamPlainWithKimi(
+  prompt: string,
+  onDelta: StreamDeltaHandler,
+  secrets: UserAiSecrets = {},
+): Promise<string> {
+  const config = aiConfig.kimi
+  const apiKey = secrets.kimi || config.apiKey
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
 
-  if (config.apiKey) {
-    headers.Authorization = `Bearer ${config.apiKey}`
+  if (!apiKey) {
+    throw new Error('Kimi 调用失败：请先在更多页面配置自己的 Kimi API Key')
+  }
+
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`
   }
 
   const response = await fetch(`${config.baseURL}/chat/completions`, {
@@ -573,11 +598,11 @@ export async function streamPlainWithOmlx(prompt: string, onDelta: StreamDeltaHa
         },
         {
           role: 'user',
-          content: `/no_think\n${prompt}`
+          content: prompt
         }
       ],
-      chat_template_kwargs: {
-        enable_thinking: false
+      thinking: {
+        type: 'disabled'
       },
       temperature: 0.3,
       max_tokens: PLAIN_TEXT_MAX_TOKENS,
@@ -588,7 +613,7 @@ export async function streamPlainWithOmlx(prompt: string, onDelta: StreamDeltaHa
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`oMLX 调用失败：${response.status} ${errorText}`)
+    throw new Error(`Kimi 调用失败：${response.status} ${errorText}`)
   }
 
   const text = await readChatCompletionStream(response, onDelta)
@@ -597,24 +622,25 @@ export async function streamPlainWithOmlx(prompt: string, onDelta: StreamDeltaHa
     return text
   }
 
-  throw new Error('oMLX 未返回 message.content')
+  throw new Error('Kimi 未返回 message.content')
 }
 
 /**
  * DeepSeek 阅读问答不要求 JSON，避免短句翻译被强行包成对象。
  */
-export async function generatePlainWithDeepseek(prompt: string): Promise<string> {
+export async function generatePlainWithDeepseek(prompt: string, secrets: UserAiSecrets = {}): Promise<string> {
   const config = aiConfig.deepseek
+  const apiKey = secrets.deepseek || config.apiKey
 
-  if (!config.apiKey) {
-    throw new Error('DeepSeek 调用失败：请先配置 DEEPSEEK_API_KEY')
+  if (!apiKey) {
+    throw new Error('DeepSeek 调用失败：请先在更多页面配置自己的 DeepSeek API Key')
   }
 
   const response = await fetch(`${config.baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`
+      Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: config.model,
@@ -658,18 +684,23 @@ export async function generatePlainWithDeepseek(prompt: string): Promise<string>
 /**
  * DeepSeek 使用 OpenAI-compatible SSE，前端能看到实时 token。
  */
-export async function streamPlainWithDeepseek(prompt: string, onDelta: StreamDeltaHandler): Promise<string> {
+export async function streamPlainWithDeepseek(
+  prompt: string,
+  onDelta: StreamDeltaHandler,
+  secrets: UserAiSecrets = {},
+): Promise<string> {
   const config = aiConfig.deepseek
+  const apiKey = secrets.deepseek || config.apiKey
 
-  if (!config.apiKey) {
-    throw new Error('DeepSeek 调用失败：请先配置 DEEPSEEK_API_KEY')
+  if (!apiKey) {
+    throw new Error('DeepSeek 调用失败：请先在更多页面配置自己的 DeepSeek API Key')
   }
 
   const response = await fetch(`${config.baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`
+      Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: config.model,
@@ -707,13 +738,16 @@ export async function streamPlainWithDeepseek(prompt: string, onDelta: StreamDel
 /**
  * 根据当前 AI_PROVIDER 生成普通文本，供阅读助手复用同一套模型切换配置。
  */
-export async function generatePlainWithLocalModel(prompt: string): Promise<string> {
-  if (aiConfig.provider === 'omlx') {
-    return generatePlainWithOmlx(prompt)
+export async function generatePlainWithLocalModel(
+  prompt: string,
+  secrets: UserAiSecrets = {},
+): Promise<string> {
+  if (aiConfig.provider === 'kimi') {
+    return generatePlainWithKimi(prompt, secrets)
   }
 
   if (aiConfig.provider === 'deepseek') {
-    return generatePlainWithDeepseek(prompt)
+    return generatePlainWithDeepseek(prompt, secrets)
   }
 
   return generatePlainWithOllama(prompt)
@@ -725,13 +759,14 @@ export async function generatePlainWithLocalModel(prompt: string): Promise<strin
 export async function streamPlainWithLocalModel(
   prompt: string,
   onDelta: StreamDeltaHandler,
+  secrets: UserAiSecrets = {},
 ): Promise<string> {
-  if (aiConfig.provider === 'omlx') {
-    return streamPlainWithOmlx(prompt, onDelta)
+  if (aiConfig.provider === 'kimi') {
+    return streamPlainWithKimi(prompt, onDelta, secrets)
   }
 
   if (aiConfig.provider === 'deepseek') {
-    return streamPlainWithDeepseek(prompt, onDelta)
+    return streamPlainWithDeepseek(prompt, onDelta, secrets)
   }
 
   return streamPlainWithOllama(prompt, onDelta)

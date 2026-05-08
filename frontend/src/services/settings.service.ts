@@ -5,6 +5,8 @@ import type {
   LearningSettings,
   UpdateAiSettingsPayload,
   UpdateLearningSettingsPayload,
+  UpdateUserApiKeyPayload,
+  UserApiKeySettings,
 } from '../types/settings';
 
 /**
@@ -19,6 +21,20 @@ export function fetchAiSettings() {
  */
 export function updateAiSettings(payload: UpdateAiSettingsPayload) {
   return patch<ApiResponse<AiSettings>>('/settings/ai', payload);
+}
+
+/**
+ * 只读取用户密钥状态，后端不会返回密钥明文。
+ */
+export function fetchUserApiKeySettings() {
+  return get<ApiResponse<UserApiKeySettings>>('/settings/api-keys');
+}
+
+/**
+ * 空 apiKey 表示清除当前用户的该 provider 密钥。
+ */
+export function updateUserApiKeySettings(payload: UpdateUserApiKeyPayload) {
+  return patch<ApiResponse<UserApiKeySettings>>('/settings/api-keys', payload);
 }
 
 /**

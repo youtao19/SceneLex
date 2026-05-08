@@ -332,6 +332,45 @@ export async function initializeDatabase() {
 
   await query(
     `
+      CREATE TABLE IF NOT EXISTS user_ai_api_keys (
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        api_key_ciphertext TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, provider)
+      )
+    `,
+  );
+
+  await query(
+    `
+      DELETE FROM user_ai_api_keys
+      WHERE provider = 'omlx'
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE user_ai_api_keys
+      DROP CONSTRAINT IF EXISTS user_ai_api_keys_provider_check
+    `,
+  );
+
+  await query(
+    `
+      DO $$
+      BEGIN
+        ALTER TABLE user_ai_api_keys
+        ADD CONSTRAINT user_ai_api_keys_provider_check
+        CHECK (provider IN ('kimi', 'deepseek'));
+      EXCEPTION WHEN duplicate_object THEN
+        NULL;
+      END $$;
+    `,
+  );
+
+  await query(
+    `
       CREATE TABLE IF NOT EXISTS words (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

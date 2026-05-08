@@ -1,9 +1,6 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
 import { env } from './env'
 
-export type AiProvider = 'ollama' | 'omlx' | 'deepseek'
+export type AiProvider = 'ollama' | 'kimi' | 'deepseek'
 export type AiModelConfig = {
   baseURL: string
   model: string
@@ -26,36 +23,11 @@ export interface AiSettingsSnapshot {
 function readProvider(): AiProvider {
   const provider = env.aiProvider.toLowerCase()
 
-  if (provider === 'ollama' || provider === 'omlx' || provider === 'deepseek') {
+  if (provider === 'ollama' || provider === 'kimi' || provider === 'deepseek') {
     return provider
   }
 
-  throw new Error(`AI_PROVIDER 只支持 ollama、omlx 或 deepseek，当前值是：${provider}`)
-}
-
-function readOmlxApiKey() {
-  if (process.env.OMLX_API_KEY) {
-    return process.env.OMLX_API_KEY
-  }
-
-  try {
-    const settingsPath = path.join(os.homedir(), '.omlx', 'settings.json')
-
-    if (!fs.existsSync(settingsPath)) {
-      return ''
-    }
-
-    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as {
-      auth?: {
-        api_key?: string
-      }
-    }
-
-    // oMLX 桌面服务默认开启鉴权，本机开发时直接复用它自己的配置。
-    return settings.auth?.api_key ?? ''
-  } catch {
-    return ''
-  }
+  throw new Error(`AI_PROVIDER 只支持 ollama、kimi 或 deepseek，当前值是：${provider}`)
 }
 
 export const aiConfig = {
@@ -66,12 +38,12 @@ export const aiConfig = {
     model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b',
     timeout: Number(process.env.OLLAMA_TIMEOUT ?? 60_000)
   },
-  omlx: {
-    // oMLX 使用 OpenAI-compatible API，默认服务地址是 localhost:8000/v1。
-    baseURL: process.env.OMLX_BASE_URL ?? 'http://localhost:8000/v1',
-    model: process.env.OMLX_MODEL ?? process.env.OLLAMA_MODEL ?? 'qwen3.5:4b',
-    timeout: Number(process.env.OMLX_TIMEOUT ?? process.env.OLLAMA_TIMEOUT ?? 60_000),
-    apiKey: readOmlxApiKey()
+  kimi: {
+    // Kimi 使用 OpenAI-compatible API，和 OCR 的远程 Kimi 配置保持一致。
+    baseURL: process.env.KIMI_BASE_URL ?? 'https://api.moonshot.cn/v1',
+    model: process.env.KIMI_MODEL ?? 'kimi-k2.6',
+    timeout: Number(process.env.KIMI_TIMEOUT ?? process.env.OLLAMA_TIMEOUT ?? 60_000),
+    apiKey: process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY ?? ''
   },
   deepseek: {
     // DeepSeek 官方 API 兼容 OpenAI chat/completions。
@@ -84,7 +56,7 @@ export const aiConfig = {
 
 const providerNames: Record<AiProvider, string> = {
   ollama: 'Ollama',
-  omlx: 'oMLX',
+  kimi: 'Kimi',
   deepseek: 'DeepSeek'
 }
 
@@ -92,7 +64,7 @@ const providerNames: Record<AiProvider, string> = {
  * 前端设置页只需要运行态快照，不能把 API Key 原文传给浏览器。
  */
 export function readAiSettings(): AiSettingsSnapshot {
-  const providers: AiSettingsSnapshot['providers'] = (['ollama', 'omlx', 'deepseek'] as AiProvider[]).map((id) => {
+  const providers: AiSettingsSnapshot['providers'] = (['ollama', 'kimi', 'deepseek'] as AiProvider[]).map((id) => {
     const config = aiConfig[id] as AiModelConfig
 
     return {
@@ -125,5 +97,5 @@ export function updateAiSettings(provider: AiProvider, model: string): AiSetting
  * API 边界统一校验 provider，避免业务层收到不存在的模型配置。
  */
 export function isAiProvider(value: string): value is AiProvider {
-  return value === 'ollama' || value === 'omlx' || value === 'deepseek'
+  return value === 'ollama' || value === 'kimi' || value === 'deepseek'
 }

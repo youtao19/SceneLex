@@ -30,6 +30,7 @@ export async function generateWordContent(
   next: NextFunction
 ) {
   try {
+    const authUser = readAuthUser(req)
     const { word, forceRegenerate, requiredMeanings, systemBookItemId } = req.body as {
       word?: string
       forceRegenerate?: boolean
@@ -40,7 +41,8 @@ export async function generateWordContent(
       word ?? '',
       forceRegenerate === true,
       requiredMeanings,
-      systemBookItemId
+      systemBookItemId,
+      authUser.id,
     )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {
