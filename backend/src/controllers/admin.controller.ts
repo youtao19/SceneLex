@@ -6,6 +6,7 @@ import type {
   UpdateAdminAccessKeyPayload,
   UpdateAdminUserAccessPayload,
   UpdateAdminUserRolePayload,
+  UpdateAdminUserVipPayload,
 } from '../types/admin';
 import { ok } from '../utils/response';
 
@@ -70,6 +71,28 @@ export async function updateUserRole(
       payload,
     );
     return res.json(ok(user, '用户角色已更新'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 更新用户 VIP 状态。
+ */
+export async function updateUserVip(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const payload = req.body as UpdateAdminUserVipPayload;
+    const authUser = readAuthUser(req);
+    const user = await adminService.updateUserVip(
+      authUser.id,
+      readRouteParam(req.params.userId),
+      payload,
+    );
+    return res.json(ok(user, '用户 VIP 状态已更新'));
   } catch (error) {
     next(error);
   }

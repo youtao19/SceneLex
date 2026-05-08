@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { isAiProvider, readAiSettings, updateAiSettings } from '../config/ai'
 import { readAuthUser } from '../middlewares/auth.middleware'
 import { settingsService } from '../services/settings.service'
+import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
 import { HttpError } from '../utils/http-error'
 
@@ -74,7 +75,7 @@ export async function getUserApiKeySettings(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await settingsService.getUserApiKeySettings(authUser.id, authUser.role === 'admin')
+    const result = await settingsService.getUserApiKeySettings(authUser.id, canUseSystemApi(authUser))
 
     return res.json(ok(result, 'User API key settings fetched'))
   } catch (error) {
@@ -100,7 +101,7 @@ export async function updateUserApiKeySettings(
       authUser.id,
       provider,
       apiKey,
-      authUser.role === 'admin',
+      canUseSystemApi(authUser),
     )
 
     return res.json(ok(result, 'User API key settings updated'))

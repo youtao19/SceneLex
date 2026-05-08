@@ -34,6 +34,15 @@ export function updateAdminUserRole(userId: number, role: 'user' | 'admin') {
 }
 
 /**
+ * 修改用户 VIP 状态，VIP 可以使用服务器统一配置的模型 API。
+ */
+export function updateAdminUserVip(userId: number, isVip: boolean) {
+  return patch<ApiResponse<AdminUser>>(`/admin/users/${userId}/vip`, {
+    isVip,
+  })
+}
+
+/**
  * 管理页读取访问密钥列表。
  */
 export function fetchAdminAccessKeys() {

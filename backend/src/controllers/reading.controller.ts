@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express'
 import { readAuthUser } from '../middlewares/auth.middleware'
 import { readingHistoryService } from '../services/reading-history.service'
 import { readingService } from '../services/reading.service'
+import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
 import type {
   ReadingSentenceTranslatePayload,
@@ -23,7 +24,7 @@ export async function lookupReadingWord(
       authUser.id,
       req.body.word ?? '',
       req.body.sentence ?? '',
-      authUser.role === 'admin',
+      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Reading word looked up'))
   } catch (error) {
@@ -44,7 +45,7 @@ export async function translateReadingSentence(
     const result = await readingService.translateSentenceForUser(
       authUser.id,
       req.body.sentence ?? '',
-      authUser.role === 'admin',
+      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Reading sentence translated'))
   } catch (error) {
@@ -142,7 +143,7 @@ export async function chatWithAssistant(
       req.body.content ?? '',
       req.body.question ?? '',
       authUser.id,
-      authUser.role === 'admin',
+      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Assistant replied'))
   } catch (error) {

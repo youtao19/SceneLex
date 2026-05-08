@@ -74,7 +74,10 @@
             <div class="profile-copy">
               <strong>{{ userStore.nickname }}</strong>
               <p>{{ userStore.user?.email }}</p>
-              <span>{{ accessText }}</span>
+              <div class="profile-badges">
+                <span>{{ accessText }}</span>
+                <span class="membership-badge" :class="membershipClass">{{ membershipText }}</span>
+              </div>
             </div>
           </div>
 
@@ -183,6 +186,21 @@ const accessText = computed(() => {
 
   return '账号信息'
 })
+const membershipText = computed(() => {
+  if (userStore.user?.role === 'admin') {
+    return '管理员'
+  }
+
+  if (userStore.user?.isVip) {
+    return 'VIP'
+  }
+
+  return '普通用户'
+})
+const membershipClass = computed(() => ({
+  'is-admin': userStore.user?.role === 'admin',
+  'is-vip': userStore.user?.isVip === true,
+}))
 
 interface NavItem {
   to: string
@@ -636,10 +654,29 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.profile-copy span {
+.profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.profile-badges span {
   color: var(--sl-peach-500);
   font-size: 12px;
   font-weight: 800;
+}
+
+.profile-badges .membership-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #6b5c46;
+  background: rgba(245, 238, 225, 0.82);
+}
+
+.profile-badges .membership-badge.is-vip,
+.profile-badges .membership-badge.is-admin {
+  color: #7c2d12;
+  background: rgba(255, 237, 213, 0.9);
 }
 
 .profile-menu-section {

@@ -6,12 +6,14 @@ import {
   updateAdminAccessKeyStatus,
   updateAdminUserAccess,
   updateAdminUserRole,
+  updateAdminUserVip,
 } from '../repositories/admin.repository';
 import type {
   CreateAdminAccessKeyPayload,
   UpdateAdminAccessKeyPayload,
   UpdateAdminUserAccessPayload,
   UpdateAdminUserRolePayload,
+  UpdateAdminUserVipPayload,
 } from '../types/admin';
 import type { AccessStatus, UserRole } from '../types/auth';
 import { HttpError } from '../utils/http-error';
@@ -74,6 +76,17 @@ function readUserRole(role: unknown): UserRole {
   }
 
   throw new HttpError(400, '角色无效');
+}
+
+/**
+ * VIP 是明确授权开关，避免字符串 truthy 值误开系统 API 权限。
+ */
+function readVipFlag(isVip: unknown) {
+  if (typeof isVip === 'boolean') {
+    return isVip;
+  }
+
+  throw new HttpError(400, 'VIP 状态无效');
 }
 
 /**
@@ -166,6 +179,25 @@ export const adminService = {
     }
 
     const user = await updateAdminUserRole(userId, role);
+
+    if (!user) {
+      throw new HttpError(404, '用户不存在');
+    }
+
+    return user;
+  },
+
+  /**
+   * 管理员给普通账号授予或取消 VIP 系统 API 使用权。
+   */
+  async updateUserVip(
+    _currentAdminId: number,
+    userIdInput: string,
+    payload: UpdateAdminUserVipPayload,
+  ) {
+    const userId = readId(userIdInput);
+    const isVip = readVipFlag(payload.isVip);
+    const user = await updateAdminUserVip(userId, isVip);
 
     if (!user) {
       throw new HttpError(404, '用户不存在');
