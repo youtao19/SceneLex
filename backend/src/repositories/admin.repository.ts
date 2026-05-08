@@ -7,6 +7,7 @@ interface AdminUserRow {
   email: string;
   nickname: string;
   role: UserRole;
+  is_vip: boolean;
   access_status: AccessStatus;
   access_expires_at: string | Date;
   created_at: string | Date;
@@ -35,6 +36,7 @@ function mapAdminUserRow(row: AdminUserRow): AdminUser {
     email: row.email,
     nickname: row.nickname,
     role: row.role,
+    isVip: row.is_vip,
     accessStatus: row.access_status,
     accessExpiresAt: new Date(row.access_expires_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
@@ -71,6 +73,7 @@ export async function listAdminUsers() {
         email,
         nickname,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         created_at,
@@ -109,6 +112,7 @@ export async function updateAdminUserAccess(
         email,
         nickname,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         created_at,
@@ -140,12 +144,45 @@ export async function updateAdminUserRole(userId: number, role: UserRole) {
         email,
         nickname,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         created_at,
         updated_at
     `,
     [userId, role],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return mapAdminUserRow(result.rows[0]);
+}
+
+/**
+ * VIP 只影响系统 API 使用权，不改变账号登录状态或管理员角色。
+ */
+export async function updateAdminUserVip(userId: number, isVip: boolean) {
+  const result = await query<AdminUserRow>(
+    `
+      UPDATE users
+      SET
+        is_vip = $2,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING
+        id,
+        email,
+        nickname,
+        role,
+        is_vip,
+        access_status,
+        access_expires_at,
+        created_at,
+        updated_at
+    `,
+    [userId, isVip],
   );
 
   if (result.rowCount === 0) {

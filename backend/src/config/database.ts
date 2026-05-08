@@ -219,6 +219,7 @@ export async function initializeDatabase() {
         email TEXT NOT NULL UNIQUE,
         nickname TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'user',
+        is_vip BOOLEAN NOT NULL DEFAULT FALSE,
         access_status TEXT NOT NULL DEFAULT 'active',
         access_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         password_salt TEXT NOT NULL,
@@ -234,6 +235,13 @@ export async function initializeDatabase() {
     `
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
+    `,
+  );
+
+  await query(
+    `
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS is_vip BOOLEAN NOT NULL DEFAULT FALSE
     `,
   );
 

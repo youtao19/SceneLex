@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { readAuthUser } from '../middlewares/auth.middleware'
 import { wordService } from '../services/word.service'
+import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
 import type { ReviewRating, WordMeaningItem, WordRequiredMeaning } from '../types/word'
 
@@ -43,7 +44,7 @@ export async function generateWordContent(
       requiredMeanings,
       systemBookItemId,
       authUser.id,
-      authUser.role === 'admin',
+      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {

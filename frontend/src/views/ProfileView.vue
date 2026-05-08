@@ -22,7 +22,10 @@
         </div>
       </div>
 
-      <span class="access-chip" :class="accessClass">{{ accessText }}</span>
+      <div class="hero-chips" aria-label="账号状态">
+        <span class="access-chip" :class="accessClass">{{ accessText }}</span>
+        <span class="membership-chip" :class="membershipClass">{{ membershipText }}</span>
+      </div>
     </header>
 
     <section class="profile-layout">
@@ -39,6 +42,14 @@
           <div>
             <dt>账号状态</dt>
             <dd>{{ accessText }}</dd>
+          </div>
+          <div>
+            <dt>会员状态</dt>
+            <dd>{{ membershipText }}</dd>
+          </div>
+          <div>
+            <dt>系统 API 权限</dt>
+            <dd>{{ systemApiText }}</dd>
           </div>
           <div>
             <dt>访问有效期</dt>
@@ -175,6 +186,28 @@ const accessClass = computed(() => {
   }
 
   return ''
+})
+const membershipText = computed(() => {
+  if (userStore.user?.role === 'admin') {
+    return '管理员'
+  }
+
+  if (userStore.user?.isVip) {
+    return 'VIP'
+  }
+
+  return '普通用户'
+})
+const membershipClass = computed(() => ({
+  'is-admin': userStore.user?.role === 'admin',
+  'is-vip': userStore.user?.isVip === true,
+}))
+const systemApiText = computed(() => {
+  if (userStore.canUseSystemApi) {
+    return '可使用系统 API'
+  }
+
+  return '仅使用个人 API'
 })
 
 watch(
@@ -321,7 +354,15 @@ async function handleSubmit() {
   line-height: 1.7;
 }
 
+.hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .access-chip,
+.membership-chip,
 .panel-chip {
   min-height: 36px;
   padding: 0 14px;
@@ -344,6 +385,17 @@ async function handleSubmit() {
 .access-chip.is-blocked {
   color: #b42318;
   background: rgba(180, 35, 24, 0.08);
+}
+
+.membership-chip {
+  color: #6b5c46;
+  background: rgba(245, 238, 225, 0.82);
+}
+
+.membership-chip.is-vip,
+.membership-chip.is-admin {
+  color: #7c2d12;
+  background: rgba(255, 237, 213, 0.9);
 }
 
 .profile-layout {

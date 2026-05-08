@@ -30,6 +30,7 @@
             <span role="columnheader">账号</span>
             <span role="columnheader">状态</span>
             <span role="columnheader">角色</span>
+            <span role="columnheader">VIP</span>
             <span role="columnheader">到期</span>
             <span role="columnheader">操作</span>
           </div>
@@ -56,6 +57,23 @@
                   修改角色
                 </button>
                 <span v-else class="muted-text">当前账号</span>
+              </span>
+            </span>
+            <span role="cell">
+              <span class="role-cell">
+                <span class="vip-chip" :class="{ 'is-vip': user.isVip || user.role === 'admin' }">
+                  {{ vipStatusText(user) }}
+                </span>
+                <button
+                  v-if="user.role !== 'admin'"
+                  class="small-action"
+                  type="button"
+                  :disabled="isBusy"
+                  @click="toggleVip(user)"
+                >
+                  {{ user.isVip ? '取消 VIP' : '设为 VIP' }}
+                </button>
+                <span v-else class="muted-text">系统 API</span>
               </span>
             </span>
             <span role="cell">{{ formatDate(user.accessExpiresAt) }}</span>
@@ -208,6 +226,7 @@ import {
   updateAdminAccessKey,
   updateAdminUserAccess,
   updateAdminUserRole,
+  updateAdminUserVip,
 } from '../services/admin.service'
 import { useUserStore } from '../stores/user'
 import type { AdminAccessKey, AdminUser } from '../types/admin'
@@ -258,6 +277,17 @@ function accessStatusText(status: AdminUser['accessStatus']) {
   }
 
   return '过期'
+}
+
+/**
+ * 管理员天然可用系统 API，VIP 文案单独说明能减少和角色混淆。
+ */
+function vipStatusText(user: AdminUser) {
+  if (user.role === 'admin') {
+    return '管理员'
+  }
+
+  return user.isVip ? 'VIP' : '非 VIP'
 }
 
 /**
@@ -379,6 +409,16 @@ async function confirmRoleChange() {
 }
 
 /**
+ * VIP 只控制系统 API 使用权，不影响登录有效期和管理员权限。
+ */
+async function toggleVip(user: AdminUser) {
+  await runAdminAction(async () => {
+    await updateAdminUserVip(user.id, !user.isVip)
+    successMessage.value = user.isVip ? '已取消 VIP' : '已设为 VIP'
+  })
+}
+
+/**
  * 创建访问密钥，明文只展示一次。
  */
 async function createKey() {
@@ -423,7 +463,7 @@ onMounted(loadAdminData)
 
 <style scoped>
 .admin-page {
-  max-width: 1280px;
+  max-width: 1520px;
   margin: 0 auto;
   padding: 40px 20px 72px;
   display: grid;
@@ -459,6 +499,7 @@ onMounted(loadAdminData)
 }
 
 .admin-panel {
+  min-width: 0;
   padding: 24px;
   border-radius: 8px;
 }
@@ -512,21 +553,25 @@ onMounted(loadAdminData)
   margin-top: 18px;
   display: grid;
   gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .table-row {
+  min-width: 980px;
   min-height: 58px;
   padding: 12px;
   border: 1px solid rgba(30, 30, 30, 0.07);
   border-radius: 8px;
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) 90px 110px 140px minmax(240px, 1.2fr);
+  grid-template-columns: minmax(180px, 1.35fr) 90px 110px 130px 140px minmax(240px, 1.2fr);
   align-items: center;
   gap: 12px;
   background: rgba(255, 255, 255, 0.54);
 }
 
 .key-table .table-row {
+  min-width: 900px;
   grid-template-columns: 70px 90px 80px 80px minmax(150px, 1fr) minmax(130px, 1fr) 140px 90px;
 }
 
@@ -560,6 +605,25 @@ onMounted(loadAdminData)
 .role-label {
   color: #2f352f;
   font-weight: 900;
+}
+
+.vip-chip {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b5c46;
+  background: rgba(245, 238, 225, 0.82);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.vip-chip.is-vip {
+  color: #7c2d12;
+  background: rgba(255, 237, 213, 0.88);
 }
 
 .status-chip {
@@ -714,6 +778,7 @@ onMounted(loadAdminData)
 
   .table-row,
   .key-table .table-row {
+    min-width: 0;
     grid-template-columns: 1fr;
   }
 
@@ -768,8 +833,9 @@ onMounted(loadAdminData)
   .user-table .table-row:not(.table-header) > span:nth-child(1)::before { content: "账号"; }
   .user-table .table-row:not(.table-header) > span:nth-child(2)::before { content: "状态"; }
   .user-table .table-row:not(.table-header) > span:nth-child(3)::before { content: "角色"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(4)::before { content: "到期"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(5)::before { content: "操作"; }
+  .user-table .table-row:not(.table-header) > span:nth-child(4)::before { content: "VIP"; }
+  .user-table .table-row:not(.table-header) > span:nth-child(5)::before { content: "到期"; }
+  .user-table .table-row:not(.table-header) > span:nth-child(6)::before { content: "操作"; }
 
   .key-table .table-row:not(.table-header) > span:nth-child(1)::before { content: "ID"; }
   .key-table .table-row:not(.table-header) > span:nth-child(2)::before { content: "状态"; }

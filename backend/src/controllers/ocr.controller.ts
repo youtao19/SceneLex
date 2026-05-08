@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { extractArticleTextFromImage } from '../services/ocr.service';
 import { readAuthUser } from '../middlewares/auth.middleware';
+import { canUseSystemApi } from '../utils/system-api-access';
 import { ok } from '../utils/response';
 
 /**
@@ -17,7 +18,7 @@ export async function recognizeArticleText(
       req.file,
       req.body.method,
       authUser.id,
-      authUser.role === 'admin',
+      canUseSystemApi(authUser),
     );
     res.json(ok({ text }, 'Article OCR completed'));
   } catch (error) {
