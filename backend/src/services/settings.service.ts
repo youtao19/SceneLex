@@ -85,7 +85,7 @@ function buildApiKeyTestBody(provider: UserApiKeyProvider, model: string) {
       },
     ],
     max_tokens: 8,
-    temperature: 0,
+    temperature: provider === 'kimi' ? 0.6 : 0,
     stream: false,
     ...(provider === 'kimi'
       ? {
