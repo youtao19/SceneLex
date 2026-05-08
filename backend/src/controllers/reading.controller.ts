@@ -19,7 +19,12 @@ export async function lookupReadingWord(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await readingService.lookupWordForUser(authUser.id, req.body.word ?? '', req.body.sentence ?? '')
+    const result = await readingService.lookupWordForUser(
+      authUser.id,
+      req.body.word ?? '',
+      req.body.sentence ?? '',
+      authUser.role === 'admin',
+    )
     return res.json(ok(result, 'Reading word looked up'))
   } catch (error) {
     next(error)
@@ -36,7 +41,11 @@ export async function translateReadingSentence(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await readingService.translateSentenceForUser(authUser.id, req.body.sentence ?? '')
+    const result = await readingService.translateSentenceForUser(
+      authUser.id,
+      req.body.sentence ?? '',
+      authUser.role === 'admin',
+    )
     return res.json(ok(result, 'Reading sentence translated'))
   } catch (error) {
     next(error)
@@ -129,7 +138,12 @@ export async function chatWithAssistant(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await readingService.chat(req.body.content ?? '', req.body.question ?? '', authUser.id)
+    const result = await readingService.chat(
+      req.body.content ?? '',
+      req.body.question ?? '',
+      authUser.id,
+      authUser.role === 'admin',
+    )
     return res.json(ok(result, 'Assistant replied'))
   } catch (error) {
     next(error)

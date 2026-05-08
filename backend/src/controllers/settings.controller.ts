@@ -74,7 +74,7 @@ export async function getUserApiKeySettings(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await settingsService.getUserApiKeySettings(authUser.id)
+    const result = await settingsService.getUserApiKeySettings(authUser.id, authUser.role === 'admin')
 
     return res.json(ok(result, 'User API key settings fetched'))
   } catch (error) {
@@ -96,7 +96,12 @@ export async function updateUserApiKeySettings(
       provider?: unknown
       apiKey?: unknown
     }
-    const result = await settingsService.updateUserApiKey(authUser.id, provider, apiKey)
+    const result = await settingsService.updateUserApiKey(
+      authUser.id,
+      provider,
+      apiKey,
+      authUser.role === 'admin',
+    )
 
     return res.json(ok(result, 'User API key settings updated'))
   } catch (error) {

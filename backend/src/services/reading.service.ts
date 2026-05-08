@@ -121,12 +121,17 @@ export const readingService = {
   /**
    * 用户级入口会优先使用用户自己的云端 API Key。
    */
-  async lookupWordForUser(userId: number, word: string, sentence: string): Promise<ReadingWordLookupResult> {
+  async lookupWordForUser(
+    userId: number,
+    word: string,
+    sentence: string,
+    canUseServerApiKey = false,
+  ): Promise<ReadingWordLookupResult> {
     const cleanWord = normalizeInput(word, 'word', 80)
     const cleanSentence = normalizeInput(sentence, 'sentence', 600)
     const text = await generatePlainWithLocalModel(
       buildWordPrompt(cleanWord, cleanSentence),
-      await settingsService.getUserAiSecrets(userId),
+      await settingsService.getUserAiSecrets(userId, canUseServerApiKey),
     )
 
     return { text }
@@ -145,11 +150,15 @@ export const readingService = {
   /**
    * 用户级翻译沿用同一份模型配置，只替换当前用户的密钥。
    */
-  async translateSentenceForUser(userId: number, sentence: string): Promise<ReadingSentenceTranslateResult> {
+  async translateSentenceForUser(
+    userId: number,
+    sentence: string,
+    canUseServerApiKey = false,
+  ): Promise<ReadingSentenceTranslateResult> {
     const cleanSentence = normalizeInput(sentence, 'sentence', 800)
     const text = await generatePlainWithLocalModel(
       buildSentencePrompt(cleanSentence),
-      await settingsService.getUserAiSecrets(userId),
+      await settingsService.getUserAiSecrets(userId, canUseServerApiKey),
     )
 
     return { text }
@@ -158,12 +167,17 @@ export const readingService = {
   /**
    * 阅读助手对话接口。
    */
-  async chat(content: string, question: string, userId?: number): Promise<{ text: string }> {
+  async chat(
+    content: string,
+    question: string,
+    userId?: number,
+    canUseServerApiKey = true,
+  ): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await generatePlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion),
-      userId ? await settingsService.getUserAiSecrets(userId) : {},
+      userId ? await settingsService.getUserAiSecrets(userId, canUseServerApiKey) : {},
     )
 
     return { text }
@@ -178,12 +192,13 @@ export const readingService = {
     history: Array<{ role: 'user' | 'assistant'; content: string }>,
     questionMode: ChatQuestionMode = 'article',
     userId?: number,
+    canUseServerApiKey = true,
   ): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await generatePlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
-      userId ? await settingsService.getUserAiSecrets(userId) : {},
+      userId ? await settingsService.getUserAiSecrets(userId, canUseServerApiKey) : {},
     )
 
     return { text }
@@ -199,13 +214,14 @@ export const readingService = {
     onDelta: (delta: string) => void | Promise<void>,
     questionMode: ChatQuestionMode = 'article',
     userId?: number,
+    canUseServerApiKey = true,
   ): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await streamPlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
       onDelta,
-      userId ? await settingsService.getUserAiSecrets(userId) : {},
+      userId ? await settingsService.getUserAiSecrets(userId, canUseServerApiKey) : {},
     )
 
     return { text }

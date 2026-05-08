@@ -13,7 +13,12 @@ export async function recognizeArticleText(
 ) {
   try {
     const authUser = readAuthUser(req);
-    const text = await extractArticleTextFromImage(req.file, req.body.method, authUser.id);
+    const text = await extractArticleTextFromImage(
+      req.file,
+      req.body.method,
+      authUser.id,
+      authUser.role === 'admin',
+    );
     res.json(ok({ text }, 'Article OCR completed'));
   } catch (error) {
     next(error);
