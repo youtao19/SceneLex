@@ -8,6 +8,7 @@ import { aiConfig } from './config/ai'
 import { env } from './config/env'
 import { initializeDatabase } from './config/database'
 import { dictionaryService } from './services/dictionary.service'
+import { readVisionOcrProvider } from './services/ocr.service'
 
 async function startServer() {
   await initializeDatabase()
@@ -18,6 +19,7 @@ async function startServer() {
 
     console.log(`server running at http://localhost:${env.port}`)
     console.log(`ai provider: ${aiConfig.provider}, model: ${activeModelConfig.model}`)
+    console.log(`vision ocr provider: ${readVisionOcrProvider()}`)
     console.log(
       `dictionary warmup: ${dictionary.entries} entries from ${dictionary.source} in ${dictionary.durationMs}ms`,
     )
