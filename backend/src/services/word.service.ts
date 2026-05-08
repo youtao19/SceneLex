@@ -462,6 +462,7 @@ export const wordService = {
     forceRegenerate = false,
     requiredMeaningsInput: unknown = [],
     systemBookItemIdInput: unknown = null,
+    userId?: number,
   ): Promise<WordGenerateResult> {
     const cleanWord = normalizeWord(word);
 
@@ -490,7 +491,8 @@ export const wordService = {
     }
 
     const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined, requiredMeanings);
-    const rawText = await generateWithLocalModel(prompt);
+    const userSecrets = userId ? await settingsService.getUserAiSecrets(userId) : {};
+    const rawText = await generateWithLocalModel(prompt, userSecrets);
     let parsed: unknown;
 
     try {

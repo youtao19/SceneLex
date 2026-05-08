@@ -13,4 +13,5 @@ export const env = {
   aiProvider: process.env.AI_PROVIDER ?? 'ollama',
   databaseUrl: process.env.DATABASE_URL ?? '',
   dictionaryJsonPath: process.env.DICTIONARY_JSON_PATH ?? '',
+  userApiKeySecret: process.env.USER_API_KEY_SECRET ?? '',
 };

@@ -1,4 +1,5 @@
 import { generatePlainWithLocalModel, streamPlainWithLocalModel } from './llm.service'
+import { settingsService } from './settings.service'
 import { HttpError } from '../utils/http-error'
 import type {
   ReadingSentenceTranslateResult,
@@ -118,6 +119,20 @@ export const readingService = {
   },
 
   /**
+   * 用户级入口会优先使用用户自己的云端 API Key。
+   */
+  async lookupWordForUser(userId: number, word: string, sentence: string): Promise<ReadingWordLookupResult> {
+    const cleanWord = normalizeInput(word, 'word', 80)
+    const cleanSentence = normalizeInput(sentence, 'sentence', 600)
+    const text = await generatePlainWithLocalModel(
+      buildWordPrompt(cleanWord, cleanSentence),
+      await settingsService.getUserAiSecrets(userId),
+    )
+
+    return { text }
+  },
+
+  /**
    * 整句翻译只处理短句，长文章仍交给前端逐句触发，避免一次请求拖垮本地模型。
    */
   async translateSentence(sentence: string): Promise<ReadingSentenceTranslateResult> {
@@ -128,12 +143,28 @@ export const readingService = {
   },
 
   /**
+   * 用户级翻译沿用同一份模型配置，只替换当前用户的密钥。
+   */
+  async translateSentenceForUser(userId: number, sentence: string): Promise<ReadingSentenceTranslateResult> {
+    const cleanSentence = normalizeInput(sentence, 'sentence', 800)
+    const text = await generatePlainWithLocalModel(
+      buildSentencePrompt(cleanSentence),
+      await settingsService.getUserAiSecrets(userId),
+    )
+
+    return { text }
+  },
+
+  /**
    * 阅读助手对话接口。
    */
-  async chat(content: string, question: string): Promise<{ text: string }> {
+  async chat(content: string, question: string, userId?: number): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
-    const text = await generatePlainWithLocalModel(buildChatPrompt(cleanContent, cleanQuestion))
+    const text = await generatePlainWithLocalModel(
+      buildChatPrompt(cleanContent, cleanQuestion),
+      userId ? await settingsService.getUserAiSecrets(userId) : {},
+    )
 
     return { text }
   },
@@ -146,11 +177,13 @@ export const readingService = {
     question: string,
     history: Array<{ role: 'user' | 'assistant'; content: string }>,
     questionMode: ChatQuestionMode = 'article',
+    userId?: number,
   ): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await generatePlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
+      userId ? await settingsService.getUserAiSecrets(userId) : {},
     )
 
     return { text }
@@ -165,12 +198,14 @@ export const readingService = {
     history: Array<{ role: 'user' | 'assistant'; content: string }>,
     onDelta: (delta: string) => void | Promise<void>,
     questionMode: ChatQuestionMode = 'article',
+    userId?: number,
   ): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await streamPlainWithLocalModel(
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
       onDelta,
+      userId ? await settingsService.getUserAiSecrets(userId) : {},
     )
 
     return { text }

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { extractArticleTextFromImage } from '../services/ocr.service';
+import { readAuthUser } from '../middlewares/auth.middleware';
 import { ok } from '../utils/response';
 
 /**
@@ -11,7 +12,8 @@ export async function recognizeArticleText(
   next: NextFunction,
 ) {
   try {
-    const text = await extractArticleTextFromImage(req.file, req.body.method);
+    const authUser = readAuthUser(req);
+    const text = await extractArticleTextFromImage(req.file, req.body.method, authUser.id);
     res.json(ok({ text }, 'Article OCR completed'));
   } catch (error) {
     next(error);

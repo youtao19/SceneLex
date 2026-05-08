@@ -65,6 +65,46 @@ export async function updateLearningSettings(
 }
 
 /**
+ * 普通用户只能看到自己的 API Key 配置状态，看不到服务器或其他用户的明文。
+ */
+export async function getUserApiKeySettings(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const authUser = readAuthUser(req)
+    const result = await settingsService.getUserApiKeySettings(authUser.id)
+
+    return res.json(ok(result, 'User API key settings fetched'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * 用户保存自己的模型 API Key，后续生成请求会优先使用这份密钥。
+ */
+export async function updateUserApiKeySettings(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const authUser = readAuthUser(req)
+    const { provider, apiKey } = req.body as {
+      provider?: unknown
+      apiKey?: unknown
+    }
+    const result = await settingsService.updateUserApiKey(authUser.id, provider, apiKey)
+
+    return res.json(ok(result, 'User API key settings updated'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * 只允许切换 provider 和 model，连接地址与密钥仍由本机环境管理。
  */
 export async function updateAiModelSettings(
@@ -81,7 +121,7 @@ export async function updateAiModelSettings(
     const cleanModel = model?.trim() ?? ''
 
     if (!isAiProvider(cleanProvider)) {
-      throw new HttpError(400, '模型服务只支持 ollama、omlx 或 deepseek')
+      throw new HttpError(400, '模型服务只支持 ollama、kimi 或 deepseek')
     }
 
     if (!cleanModel) {

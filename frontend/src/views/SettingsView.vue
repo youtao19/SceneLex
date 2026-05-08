@@ -8,7 +8,7 @@
           这里直接控制后端当前进程使用的模型。保存后，新词生成和阅读问答都会走选中的服务与模型名。
         </p>
         <p v-else>
-          这里调整你的复习推送节奏。模型运行配置仅管理员可见。
+          这里配置你自己的模型 API Key 和复习推送节奏。模型服务和模型名由管理员统一选择。
         </p>
       </div>
 
@@ -90,6 +90,76 @@
               </div>
             </div>
           </template>
+        </article>
+
+        <article class="model-panel surface-card" aria-labelledby="api-key-title">
+          <div class="panel-head">
+            <div>
+              <p class="card-label">API KEY</p>
+              <h3 id="api-key-title">个人模型密钥</h3>
+            </div>
+            <span class="state-pill" :class="{ 'is-dirty': hasApiKeyChanges }">
+              {{ hasApiKeyChanges ? '未保存' : '已同步' }}
+            </span>
+          </div>
+
+          <div v-if="apiKeyErrorMessage" class="notice-box is-error">{{ apiKeyErrorMessage }}</div>
+          <div v-if="hasApiKeyChanges" class="notice-box">
+            保存时会先测试这个 API Key，测试通过后才会写入。
+          </div>
+          <div v-if="apiKeySettings?.activeProvider === 'ollama'" class="notice-box">
+            当前系统使用 Ollama，本地服务不需要 API Key。管理员切到 Kimi 或 DeepSeek 后会优先使用你保存的密钥。
+          </div>
+
+          <div class="api-key-form">
+            <div class="provider-grid is-compact" aria-label="API Key 服务">
+              <button
+                v-for="provider in apiKeySettings?.providers ?? []"
+                :key="provider.id"
+                class="provider-tile"
+                :class="{ 'is-active': selectedApiKeyProvider === provider.id }"
+                type="button"
+                @click="chooseApiKeyProvider(provider.id)"
+              >
+                <span class="provider-icon">{{ providerMeta[provider.id].icon }}</span>
+                <span>
+                  <strong>{{ provider.name }}</strong>
+                  <small>{{ describeApiKeyStatus(provider) }}</small>
+                </span>
+              </button>
+            </div>
+
+            <label class="field-block">
+              <span>{{ selectedApiKeyProviderName }} API Key</span>
+              <input
+                v-model.trim="apiKeyInput"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="粘贴你的 API Key；留空保存会清除"
+              />
+            </label>
+
+            <div class="action-row">
+              <button
+                class="peach-button save-button"
+                type="button"
+                :disabled="!canSaveApiKey"
+                @click="saveApiKeySettings"
+              >
+                {{ isSavingApiKey ? '正在测试...' : '保存个人密钥' }}
+              </button>
+              <button
+                class="ghost-button"
+                type="button"
+                :disabled="!selectedApiKeyConfig?.hasUserApiKey || isSavingApiKey"
+                @click="clearApiKeySettings"
+              >
+                清除
+              </button>
+              <p v-if="apiKeySuccessMessage" class="save-result">{{ apiKeySuccessMessage }}</p>
+            </div>
+          </div>
         </article>
 
         <article class="model-panel surface-card" aria-labelledby="learning-title">
@@ -201,26 +271,40 @@ import { computed, onMounted, ref } from 'vue';
 import {
   fetchAiSettings,
   fetchLearningSettings,
+  fetchUserApiKeySettings,
   updateAiSettings,
   updateLearningSettings,
+  updateUserApiKeySettings,
 } from '../services/settings.service';
 import { useUserStore } from '../stores/user';
-import type { AiProvider, AiSettings } from '../types/settings';
+import type {
+  AiProvider,
+  AiSettings,
+  UserApiKeyProvider,
+  UserApiKeyProviderSettings,
+  UserApiKeySettings,
+} from '../types/settings';
 
 const userStore = useUserStore();
 const settings = ref<AiSettings | null>(null);
+const apiKeySettings = ref<UserApiKeySettings | null>(null);
 const selectedProvider = ref<AiProvider>('ollama');
 const selectedModel = ref('');
+const selectedApiKeyProvider = ref<UserApiKeyProvider>('deepseek');
+const apiKeyInput = ref('');
 const savedDailyReviewLimitEnabled = ref(false);
 const dailyReviewLimitEnabled = ref(false);
 const savedDailyReviewLimit = ref(20);
 const dailyReviewLimit = ref(20);
 const isLoading = ref(false);
 const isSaving = ref(false);
+const isSavingApiKey = ref(false);
 const isSavingLearning = ref(false);
 const modelErrorMessage = ref('');
+const apiKeyErrorMessage = ref('');
 const learningErrorMessage = ref('');
 const modelSuccessMessage = ref('');
+const apiKeySuccessMessage = ref('');
 const learningSuccessMessage = ref('');
 const canManageModelSettings = computed(() => userStore.isAdmin);
 
@@ -231,11 +315,11 @@ const providerMeta: Record<AiProvider, { icon: string; tone: string; description
     description: '适合日常本地生成，要求 Ollama 服务在本机启动。',
     presets: ['qwen3.5:4b', 'gemma4:e4b'],
   },
-  omlx: {
-    icon: 'X',
-    tone: '本机 OpenAI 兼容',
-    description: '适合切到 oMLX 桌面服务，密钥由后端从本机配置读取。',
-    presets: ['qwen3:4b', 'Qwen3.5-9B-MLX-4bit', 'gemma-3-12b-it-qat'],
+  kimi: {
+    icon: 'K',
+    tone: 'Kimi 云端 API',
+    description: '适合使用 Kimi 远程模型，后端可用 KIMI_API_KEY 或用户个人密钥。',
+    presets: ['kimi-k2.6', 'kimi-thinking-preview'],
   },
   deepseek: {
     icon: 'D',
@@ -248,12 +332,16 @@ const providerMeta: Record<AiProvider, { icon: string; tone: string; description
 const selectedProviderConfig = computed(() => {
   return settings.value?.providers.find((provider) => provider.id === selectedProvider.value) ?? null;
 });
+const selectedApiKeyConfig = computed(() => {
+  return apiKeySettings.value?.providers.find((provider) => provider.id === selectedApiKeyProvider.value) ?? null;
+});
 const savedProviderConfig = computed(() => {
   return settings.value?.providers.find((provider) => provider.id === settings.value?.provider) ?? null;
 });
 const activeProviderName = computed(() => savedProviderConfig.value?.name ?? '未连接');
 const activeModelName = computed(() => savedProviderConfig.value?.model ?? '等待配置');
 const selectedProviderName = computed(() => selectedProviderConfig.value?.name ?? '未连接');
+const selectedApiKeyProviderName = computed(() => selectedApiKeyConfig.value?.name ?? 'DeepSeek');
 const activePresets = computed(() => providerMeta[selectedProvider.value].presets);
 const activeProviderDescription = computed(() => providerMeta[selectedProvider.value].description);
 const normalizedDailyReviewLimit = computed(() => {
@@ -272,12 +360,18 @@ const hasModelChanges = computed(() => {
 
   return settings.value.provider !== selectedProvider.value || selectedProviderConfig.value?.model !== selectedModel.value;
 });
+const hasApiKeyChanges = computed(() => {
+  return Boolean(apiKeyInput.value.trim());
+});
 const hasLearningChanges = computed(() => {
   return dailyReviewLimitEnabled.value !== savedDailyReviewLimitEnabled.value
     || normalizedDailyReviewLimit.value !== savedDailyReviewLimit.value;
 });
 const canSaveModel = computed(() => {
   return Boolean(settings.value && selectedModel.value.trim() && hasModelChanges.value && !isSaving.value);
+});
+const canSaveApiKey = computed(() => {
+  return Boolean(apiKeySettings.value && hasApiKeyChanges.value && !isSavingApiKey.value);
 });
 const canSaveLearning = computed(() => {
   return Boolean(hasLearningChanges.value && !isSavingLearning.value);
@@ -291,11 +385,27 @@ const keyStatus = computed(() => {
 });
 
 /**
+ * 状态文案只说明使用顺序，避免暗示前端知道密钥明文。
+ */
+function describeApiKeyStatus(provider: UserApiKeyProviderSettings) {
+  if (provider.hasUserApiKey) {
+    return '已保存你的 Key';
+  }
+
+  if (provider.hasServerApiKey) {
+    return '会使用服务器兜底 Key';
+  }
+
+  return '未配置';
+}
+
+/**
  * 普通用户不请求模型配置，避免只靠前端隐藏敏感运行态。
  */
 async function loadSettings() {
   isLoading.value = canManageModelSettings.value;
   modelErrorMessage.value = '';
+  apiKeyErrorMessage.value = '';
   learningErrorMessage.value = '';
 
   const modelRequest = canManageModelSettings.value
@@ -313,6 +423,17 @@ async function loadSettings() {
       })
     : Promise.resolve();
 
+  const apiKeyRequest = fetchUserApiKeySettings()
+    .then((response) => {
+      apiKeySettings.value = response.data;
+      const activeCloudProvider = response.data.providers.find((provider) => provider.id === response.data.activeProvider);
+      selectedApiKeyProvider.value = activeCloudProvider?.id ?? 'deepseek';
+      apiKeyInput.value = '';
+    })
+    .catch((error) => {
+      apiKeyErrorMessage.value = error instanceof Error ? error.message : '读取个人密钥设置失败';
+    });
+
   const learningRequest = fetchLearningSettings()
     .then((learningResponse) => {
       savedDailyReviewLimitEnabled.value = learningResponse.data.dailyReviewLimitEnabled;
@@ -324,7 +445,7 @@ async function loadSettings() {
       learningErrorMessage.value = error instanceof Error ? error.message : '读取复习设置失败';
     });
 
-  await Promise.all([modelRequest, learningRequest]);
+  await Promise.all([modelRequest, apiKeyRequest, learningRequest]);
 }
 
 /**
@@ -334,6 +455,15 @@ function chooseProvider(provider: AiProvider) {
   selectedProvider.value = provider;
   selectedModel.value = settings.value?.providers.find((item) => item.id === provider)?.model ?? '';
   modelSuccessMessage.value = '';
+}
+
+/**
+ * 切换密钥 provider 时不回显旧密钥，避免浏览器缓存里留下明文。
+ */
+function chooseApiKeyProvider(provider: UserApiKeyProvider) {
+  selectedApiKeyProvider.value = provider;
+  apiKeyInput.value = '';
+  apiKeySuccessMessage.value = '';
 }
 
 /**
@@ -370,6 +500,45 @@ async function saveModelSettings() {
   } finally {
     isSaving.value = false;
   }
+}
+
+/**
+ * 保存和清除走同一个接口，避免两套状态更新逻辑分叉。
+ */
+async function saveApiKey(apiKey: string, successMessage: string) {
+  isSavingApiKey.value = true;
+  apiKeyErrorMessage.value = '';
+  apiKeySuccessMessage.value = '';
+
+  try {
+    const response = await updateUserApiKeySettings({
+      provider: selectedApiKeyProvider.value,
+      apiKey,
+    });
+    apiKeySettings.value = response.data;
+    apiKeyInput.value = '';
+    apiKeySuccessMessage.value = successMessage;
+  } catch (error) {
+    apiKeyErrorMessage.value = error instanceof Error ? error.message : '保存个人密钥失败';
+  } finally {
+    isSavingApiKey.value = false;
+  }
+}
+
+async function saveApiKeySettings() {
+  if (!canSaveApiKey.value) {
+    return;
+  }
+
+  await saveApiKey(apiKeyInput.value.trim(), '测试通过，已保存。下一次生成会优先使用你的密钥。');
+}
+
+async function clearApiKeySettings() {
+  if (!selectedApiKeyConfig.value?.hasUserApiKey || isSavingApiKey.value) {
+    return;
+  }
+
+  await saveApiKey('', '已清除，后续会改用服务器兜底密钥或提示未配置。');
 }
 
 /**
@@ -560,6 +729,11 @@ onMounted(loadSettings);
   gap: 12px;
 }
 
+.provider-grid.is-compact {
+  margin-top: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .provider-tile {
   min-height: 108px;
   padding: 16px;
@@ -583,6 +757,7 @@ onMounted(loadSettings);
 
 .provider-tile:focus-visible,
 .save-button:focus-visible,
+.ghost-button:focus-visible,
 .preset-chip:focus-visible {
   outline: 3px solid rgba(22, 101, 52, 0.22);
   outline-offset: 2px;
@@ -619,6 +794,12 @@ onMounted(loadSettings);
 
 .model-form {
   margin-top: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.api-key-form {
+  margin-top: 22px;
   display: grid;
   gap: 16px;
 }
@@ -805,7 +986,24 @@ onMounted(loadSettings);
   border-radius: 8px;
 }
 
-.save-button:disabled {
+.ghost-button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(23, 74, 47, 0.22);
+  border-radius: 8px;
+  color: #174a2f;
+  background: rgba(255, 255, 255, 0.54);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ghost-button:hover {
+  border-color: rgba(23, 74, 47, 0.38);
+  background: rgba(236, 253, 245, 0.7);
+}
+
+.save-button:disabled,
+.ghost-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
@@ -878,6 +1076,10 @@ onMounted(loadSettings);
   }
 
   .provider-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-grid.is-compact {
     grid-template-columns: 1fr;
   }
 
