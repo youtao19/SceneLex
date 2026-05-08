@@ -554,7 +554,7 @@ export async function generatePlainWithKimi(prompt: string, secrets: UserAiSecre
       thinking: {
         type: 'disabled'
       },
-      temperature: 0.3,
+      temperature: 0.6,
       max_tokens: PLAIN_TEXT_MAX_TOKENS,
       stream: false
     }),
@@ -616,7 +616,7 @@ export async function streamPlainWithKimi(
       thinking: {
         type: 'disabled'
       },
-      temperature: 0.3,
+      temperature: 0.6,
       max_tokens: PLAIN_TEXT_MAX_TOKENS,
       stream: true
     }),
