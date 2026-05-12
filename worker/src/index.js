@@ -163,6 +163,12 @@ export default {
       return handleOcr(request, env);
     }
 
+    // Reading
+    if (url.pathname.startsWith('/api/reading')) {
+      const { handleReading } = await import('./reading.js');
+      return handleReading(request, env);
+    }
+
     // Word study (review)
     if (url.pathname.startsWith('/api/word/')) {
       const { handleWordStudy } = await import('./word-study.js');
