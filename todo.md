@@ -29,9 +29,10 @@
 
 目标：证明 Pages 域名下的 `/api/*` 能进入 Worker。
 
-- [x] 新增 Pages Functions 目录 `functions/api/`。
-- [x] 新增 `functions/api/health.ts`。
-- [x] 新增 `functions/api/[[path]].ts`。
+- [x] 新增 Pages Worker 文件 `frontend/public/_worker.js`。
+- [x] 保留 Pages Functions 目录 `functions/api/` 作为后续拆分参考。
+- [x] 保留 `functions/api/health.ts`。
+- [x] 保留 `functions/api/[[path]].ts`。
 - [x] 实现 `GET /api/health`。
 - [x] 其他 `/api/*` 暂时返回 `501 Not migrated`。
 - [ ] 非 `/api/*` 继续由 Pages 静态前端处理。
