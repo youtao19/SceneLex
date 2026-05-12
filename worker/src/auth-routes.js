@@ -1,7 +1,3 @@
-import scrypt from 'scrypt-js';
-import { getSql } from './db.js';
-import { authenticate, authorize, AuthError } from './auth.js';
-
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function json(data, init) {
@@ -56,9 +52,56 @@ function generateToken() {
   return base64url;
 }
 
-function hashPasswordScrypt(password, salt) {
-  const key = scrypt(password, salt, SCryptN, SCryptR, SCryptP, SCryptDkLen);
+/**
+ * 数据库依赖只在真正访问账号数据时加载，避免 /api/auth 模块初始化失败变成 1101。
+ */
+async function getSqlClient(env) {
+  const { getSql } = await import('./db.js');
+  return getSql(env);
+}
+
+/**
+ * 认证依赖同样延迟加载，让 /api/auth/login 这类入口先进入可捕获的错误边界。
+ */
+async function readAuthUser(request, env) {
+  const { authenticate, authorize } = await import('./auth.js');
+  const user = await authenticate(request, env);
+  authorize(user);
+  return user;
+}
+
+/**
+ * Worker 不能用 Node crypto.scrypt，这里用同样的 UTF-8 输入保持和旧后端哈希兼容。
+ */
+async function hashPasswordScrypt(password, salt) {
+  const { default: scryptPackage } = await import('scrypt-js');
+  const encoder = new TextEncoder();
+  const key = await scryptPackage.scrypt(
+    encoder.encode(password),
+    encoder.encode(salt),
+    SCryptN,
+    SCryptR,
+    SCryptP,
+    SCryptDkLen,
+  );
+
   return bytesToHex(key);
+}
+
+/**
+ * 比较密码哈希时不提前返回，减少错误位置通过耗时泄露的可能。
+ */
+function constantTimeHexEqual(left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string') return false;
+
+  let diff = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+
+  for (let index = 0; index < length; index += 1) {
+    diff |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
+  }
+
+  return diff === 0;
 }
 
 // ── Session ──────────────────────────────────────────────────────────
@@ -78,8 +121,7 @@ function clearSessionCookie() {
  * GET /api/auth/me — return the currently authenticated user.
  */
 async function handleMe(request, env) {
-  const user = await authenticate(request, env);
-  authorize(user);
+  const user = await readAuthUser(request, env);
   return json(ok({ user }, 'User info fetched'));
 }
 
@@ -87,8 +129,7 @@ async function handleMe(request, env) {
  * PATCH /api/auth/me — update profile (nickname only).
  */
 async function handleUpdateMe(request, env) {
-  const user = await authenticate(request, env);
-  authorize(user);
+  const user = await readAuthUser(request, env);
 
   const body = await readJsonBody(request);
   const nickname = typeof body.nickname === 'string' ? body.nickname.trim().replace(/\s+/g, ' ') : '';
@@ -96,7 +137,7 @@ async function handleUpdateMe(request, env) {
   if (!nickname) return errorJson(400, '昵称不能为空');
   if (nickname.length > 24) return errorJson(400, '昵称最多 24 个字符');
 
-  const sql = getSql(env);
+  const sql = await getSqlClient(env);
   const rows = await sql`
     UPDATE users
     SET nickname = ${nickname}, updated_at = NOW()
@@ -135,7 +176,7 @@ async function handleLogin(request, env) {
     return errorJson(401, '邮箱或密码错误');
   }
 
-  const sql = getSql(env);
+  const sql = await getSqlClient(env);
 
   const rows = await sql`
     SELECT id, email, nickname, avatar_url, role, is_vip,
@@ -153,8 +194,8 @@ async function handleLogin(request, env) {
   const userRow = rows[0];
 
   // Verify password using scrypt
-  const derivedHex = hashPasswordScrypt(password, userRow.password_salt);
-  if (derivedHex !== userRow.password_hash) {
+  const derivedHex = await hashPasswordScrypt(password, userRow.password_salt);
+  if (!constantTimeHexEqual(derivedHex, userRow.password_hash)) {
     return errorJson(401, '邮箱或密码错误');
   }
 
@@ -213,7 +254,7 @@ async function handleRegister(request, env) {
   if (password.length < 8) return errorJson(400, '密码至少需要 8 位');
   if (!inviteCode) return errorJson(400, '访问密钥不能为空');
 
-  const sql = getSql(env);
+  const sql = await getSqlClient(env);
 
   // Check existing user
   const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
@@ -239,7 +280,7 @@ async function handleRegister(request, env) {
   // Hash password
   const saltBytes = crypto.getRandomValues(new Uint8Array(16));
   const salt = bytesToHex(saltBytes);
-  const passwordHash = hashPasswordScrypt(password, salt);
+  const passwordHash = await hashPasswordScrypt(password, salt);
 
   // Create user
   const accessExpiresAt = new Date();
@@ -301,7 +342,7 @@ async function handleRegister(request, env) {
  */
 async function handleLogout(request, env) {
   try {
-    await authenticate(request, env);
+    await readAuthUser(request, env);
   } catch {
     // Already not logged in — still clear cookie
   }
@@ -319,7 +360,7 @@ async function handleLogout(request, env) {
 
   if (token) {
     const tokenHash = await sha256Hex(token);
-    const sql = getSql(env);
+    const sql = await getSqlClient(env);
     await sql`DELETE FROM user_sessions WHERE token_hash = ${tokenHash}`;
   }
 
@@ -341,27 +382,27 @@ export async function handleAuth(request, env) {
     const method = request.method;
 
     if (path === '/me') {
-      if (method === 'GET') return handleMe(request, env);
-      if (method === 'PATCH') return handleUpdateMe(request, env);
+      if (method === 'GET') return await handleMe(request, env);
+      if (method === 'PATCH') return await handleUpdateMe(request, env);
     }
 
     if (path === '/login' && method === 'POST') {
-      return handleLogin(request, env);
+      return await handleLogin(request, env);
     }
 
     if (path === '/register' && method === 'POST') {
-      return handleRegister(request, env);
+      return await handleRegister(request, env);
     }
 
     if (path === '/logout' && method === 'POST') {
-      return handleLogout(request, env);
+      return await handleLogout(request, env);
     }
 
     return errorJson(404, '路由不存在');
   } catch (error) {
     console.error(error);
-    if (error instanceof AuthError) return errorJson(error.statusCode, error.message);
     if (error instanceof HttpError) return errorJson(error.statusCode, error.message);
+    if (error?.statusCode) return errorJson(error.statusCode, error.message);
     return errorJson(500, error.message || '操作失败');
   }
 }
