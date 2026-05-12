@@ -13,6 +13,8 @@ export interface AiProviderSettings {
 export interface AiSettings {
   provider: AiProvider;
   providers: AiProviderSettings[];
+  readOnly?: boolean;
+  source?: string;
 }
 
 export interface UpdateAiSettingsPayload {

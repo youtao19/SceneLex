@@ -28,10 +28,69 @@ class HttpError extends Error {
 }
 
 const userApiKeyProviders = ['kimi', 'deepseek'];
+const aiProviders = ['kimi', 'deepseek'];
 const providerNames = { kimi: 'Kimi', deepseek: 'DeepSeek' };
 
 function isUserApiKeyProvider(value) {
   return value === 'kimi' || value === 'deepseek';
+}
+
+function isAiProvider(value) {
+  return value === 'kimi' || value === 'deepseek';
+}
+
+/**
+ * Worker 只能可靠读取部署环境变量，不能像本地 Express 一样持久改进程内配置。
+ */
+function readAiSettings(env) {
+  const activeProvider = isAiProvider((env.AI_PROVIDER || '').trim())
+    ? env.AI_PROVIDER.trim()
+    : 'kimi';
+
+  const providers = aiProviders.map((provider) => {
+    const isKimi = provider === 'kimi';
+    return {
+      id: provider,
+      name: providerNames[provider],
+      model: isKimi
+        ? (env.KIMI_MODEL || 'kimi-k2.6')
+        : (env.DEEPSEEK_MODEL || 'deepseek-v4-flash'),
+      baseURL: isKimi
+        ? (env.KIMI_BASE_URL || 'https://api.moonshot.cn/v1')
+        : (env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'),
+      timeout: Number(isKimi
+        ? (env.KIMI_TIMEOUT || env.OLLAMA_TIMEOUT || 60000)
+        : (env.DEEPSEEK_TIMEOUT || 60000)),
+      hasApiKey: Boolean(isKimi
+        ? (env.KIMI_API_KEY || env.MOONSHOT_API_KEY)
+        : env.DEEPSEEK_API_KEY),
+    };
+  });
+
+  return {
+    provider: activeProvider,
+    providers,
+    readOnly: true,
+    source: 'Cloudflare 环境变量',
+  };
+}
+
+/**
+ * Cloudflare 上模型切换必须通过环境变量发布，避免返回一个不会真实生效的保存结果。
+ */
+function handleUpdateAiSettings(body) {
+  const provider = typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '';
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+
+  if (!isAiProvider(provider)) {
+    return errorJson(400, 'Cloudflare 部署只支持 kimi 或 deepseek');
+  }
+
+  if (!model) {
+    return errorJson(400, '模型名称不能为空');
+  }
+
+  return errorJson(409, 'Cloudflare Worker 的模型配置请在环境变量中修改后重新部署');
 }
 
 // ── API key verification ─────────────────────────────────────────────
@@ -200,6 +259,12 @@ export async function handleSettings(request, env) {
     const path = url.pathname.replace('/api/settings', '');
     const method = request.method;
     const canUseServerApiKey = user.role === 'admin' || user.isVip;
+
+    if (path === '/ai') {
+      if (user.role !== 'admin') return errorJson(403, '需要管理员权限');
+      if (method === 'GET') return json(ok(readAiSettings(env), 'AI settings fetched'));
+      if (method === 'PATCH') return handleUpdateAiSettings(await readJsonBody(request));
+    }
 
     if (path === '/learning') {
       if (method === 'GET') return handleGetLearning(sql, user.id);
