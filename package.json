@@ -21,6 +21,7 @@
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
+    "build:pages": "npm run build:frontend",
     "start:prod": "node backend/dist/server.js",
     "start:tunnel": "sh ./scripts/start-tunnel.sh",
     "dict:download": "npm --prefix backend run dict:download",
