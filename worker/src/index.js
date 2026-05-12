@@ -1,13 +1,3 @@
-import { getSql } from './db.js';
-import { authenticate, authorize, AuthError } from './auth.js';
-import { handleWordGenerate } from './generate.js';
-import { handleHistory } from './history.js';
-import { handleSystemWordBooks } from './system-word-books.js';
-import { handleWordBooks } from './word-books.js';
-import { handleSettings } from './settings.js';
-import { handleWordStudy } from './word-study.js';
-import { handleAuth } from './auth-routes.js';
-
 function json(data, init) {
   return Response.json(data, init);
 }
@@ -21,6 +11,7 @@ function errorJson(statusCode, message) {
 }
 
 async function handleDatabaseHealth(env) {
+  const { getSql } = await import('./db.js');
   const rows = await getSql(env)`SELECT 1 AS ok`;
 
   return json({
@@ -58,12 +49,17 @@ async function readJsonBody(request) {
 }
 
 async function handleWordLookup(request, env) {
+  const { getSql } = await import('./db.js');
+  const { authenticate, authorize } = await import('./auth.js');
   const body = await readJsonBody(request);
   const word = normalizeWord(body.word);
 
   if (!word) {
     return json({ message: 'word 不能为空' }, { status: 400 });
   }
+
+  const user = await authenticate(request, env);
+  authorize(user);
 
   const rows = await getSql(env)`
     SELECT word, phonetic, meanings
@@ -121,12 +117,10 @@ export default {
     // Words (specific paths first)
     if (url.pathname === '/api/words/lookup' && request.method === 'POST') {
       try {
-        const user = await authenticate(request, env);
-        authorize(user);
         return await handleWordLookup(request, env);
       } catch (error) {
         console.error(error);
-        if (error instanceof AuthError) return errorJson(error.statusCode, error.message);
+        if (error?.statusCode) return errorJson(error.statusCode, error.message);
         return json(
           { success: false, message: error instanceof Error ? error.message : 'Word lookup failed' },
           { status: 500 },
@@ -135,36 +129,43 @@ export default {
     }
 
     if (url.pathname === '/api/words/generate' && request.method === 'POST') {
+      const { handleWordGenerate } = await import('./generate.js');
       return handleWordGenerate(request, env);
     }
 
     // History
     if (url.pathname === '/api/history' && request.method === 'GET') {
+      const { handleHistory } = await import('./history.js');
       return handleHistory(request, env);
     }
 
     // System word books
     if (url.pathname.startsWith('/api/system-word-books')) {
+      const { handleSystemWordBooks } = await import('./system-word-books.js');
       return handleSystemWordBooks(request, env);
     }
 
     // Word books (must be before /api/word/*)
     if (url.pathname.startsWith('/api/word-books')) {
+      const { handleWordBooks } = await import('./word-books.js');
       return handleWordBooks(request, env);
     }
 
     // Settings
     if (url.pathname.startsWith('/api/settings')) {
+      const { handleSettings } = await import('./settings.js');
       return handleSettings(request, env);
     }
 
     // Word study (review)
     if (url.pathname.startsWith('/api/word/')) {
+      const { handleWordStudy } = await import('./word-study.js');
       return handleWordStudy(request, env);
     }
 
     // Auth
     if (url.pathname.startsWith('/api/auth')) {
+      const { handleAuth } = await import('./auth-routes.js');
       return handleAuth(request, env);
     }
 
