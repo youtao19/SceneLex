@@ -1,15 +1,16 @@
 import postgres from 'postgres';
 
-let sql;
-
+/**
+ * Cloudflare Worker 不能跨请求复用 socket-backed client，否则会触发 different request I/O。
+ */
 export function getSql(env) {
   if (!env.HYPERDRIVE?.connectionString) {
     throw new Error('HYPERDRIVE binding is not configured');
   }
 
-  if (!sql) {
-    sql = postgres(env.HYPERDRIVE.connectionString, { prepare: false });
-  }
-
-  return sql;
+  return postgres(env.HYPERDRIVE.connectionString, {
+    prepare: false,
+    max: 1,
+    idle_timeout: 1,
+  });
 }
