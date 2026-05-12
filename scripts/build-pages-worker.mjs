@@ -13,6 +13,7 @@ await build({
   bundle: true,
   format: 'esm',
   platform: 'node',
+  conditions: ['workerd'],
   target: 'es2022',
   minify: true,
 });
