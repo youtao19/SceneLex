@@ -85,15 +85,13 @@ Hyperdrive binding name: HYPERDRIVE
 - [ ] 执行 `curl https://你的域名/api/health/db`。
 - [ ] 确认返回数据库连通结果。
 
-## 阶段 4：Worker 增加旧 Express fallback proxy
+## 阶段 4：跳过旧 Express fallback proxy
 
-目标：Worker 成为 `/api/*` 入口，但未迁移接口继续转发到旧 Express。
+目标：Worker 成为 `/api/*` 入口，但生产不再依赖本机 Express；未迁移接口先明确返回 `501`。
 
-- [ ] 给 Worker 增加环境变量 `LEGACY_API_ORIGIN`。
-- [ ] 将未迁移的 `/api/*` 请求代理到 `${LEGACY_API_ORIGIN}/api/*`。
-- [ ] 代理时保留 method、headers、body、cookie。
-- [ ] 已迁移接口优先由 Worker 处理，不再转发。
-- [ ] 代理失败时返回清晰错误，不吞掉旧后端错误内容。
+- [x] 跳过旧 Express fallback proxy，避免生产依赖本机服务。
+- [x] 未迁移的 `/api/*` 继续返回 `501`。
+- [x] 已迁移接口优先由 Worker 处理。
 
 路由策略：
 
@@ -119,11 +117,11 @@ Hyperdrive binding name: HYPERDRIVE
 
 原因：这个接口只查词库释义，不触发模型生成，适合作为第一个业务接口。
 
-- [ ] 复用当前响应格式。
-- [ ] 校验请求体中的 `word`。
-- [ ] 将词库查询逻辑迁到 Worker 数据库访问层。
-- [ ] 保持前端无需改动。
-- [ ] Worker 命中 `/api/words/lookup` 时不再代理到 Express。
+- [x] 复用当前响应格式。
+- [x] 校验请求体中的 `word`。
+- [x] 将词库查询逻辑迁到 Worker 数据库访问层。
+- [x] 保持前端无需改动。
+- [x] Worker 命中 `/api/words/lookup` 时不再代理到 Express。
 
 验证：
 
