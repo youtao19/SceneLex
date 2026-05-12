@@ -1,5 +1,6 @@
 import { getSql } from './db.js';
 import { authenticate, authorize, AuthError } from './auth.js';
+import { handleWordGenerate } from './generate.js';
 
 function json(data, init) {
   return Response.json(data, init);
@@ -155,6 +156,10 @@ async function handleApiRequest(request, env, url) {
         { status: 500 },
       );
     }
+  }
+
+  if (url.pathname === '/api/words/generate' && request.method === 'POST') {
+    return handleWordGenerate(request, env);
   }
 
   return json(

@@ -148,11 +148,11 @@ Hyperdrive binding name: HYPERDRIVE
 
 原因：这个接口会调用 LLM，是否能迁到 Worker 取决于生产模型来源。
 
-- [ ] 如果生产只用 Kimi / DeepSeek 这类 HTTP API，可以迁到 Worker。
-- [ ] 如果还要用 Ollama / oMLX 本地模型，先继续代理旧 Express。
-- [ ] 如果后续要迁本地模型，先把本地模型封装成 Worker 可访问的公网或内网服务。
-- [ ] 保留现有模型限流和并发控制语义。
-- [ ] 保持保存预览和系统词书预览行为不变。
+- [x] 如果生产只用 Kimi / DeepSeek 这类 HTTP API，可以迁到 Worker。
+- [x] 如果还要用 Ollama / oMLX 本地模型，先继续代理旧 Express。
+- [x] 如果后续要迁本地模型，先把本地模型封装成 Worker 可访问的公网或内网服务。
+- [x] 保留现有模型限流和并发控制语义。
+- [x] 保持保存预览和系统词书预览行为不变。
 
 验证：
 
