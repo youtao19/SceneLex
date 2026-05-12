@@ -97,10 +97,8 @@ async function readUserKimiKey(sql, userId, secret) {
   try {
     return await decryptApiKey(encrypted, secret);
   } catch {
-    throw new HttpError(
-      400,
-      '个人 Kimi 密钥无法解密。请在"更多 -> 个人模型密钥"里清除并重新保存。',
-    );
+    console.warn('User Kimi API key cannot be decrypted; skipping personal key.');
+    return '';
   }
 }
 

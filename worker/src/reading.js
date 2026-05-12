@@ -142,8 +142,12 @@ async function readUserAiSecrets(sql, userId, canUseServerApiKey, secret) {
 
   const keys = {};
   for (const row of rows) {
-    const decrypted = await decryptApiKey(row.api_key_ciphertext, secret);
-    if (decrypted) keys[row.provider] = decrypted;
+    try {
+      const decrypted = await decryptApiKey(row.api_key_ciphertext, secret);
+      if (decrypted) keys[row.provider] = decrypted;
+    } catch {
+      console.warn(`User ${row.provider} API key cannot be decrypted; skipping personal key.`);
+    }
   }
 
   return { ...keys, allowServerApiKey: canUseServerApiKey };
