@@ -1,28 +1,22 @@
 import { getSql } from './db.js';
 import { authenticate, authorize, AuthError } from './auth.js';
 import { handleWordGenerate } from './generate.js';
+import { handleHistory } from './history.js';
+import { handleSystemWordBooks } from './system-word-books.js';
+import { handleWordBooks } from './word-books.js';
+import { handleSettings } from './settings.js';
+import { handleWordStudy } from './word-study.js';
 
 function json(data, init) {
   return Response.json(data, init);
 }
 
 function ok(data, message = 'ok') {
-  return {
-    code: 0,
-    message,
-    data,
-  };
+  return { code: 0, message, data };
 }
 
 function errorJson(statusCode, message) {
-  return json(
-    {
-      code: statusCode,
-      message,
-      data: null,
-    },
-    { status: statusCode },
-  );
+  return json({ code: statusCode, message, data: null }, { status: statusCode });
 }
 
 async function handleDatabaseHealth(env) {
@@ -31,9 +25,7 @@ async function handleDatabaseHealth(env) {
   return json({
     success: true,
     message: 'database is reachable',
-    data: {
-      ok: rows[0]?.ok === 1,
-    },
+    data: { ok: rows[0]?.ok === 1 },
   });
 }
 
@@ -42,22 +34,14 @@ function normalizeWord(word) {
 }
 
 function normalizeMeanings(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+  if (!Array.isArray(value)) return [];
 
   return value
     .map((item, index) => {
-      if (!item || typeof item !== 'object') {
-        return null;
-      }
+      if (!item || typeof item !== 'object') return null;
 
-      const partOfSpeech = typeof item.partOfSpeech === 'string'
-        ? item.partOfSpeech.trim()
-        : '';
-      const meaning = typeof item.meaning === 'string'
-        ? item.meaning.trim()
-        : '';
+      const partOfSpeech = typeof item.partOfSpeech === 'string' ? item.partOfSpeech.trim() : '';
+      const meaning = typeof item.meaning === 'string' ? item.meaning.trim() : '';
 
       return partOfSpeech && meaning
         ? { partOfSpeech, meaning, priority: index + 1 }
@@ -65,18 +49,11 @@ function normalizeMeanings(value) {
     })
     .filter(Boolean)
     .slice(0, 6)
-    .map((meaning, index) => ({
-      ...meaning,
-      priority: index + 1,
-    }));
+    .map((meaning, index) => ({ ...meaning, priority: index + 1 }));
 }
 
 async function readJsonBody(request) {
-  try {
-    return await request.json();
-  } catch {
-    return {};
-  }
+  try { return await request.json(); } catch { return {}; }
 }
 
 async function handleWordLookup(request, env) {
@@ -88,10 +65,7 @@ async function handleWordLookup(request, env) {
   }
 
   const rows = await getSql(env)`
-    SELECT
-      word,
-      phonetic,
-      meanings
+    SELECT word, phonetic, meanings
     FROM dictionary_entries
     WHERE word = ${word}
   `;
@@ -114,68 +88,83 @@ async function handleWordLookup(request, env) {
   }, 'Word meanings fetched'));
 }
 
-async function handleApiRequest(request, env, url) {
-  if (url.pathname === '/api/health') {
-    return json({
-      success: true,
-      message: 'worker is running',
-      data: {
-        service: 'scenelex-worker',
-      },
-    });
-  }
-
-  if (url.pathname === '/api/health/db') {
-    try {
-      return await handleDatabaseHealth(env);
-    } catch (error) {
-      console.error(error);
-      return json(
-        {
-          success: false,
-          message: error instanceof Error ? error.message : 'Database health check failed',
-        },
-        { status: 500 },
-      );
-    }
-  }
-
-  if (url.pathname === '/api/words/lookup' && request.method === 'POST') {
-    try {
-      const user = await authenticate(request, env);
-      authorize(user);
-
-      return await handleWordLookup(request, env);
-    } catch (error) {
-      console.error(error);
-      if (error instanceof AuthError) {
-        return errorJson(error.statusCode, error.message);
-      }
-      return json(
-        { success: false, message: error instanceof Error ? error.message : 'Word lookup failed' },
-        { status: 500 },
-      );
-    }
-  }
-
-  if (url.pathname === '/api/words/generate' && request.method === 'POST') {
-    return handleWordGenerate(request, env);
-  }
-
-  return json(
-    { success: false, message: 'API route not migrated to Cloudflare Worker yet' },
-    { status: 501 },
-  );
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname.startsWith('/api/')) {
-      return handleApiRequest(request, env, url);
+    if (!url.pathname.startsWith('/api/')) {
+      return env.ASSETS.fetch(request);
     }
 
-    return env.ASSETS.fetch(request);
+    // Health (no auth)
+    if (url.pathname === '/api/health') {
+      return json({
+        success: true,
+        message: 'worker is running',
+        data: { service: 'scenelex-worker' },
+      });
+    }
+
+    if (url.pathname === '/api/health/db') {
+      try {
+        return await handleDatabaseHealth(env);
+      } catch (error) {
+        console.error(error);
+        return json(
+          { success: false, message: error instanceof Error ? error.message : 'Database health check failed' },
+          { status: 500 },
+        );
+      }
+    }
+
+    // Words (specific paths first)
+    if (url.pathname === '/api/words/lookup' && request.method === 'POST') {
+      try {
+        const user = await authenticate(request, env);
+        authorize(user);
+        return await handleWordLookup(request, env);
+      } catch (error) {
+        console.error(error);
+        if (error instanceof AuthError) return errorJson(error.statusCode, error.message);
+        return json(
+          { success: false, message: error instanceof Error ? error.message : 'Word lookup failed' },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (url.pathname === '/api/words/generate' && request.method === 'POST') {
+      return handleWordGenerate(request, env);
+    }
+
+    // History
+    if (url.pathname === '/api/history' && request.method === 'GET') {
+      return handleHistory(request, env);
+    }
+
+    // System word books
+    if (url.pathname.startsWith('/api/system-word-books')) {
+      return handleSystemWordBooks(request, env);
+    }
+
+    // Word books (must be before /api/word/*)
+    if (url.pathname.startsWith('/api/word-books')) {
+      return handleWordBooks(request, env);
+    }
+
+    // Settings
+    if (url.pathname.startsWith('/api/settings')) {
+      return handleSettings(request, env);
+    }
+
+    // Word study (review)
+    if (url.pathname.startsWith('/api/word/')) {
+      return handleWordStudy(request, env);
+    }
+
+    return json(
+      { success: false, message: 'API route not migrated to Cloudflare Worker yet' },
+      { status: 501 },
+    );
   },
 };
