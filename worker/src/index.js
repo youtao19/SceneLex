@@ -6,6 +6,7 @@ import { handleSystemWordBooks } from './system-word-books.js';
 import { handleWordBooks } from './word-books.js';
 import { handleSettings } from './settings.js';
 import { handleWordStudy } from './word-study.js';
+import { handleAuth } from './auth-routes.js';
 
 function json(data, init) {
   return Response.json(data, init);
@@ -160,6 +161,23 @@ export default {
     // Word study (review)
     if (url.pathname.startsWith('/api/word/')) {
       return handleWordStudy(request, env);
+    }
+
+    // Auth
+    if (url.pathname.startsWith('/api/auth')) {
+      return handleAuth(request, env);
+    }
+
+    // Proxy unmigrated routes to old Express
+    const expressOrigin = env.EXPRESS_ORIGIN;
+    if (expressOrigin) {
+      const proxyUrl = `${expressOrigin}${url.pathname}${url.search}`;
+      return fetch(proxyUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+        redirect: 'manual',
+      });
     }
 
     return json(

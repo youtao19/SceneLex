@@ -166,7 +166,7 @@ Hyperdrive binding name: HYPERDRIVE
 建议迁移顺序：
 
 - [x] `/api/words/lookup`
-- [ ] `/api/auth/session` 和登录态读取类接口
+- [x] `/api/auth/session` 和登录态读取类接口
 - [x] `/api/settings`
 - [x] `/api/word-books`
 - [x] `/api/history`
