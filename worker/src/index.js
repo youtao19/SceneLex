@@ -1,6 +1,5 @@
-import postgres from 'postgres';
-
-let sql;
+import { getSql } from './db.js';
+import { authenticate, authorize, AuthError } from './auth.js';
 
 function json(data, init) {
   return Response.json(data, init);
@@ -14,18 +13,15 @@ function ok(data, message = 'ok') {
   };
 }
 
-function getSql(env) {
-  if (!env.HYPERDRIVE?.connectionString) {
-    throw new Error('HYPERDRIVE binding is not configured');
-  }
-
-  if (!sql) {
-    // Hyperdrive provides the connection string at runtime; prepared statements
-    // are disabled to keep the first Supabase health check driver-neutral.
-    sql = postgres(env.HYPERDRIVE.connectionString, { prepare: false });
-  }
-
-  return sql;
+function errorJson(statusCode, message) {
+  return json(
+    {
+      code: statusCode,
+      message,
+      data: null,
+    },
+    { status: statusCode },
+  );
 }
 
 async function handleDatabaseHealth(env) {
@@ -138,38 +134,32 @@ async function handleApiRequest(request, env, url) {
           success: false,
           message: error instanceof Error ? error.message : 'Database health check failed',
         },
-        {
-          status: 500,
-        },
+        { status: 500 },
       );
     }
   }
 
   if (url.pathname === '/api/words/lookup' && request.method === 'POST') {
     try {
+      const user = await authenticate(request, env);
+      authorize(user);
+
       return await handleWordLookup(request, env);
     } catch (error) {
       console.error(error);
+      if (error instanceof AuthError) {
+        return errorJson(error.statusCode, error.message);
+      }
       return json(
-        {
-          success: false,
-          message: error instanceof Error ? error.message : 'Word lookup failed',
-        },
-        {
-          status: 500,
-        },
+        { success: false, message: error instanceof Error ? error.message : 'Word lookup failed' },
+        { status: 500 },
       );
     }
   }
 
   return json(
-    {
-      success: false,
-      message: 'API route not migrated to Cloudflare Worker yet',
-    },
-    {
-      status: 501,
-    },
+    { success: false, message: 'API route not migrated to Cloudflare Worker yet' },
+    { status: 501 },
   );
 }
 

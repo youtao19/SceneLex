@@ -133,16 +133,16 @@ Hyperdrive binding name: HYPERDRIVE
 
 原因：现有 `/api/words` 依赖 `authMiddleware` 和 `accessMiddleware`，生成接口迁移前必须先兼容登录态。
 
-- [ ] 梳理当前 cookie/session/token 格式。
-- [ ] 在 Worker 中实现最小可用的登录态读取。
-- [ ] 在 Worker 中实现访问权限校验。
-- [ ] 保持错误响应和 Express 尽量一致。
+- [x] 梳理当前 cookie/session/token 格式。
+- [x] 在 Worker 中实现最小可用的登录态读取。
+- [x] 在 Worker 中实现访问权限校验。
+- [x] 保持错误响应和 Express 尽量一致。
 
 验证：
 
-- [ ] 未登录访问受保护接口返回登录错误。
-- [ ] 已登录用户能正常访问受保护接口。
-- [ ] 访问权限不足时返回明确错误。
+- [x] 未登录访问受保护接口返回登录错误。
+- [x] 已登录用户能正常访问受保护接口。
+- [x] 访问权限不足时返回明确错误。
 
 ### 5.3 评估并迁移 `/api/words/generate`
 
