@@ -263,3 +263,41 @@ export async function updateReviewSchedule(
 
   return mapWordRow(result.rows[0]);
 }
+
+export async function restoreReviewSchedule(
+  userId: number,
+  id: number,
+  interval: number,
+  ease: number,
+  nextReview: string,
+  reviewCount: number,
+): Promise<StoredWord> {
+  const result = await query<WordRow>(
+    `
+      UPDATE words
+      SET
+        interval = $3,
+        ease = $4,
+        next_review = $5::date,
+        review_count = $6,
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND id = $2
+      RETURNING
+        id,
+        word,
+        phonetic,
+        primary_meaning,
+        meanings,
+        ease,
+        interval,
+        next_review,
+        review_count,
+        created_at,
+        updated_at
+    `,
+    [userId, id, interval, ease, nextReview, reviewCount],
+  );
+
+  return mapWordRow(result.rows[0]);
+}

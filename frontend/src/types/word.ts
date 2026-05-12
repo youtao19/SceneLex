@@ -45,3 +45,11 @@ export interface StoredWord {
 }
 
 export type ReviewRating = 'again' | 'hard' | 'good' | 'easy'
+
+export interface ReviewRollbackPayload {
+  wordId: number
+  ease: number
+  interval: number
+  nextReview: string
+  reviewCount: number
+}

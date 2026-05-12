@@ -239,8 +239,20 @@ export const settingsService = {
    * 模型调用只需要当前用户可解密的密钥，调用方不关心它来自数据库还是环境。
    */
   async getUserAiSecrets(userId: number, canUseServerApiKey = false) {
+    let userKeys: Awaited<ReturnType<typeof readUserApiKeys>>
+
+    try {
+      userKeys = await readUserApiKeys(userId)
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('unable to authenticate data')) {
+        throw new HttpError(400, '个人模型密钥无法解密。请在“更多 -> 个人模型密钥”里清除并重新保存，或让本地和 VPS 使用同一个 USER_API_KEY_SECRET。')
+      }
+
+      throw error
+    }
+
     return {
-      ...(await readUserApiKeys(userId)),
+      ...userKeys,
       allowServerApiKey: canUseServerApiKey,
     }
   },
