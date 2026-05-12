@@ -29,14 +29,12 @@
 
 目标：证明 Pages 域名下的 `/api/*` 能进入 Worker。
 
-- [x] 新增 Pages Worker 文件 `frontend/public/_worker.js`。
-- [x] 保留 Pages Functions 目录 `functions/api/` 作为后续拆分参考。
-- [x] 保留 `functions/api/health.ts`。
-- [x] 保留 `functions/api/[[path]].ts`。
+- [x] 新增 Pages Worker 源码 `worker/src/index.js`。
+- [x] 新增构建脚本 `scripts/build-pages-worker.mjs`，将 Worker 打包到 `frontend/dist/_worker.js`。
 - [x] 实现 `GET /api/health`。
 - [x] 其他 `/api/*` 暂时返回 `501 Not migrated`。
-- [ ] 非 `/api/*` 继续由 Pages 静态前端处理。
-- [ ] 重新部署 Pages，让 `scenelex.pages.dev/api/*` 进入 Functions。
+- [x] 非 `/api/*` 继续由 Pages 静态前端处理。
+- [x] 重新部署 Pages，让 `scenelex.pages.dev/api/*` 进入 Worker。
 
 建议响应格式：
 
@@ -52,33 +50,28 @@
 
 验证：
 
-- [ ] 执行 `curl https://你的域名/api/health`。
-- [ ] 确认返回 JSON。
-- [ ] 确认旧 Express 仍能独立访问，方便回滚。
+- [x] 执行 `curl https://scenelex.pages.dev/api/health`。
+- [x] 确认返回 JSON。
+- [x] 确认未迁移 API 返回 `501`，方便后续接入 Express fallback 或逐步迁移。
 
 ## 阶段 3：Worker 通过 Hyperdrive 连接 Supabase
 
 目标：Worker 能访问 Supabase Postgres，但还不迁业务接口。
 
 - [ ] 在 Cloudflare 创建 Hyperdrive 配置，连接 Supabase Postgres。
-- [ ] 在 `worker/wrangler.toml` 添加 `nodejs_compat`。
-- [ ] 在 `worker/wrangler.toml` 添加 Hyperdrive binding。
-- [ ] 安装 Worker 数据库依赖：`npm --prefix worker install postgres`。
-- [ ] 在 Worker 中通过 `env.HYPERDRIVE.connectionString` 创建数据库客户端。
-- [ ] 新增 `GET /api/health/db`。
-- [ ] `GET /api/health/db` 只执行 `SELECT 1 AS ok`。
+- [ ] 在 Pages 项目里启用 `nodejs_compat`。
+- [ ] 在 Pages 项目里添加 Hyperdrive binding：`HYPERDRIVE`。
+- [x] 安装 Worker 数据库依赖：`postgres`。
+- [x] 在 Worker 中通过 `env.HYPERDRIVE.connectionString` 创建数据库客户端。
+- [x] 新增 `GET /api/health/db`。
+- [x] `GET /api/health/db` 只执行 `SELECT 1 AS ok`。
 
-`wrangler.toml` 目标形态：
+Cloudflare Pages 项目配置目标：
 
-```toml
-name = "scenelex-api"
-main = "src/index.ts"
-compatibility_date = "2026-05-12"
-compatibility_flags = ["nodejs_compat"]
-
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "你的-hyperdrive-id"
+```text
+Compatibility date: 2026-05-12 或 Cloudflare 当前推荐日期
+Compatibility flags: nodejs_compat
+Hyperdrive binding name: HYPERDRIVE
 ```
 
 注意：
