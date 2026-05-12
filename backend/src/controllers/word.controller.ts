@@ -3,7 +3,7 @@ import { readAuthUser } from '../middlewares/auth.middleware'
 import { wordService } from '../services/word.service'
 import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
-import type { ReviewRating, WordMeaningItem, WordRequiredMeaning } from '../types/word'
+import type { ReviewRating, ReviewRollbackPayload, WordMeaningItem, WordRequiredMeaning } from '../types/word'
 
 /**
  * 轻量查词只返回词库释义，不触发模型生成场景。
@@ -120,6 +120,26 @@ export async function reviewWord(
       rating as ReviewRating
     )
     return res.json(ok(result, 'Word review updated'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * 用户看完答案发现选错时，恢复评分前的 SRS 字段以便重新选择。
+ */
+export async function rollbackReviewWord(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const authUser = readAuthUser(req)
+    const result = await wordService.rollbackReviewWord(
+      authUser.id,
+      req.body as ReviewRollbackPayload
+    )
+    return res.json(ok(result, 'Word review rolled back'))
   } catch (error) {
     next(error)
   }

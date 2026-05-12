@@ -2,6 +2,7 @@ import { get, post } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   ReviewRating,
+  ReviewRollbackPayload,
   StoredWord,
   WordGenerateData,
   WordLookupData,
@@ -42,4 +43,8 @@ export async function getTodayWords() {
 
 export async function reviewWord(wordId: number, rating: ReviewRating) {
   return post<ApiResponse<StoredWord>>('/word/review', { wordId, rating })
+}
+
+export async function rollbackReviewWord(payload: ReviewRollbackPayload) {
+  return post<ApiResponse<StoredWord>>('/word/review/rollback', payload)
 }

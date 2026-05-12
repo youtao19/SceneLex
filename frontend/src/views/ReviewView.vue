@@ -104,7 +104,7 @@
               </div>
 
               <div class="action-cell" role="cell">
-                <template v-if="!isWordRevealed(item.id)">
+                <template v-if="!isWordRevealed(item.id) || !hasReviewResult(item.id)">
                   <button
                     class="forget-btn"
                     type="button"
@@ -143,6 +143,14 @@
                     {{ getReviewResultLabel(item.id) }}
                   </span>
                   <button
+                    class="undo-btn"
+                    type="button"
+                    :disabled="isWordSubmitting(item.id)"
+                    @click="undoReviewChoice(item.id)"
+                  >
+                    撤销
+                  </button>
+                  <button
                     class="detail-btn"
                     type="button"
                     @click="openDetailModal(item)"
@@ -152,6 +160,7 @@
                   <button
                     class="next-btn"
                     type="button"
+                    :disabled="isWordSubmitting(item.id)"
                     @click="dismissReviewedWord(item.id)"
                   >
                     下一词
@@ -172,9 +181,9 @@
 import { computed, onMounted, ref } from 'vue'
 import WordDetailModal from '../components/WordDetailModal.vue'
 import { fetchHistoryList } from '../services/history.service'
-import { getTodayWords, reviewWord } from '../services/word.service'
+import { getTodayWords, reviewWord, rollbackReviewWord } from '../services/word.service'
 import type { HistoryArchive } from '../types/history'
-import type { ReviewRating, StoredWord } from '../types/word'
+import type { ReviewRating, ReviewRollbackPayload, StoredWord } from '../types/word'
 
 const queue = ref<StoredWord[]>([])
 const archive = ref<HistoryArchive | null>(null)
@@ -183,7 +192,9 @@ const errorMessage = ref('')
 const usingMockData = ref(false)
 const revealedWordIds = ref<Set<number>>(new Set())
 const submittingWordIds = ref<Set<number>>(new Set())
+const submittedWordIds = ref<Set<number>>(new Set())
 const reviewResults = ref<Record<number, ReviewRating>>({})
+const rollbackSnapshots = ref<Record<number, ReviewRollbackPayload>>({})
 const selectedWord = ref<StoredWord | null>(null)
 const totalReviewCount = ref(0)
 const completedReviewCount = ref(0)
@@ -258,7 +269,9 @@ async function loadQueue() {
   archive.value = archiveResponse.data
   revealedWordIds.value = new Set()
   submittingWordIds.value = new Set()
+  submittedWordIds.value = new Set()
   reviewResults.value = {}
+  rollbackSnapshots.value = {}
   selectedWord.value = null
   totalReviewCount.value = queueResponse.data.length
   completedReviewCount.value = 0
@@ -366,7 +379,9 @@ function loadMockReviewData() {
   }
   revealedWordIds.value = new Set()
   submittingWordIds.value = new Set()
+  submittedWordIds.value = new Set()
   reviewResults.value = {}
+  rollbackSnapshots.value = {}
   selectedWord.value = null
   totalReviewCount.value = words.length
   completedReviewCount.value = 0
@@ -395,8 +410,16 @@ function isWordRevealed(wordId: number) {
   return revealedWordIds.value.has(wordId)
 }
 
+function hasReviewResult(wordId: number) {
+  return Boolean(reviewResults.value[wordId])
+}
+
 function isWordSubmitting(wordId: number) {
   return submittingWordIds.value.has(wordId)
+}
+
+function isWordSubmitted(wordId: number) {
+  return submittedWordIds.value.has(wordId)
 }
 
 function reviewToneClass(wordId: number) {
@@ -429,6 +452,10 @@ function markReviewCompleted() {
   completedReviewCount.value += 1
 }
 
+function unmarkReviewCompleted() {
+  completedReviewCount.value = Math.max(0, completedReviewCount.value - 1)
+}
+
 function dismissReviewedWord(wordId: number) {
   if (!queue.value.some((item) => item.id === wordId)) return
 
@@ -442,16 +469,73 @@ function dismissReviewedWord(wordId: number) {
   delete nextReviewResults[wordId]
   reviewResults.value = nextReviewResults
 
+  const nextRollbackSnapshots = { ...rollbackSnapshots.value }
+  delete nextRollbackSnapshots[wordId]
+  rollbackSnapshots.value = nextRollbackSnapshots
+
+  const nextSubmittedIds = new Set(submittedWordIds.value)
+  nextSubmittedIds.delete(wordId)
+  submittedWordIds.value = nextSubmittedIds
+
   if (selectedWord.value?.id === wordId) {
     selectedWord.value = null
   }
 }
 
 /**
- * 选择后先揭示释义，再提交真实复习评分；这样网络慢时也能立即看到答案。
+ * 撤销会恢复后端排期，答案继续显示，方便用户看着释义重新选择。
+ */
+async function undoReviewChoice(wordId: number) {
+  if (isWordSubmitting(wordId)) return
+
+  if (usingMockData.value) {
+    clearSubmittedReview(wordId)
+    return
+  }
+
+  const rollbackSnapshot = rollbackSnapshots.value[wordId]
+
+  if (!rollbackSnapshot) return
+
+  submittingWordIds.value = new Set([...submittingWordIds.value, wordId])
+  errorMessage.value = ''
+
+  try {
+    const response = await rollbackReviewWord(rollbackSnapshot)
+    updateQueueWord(response.data)
+    clearSubmittedReview(wordId)
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = '撤销失败，请稍后再试或同步复习舱。'
+  } finally {
+    const nextSubmittingIds = new Set(submittingWordIds.value)
+    nextSubmittingIds.delete(wordId)
+    submittingWordIds.value = nextSubmittingIds
+  }
+}
+
+function clearSubmittedReview(wordId: number) {
+  const nextReviewResults = { ...reviewResults.value }
+  delete nextReviewResults[wordId]
+  reviewResults.value = nextReviewResults
+
+  const nextRollbackSnapshots = { ...rollbackSnapshots.value }
+  delete nextRollbackSnapshots[wordId]
+  rollbackSnapshots.value = nextRollbackSnapshots
+
+  if (isWordSubmitted(wordId)) {
+    const nextSubmittedIds = new Set(submittedWordIds.value)
+    nextSubmittedIds.delete(wordId)
+    submittedWordIds.value = nextSubmittedIds
+    unmarkReviewCompleted()
+  }
+}
+
+/**
+ * 评分立即写入后端，同时保留回滚快照，给用户看完答案后撤销或改选的机会。
  */
 async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
-  if (isWordRevealed(word.id)) return
+  if (isWordSubmitting(word.id) || hasReviewResult(word.id)) return
 
   revealedWordIds.value = new Set([...revealedWordIds.value, word.id])
   reviewResults.value = {
@@ -460,31 +544,58 @@ async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
   }
 
   if (usingMockData.value) {
+    submittedWordIds.value = new Set([...submittedWordIds.value, word.id])
     markReviewCompleted()
     return
   }
 
+  rollbackSnapshots.value = {
+    ...rollbackSnapshots.value,
+    [word.id]: buildRollbackSnapshot(word),
+  }
   submittingWordIds.value = new Set([...submittingWordIds.value, word.id])
   errorMessage.value = ''
 
   try {
-    await reviewWord(word.id, rating)
+    const response = await reviewWord(word.id, rating)
+    updateQueueWord(response.data)
+    submittedWordIds.value = new Set([...submittedWordIds.value, word.id])
     markReviewCompleted()
   } catch (error) {
     console.error(error)
-    const nextRevealedIds = new Set(revealedWordIds.value)
-    nextRevealedIds.delete(word.id)
-    revealedWordIds.value = nextRevealedIds
-
-    const nextReviewResults = { ...reviewResults.value }
-    delete nextReviewResults[word.id]
-    reviewResults.value = nextReviewResults
-    errorMessage.value = '复习记录更新失败，请同步后再试。'
+    clearPendingReviewChoice(word.id)
+    errorMessage.value = '复习记录更新失败，请重新评分或同步后再试。'
   } finally {
     const nextSubmittingIds = new Set(submittingWordIds.value)
     nextSubmittingIds.delete(word.id)
     submittingWordIds.value = nextSubmittingIds
   }
+}
+
+function buildRollbackSnapshot(word: StoredWord): ReviewRollbackPayload {
+  return {
+    wordId: word.id,
+    ease: word.ease,
+    interval: word.interval,
+    nextReview: word.nextReview,
+    reviewCount: word.reviewCount,
+  }
+}
+
+function updateQueueWord(updatedWord: StoredWord) {
+  queue.value = queue.value.map((item) => (
+    item.id === updatedWord.id ? updatedWord : item
+  ))
+}
+
+function clearPendingReviewChoice(wordId: number) {
+  const nextReviewResults = { ...reviewResults.value }
+  delete nextReviewResults[wordId]
+  reviewResults.value = nextReviewResults
+
+  const nextRollbackSnapshots = { ...rollbackSnapshots.value }
+  delete nextRollbackSnapshots[wordId]
+  rollbackSnapshots.value = nextRollbackSnapshots
 }
 
 function openDetailModal(word: StoredWord) {
@@ -815,6 +926,7 @@ onMounted(syncReviewData)
 .hard-btn,
 .easy-btn,
 .remember-btn,
+.undo-btn,
 .detail-btn,
 .next-btn,
 .modal-close {
@@ -827,6 +939,7 @@ onMounted(syncReviewData)
 .hard-btn,
 .easy-btn,
 .remember-btn,
+.undo-btn,
 .detail-btn,
 .next-btn {
   min-width: 68px;
@@ -859,10 +972,17 @@ onMounted(syncReviewData)
   background: rgba(79, 70, 229, 0.1);
 }
 
+.undo-btn {
+  color: #475569;
+  background: rgba(71, 85, 105, 0.1);
+}
+
 .forget-btn:disabled,
 .hard-btn:disabled,
 .easy-btn:disabled,
-.remember-btn:disabled {
+.remember-btn:disabled,
+.undo-btn:disabled,
+.next-btn:disabled {
   cursor: wait;
   opacity: 0.7;
 }
@@ -948,6 +1068,7 @@ onMounted(syncReviewData)
   .hard-btn,
   .easy-btn,
   .remember-btn,
+  .undo-btn,
   .next-btn,
   .detail-btn {
     width: 100%;

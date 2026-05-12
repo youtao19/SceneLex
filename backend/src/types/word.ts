@@ -46,6 +46,14 @@ export interface ReviewWordPayload {
   rating: ReviewRating;
 }
 
+export interface ReviewRollbackPayload {
+  wordId: number;
+  ease: number;
+  interval: number;
+  nextReview: string;
+  reviewCount: number;
+}
+
 export interface StoredWord {
   id: number;
   word: string;

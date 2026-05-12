@@ -6,6 +6,7 @@ import { buildPrimaryMeaning } from '../utils/word-meaning';
 import {
   findWordById,
   listTodayWords,
+  restoreReviewSchedule,
   saveWordCard,
   updateReviewSchedule,
 } from '../repositories/word.repository';
@@ -18,6 +19,7 @@ import {
 import { HttpError } from '../utils/http-error';
 import type {
   ReviewRating,
+  ReviewRollbackPayload,
   SaveWordResult,
   StoredWord,
   WordGenerateResult,
@@ -362,6 +364,43 @@ function readPositiveInteger(value: unknown) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
+function normalizeReviewRollback(input: ReviewRollbackPayload): ReviewRollbackPayload {
+  const wordId = Number(input.wordId);
+  const ease = Number(input.ease);
+  const interval = Number(input.interval);
+  const reviewCount = Number(input.reviewCount);
+  const date = new Date(input.nextReview);
+  const nextReview = Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    throw new HttpError(400, 'wordId 非法');
+  }
+
+  if (!Number.isFinite(ease) || ease <= 0) {
+    throw new HttpError(400, 'ease 非法');
+  }
+
+  if (!Number.isInteger(interval) || interval <= 0) {
+    throw new HttpError(400, 'interval 非法');
+  }
+
+  if (!Number.isInteger(reviewCount) || reviewCount < 0) {
+    throw new HttpError(400, 'reviewCount 非法');
+  }
+
+  if (!nextReview) {
+    throw new HttpError(400, 'nextReview 非法');
+  }
+
+  return {
+    wordId,
+    ease,
+    interval,
+    reviewCount,
+    nextReview,
+  };
+}
+
 const MIN_ANKI_EASE = 1.3;
 const DEFAULT_ANKI_EASE = 2.5;
 const ANKI_HARD_INTERVAL = 1.2;
@@ -610,6 +649,30 @@ export const wordService = {
       wordId,
       nextSchedule.interval,
       nextSchedule.ease,
+    );
+  },
+
+  /**
+   * 撤销只恢复复习排期字段，教学内容和词书归属不参与回滚。
+   */
+  async rollbackReviewWord(
+    userId: number,
+    payload: ReviewRollbackPayload,
+  ): Promise<StoredWord> {
+    const rollback = normalizeReviewRollback(payload);
+    const current = await findWordById(userId, rollback.wordId);
+
+    if (!current) {
+      throw new HttpError(404, '单词不存在');
+    }
+
+    return restoreReviewSchedule(
+      userId,
+      rollback.wordId,
+      rollback.interval,
+      rollback.ease,
+      rollback.nextReview,
+      rollback.reviewCount,
     );
   },
 };
