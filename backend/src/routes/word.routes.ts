@@ -5,6 +5,7 @@
 
 import { Router } from 'express'
 import { generateWordContent, lookupWord } from '../controllers/word.controller'
+import { modelConcurrencyLimit, modelRateLimit } from '../middlewares/rate-limit.middleware'
 
 const router = Router()
 
@@ -16,6 +17,6 @@ router.post('/lookup', lookupWord)
 /**
  * 生成单词记忆内容。
  */
-router.post('/generate', generateWordContent)
+router.post('/generate', modelRateLimit, modelConcurrencyLimit, generateWordContent)
 
 export default router

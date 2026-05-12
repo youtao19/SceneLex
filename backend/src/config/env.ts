@@ -15,4 +15,8 @@ export const env = {
   dictionaryJsonPath: process.env.DICTIONARY_JSON_PATH ?? '',
   userApiKeySecret: process.env.USER_API_KEY_SECRET ?? '',
   corsOrigins: process.env.CORS_ORIGINS ?? process.env.APP_ORIGIN ?? '',
+  modelRateLimitMax: Number(process.env.MODEL_RATE_LIMIT_MAX ?? 10),
+  modelGlobalConcurrency: Number(process.env.MODEL_GLOBAL_CONCURRENCY ?? 3),
+  modelUserConcurrency: Number(process.env.MODEL_USER_CONCURRENCY ?? 1),
+  modelQueueTimeoutMs: Number(process.env.MODEL_QUEUE_TIMEOUT_MS ?? 30_000),
 };
