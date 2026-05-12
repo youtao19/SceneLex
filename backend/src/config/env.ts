@@ -14,4 +14,5 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL ?? '',
   dictionaryJsonPath: process.env.DICTIONARY_JSON_PATH ?? '',
   userApiKeySecret: process.env.USER_API_KEY_SECRET ?? '',
+  corsOrigins: process.env.CORS_ORIGINS ?? process.env.APP_ORIGIN ?? '',
 };

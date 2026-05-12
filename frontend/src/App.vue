@@ -267,7 +267,7 @@ function toggleTheme() {
 }
 
 /**
- * 前端本地态一定要清掉，即使接口暂时不可达也不能让旧 token 继续污染请求。
+ * 前端本地态一定要清掉，即使接口暂时不可达也不能继续显示旧用户。
  */
 async function handleLogout() {
   try {
@@ -297,15 +297,12 @@ onMounted(() => {
   }
 
   /**
-   * 刷新后先校验一次本地 token，避免前端把过期登录态当成有效状态继续放行。
+   * 刷新后用 HttpOnly Cookie 校验会话，避免只信任本地用户缓存。
    */
-  if (userStore.token) {
+  if (userStore.user) {
     void getMe()
       .then((response) => {
-        userStore.setSession({
-          token: userStore.token,
-          user: response.data,
-        })
+        userStore.setSession({ user: response.data })
       })
       .catch(async () => {
         userStore.clearSession()

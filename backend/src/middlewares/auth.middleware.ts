@@ -2,9 +2,10 @@ import type { NextFunction, Request, Response } from 'express';
 import { authService } from '../services/auth.service';
 import type { AuthenticatedRequest } from '../types/auth';
 import { HttpError } from '../utils/http-error';
+import { readSessionCookie } from '../utils/session-cookie';
 
 /**
- * 这里统一解析 Bearer Token，业务控制器只拿已经验证过的用户对象。
+ * 这里统一解析会话 Cookie，业务控制器只拿已经验证过的用户对象。
  */
 export async function authMiddleware(
   req: Request,
@@ -13,9 +14,10 @@ export async function authMiddleware(
 ) {
   try {
     const authorization = req.headers.authorization ?? '';
-    const [scheme, token] = authorization.split(' ');
+    const [scheme, bearerToken] = authorization.split(' ');
+    const token = readSessionCookie(req) || (scheme === 'Bearer' ? bearerToken : '');
 
-    if (scheme !== 'Bearer' || !token) {
+    if (!token) {
       throw new HttpError(401, '请先登录');
     }
 
@@ -45,7 +47,7 @@ export function readAuthUser(req: Request) {
 }
 
 /**
- * 退出登录需要当前 token，自定义读取函数能避免控制器重复做类型断言。
+ * 退出登录需要当前会话 token，自定义读取函数能避免控制器重复做类型断言。
  */
 export function readAuthToken(req: Request) {
   const authToken = (req as AuthenticatedRequest).authToken;
