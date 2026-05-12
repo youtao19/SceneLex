@@ -13,7 +13,7 @@ async function readErrorMessage(response: Response) {
     const data = JSON.parse(text) as { message?: string }
     return data.message || '请求失败'
   } catch {
-    return text || '请求失败'
+    return '服务暂时不可用，请稍后重试。'
   }
 }
 
