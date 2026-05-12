@@ -21,18 +21,6 @@
         <div class="reader-input-actions">
           <span>{{ sourceText.trim().length }} characters</span>
           <div class="reader-action-buttons">
-            <div class="ocr-method-toggle" aria-label="图片识别方式">
-              <button
-                v-for="method in ocrMethods"
-                :key="method.value"
-                type="button"
-                :class="{ 'is-active': ocrMethod === method.value }"
-                :disabled="ocrLoading"
-                @click="ocrMethod = method.value"
-              >
-                {{ method.label }}
-              </button>
-            </div>
             <input
               ref="imageInputRef"
               class="image-input"
@@ -376,7 +364,7 @@ import {
   translateReadingSentence,
   updateReadingArticleTitle
 } from '../services/reading.service'
-import { recognizeArticleFromImage, type OcrMethod } from '../services/ocr.service'
+import { recognizeArticleFromImage } from '../services/ocr.service'
 import type { ReadingArticle, ReadingAssistantChat, ReadingAssistantMessage } from '../types/reading'
 import { fetchWordBooks } from '../services/word-book.service'
 import { addWord, generateWord } from '../services/word.service'
@@ -413,7 +401,6 @@ const assistantInputRef = ref<HTMLTextAreaElement | null>(null)
 const readingContentRef = ref<HTMLElement | null>(null)
 const errorMessage = ref('')
 const activeTokenId = ref('')
-const ocrMethod = ref<OcrMethod>('tesseract')
 const ocrLoading = ref(false)
 const saveLoading = ref(false)
 const historyLoading = ref(false)
@@ -458,12 +445,6 @@ const wordPanel = reactive({
 const vFocus = {
   mounted: (el: HTMLInputElement) => el.focus()
 }
-
-const ocrMethods: Array<{ value: OcrMethod; label: string }> = [
-  { value: 'tesseract', label: 'Tesseract' },
-  { value: 'paddle', label: 'PaddleOCR' },
-  { value: 'vision', label: '多模态大模型' }
-]
 
 const selectedBookSummary = computed(() => {
   if (bookLoading.value) return '正在读取单词本...'
@@ -775,7 +756,7 @@ async function handleImageUpload(event: Event) {
   errorMessage.value = ''
 
   try {
-    const response = await recognizeArticleFromImage(file, ocrMethod.value)
+    const response = await recognizeArticleFromImage(file)
     sourceText.value = response.data.text
   } catch (error) {
     console.error(error)
@@ -1342,41 +1323,6 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.ocr-method-toggle {
-  display: inline-flex;
-  min-height: 40px;
-  padding: 3px;
-  border: 1px solid var(--sl-glass-border-strong);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.42);
-}
-
-.dark-theme .ocr-method-toggle {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.ocr-method-toggle button {
-  min-width: 92px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--sl-text-soft);
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.ocr-method-toggle button.is-active {
-  background: var(--sl-peach-500);
-  color: #fff;
-  box-shadow: 0 8px 18px rgba(255, 90, 113, 0.2);
-}
-
-.ocr-method-toggle button:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
 }
 
 .image-input {
@@ -2269,15 +2215,6 @@ onBeforeUnmount(() => {
 
   .reader-action-buttons button {
     width: 100%;
-  }
-
-  .ocr-method-toggle {
-    width: 100%;
-  }
-
-  .ocr-method-toggle button {
-    flex: 1;
-    width: auto;
   }
 
   .history-head {
