@@ -12,31 +12,30 @@
 
 目标：前端先独立部署，页面能正常打开，API 暂时不迁。
 
-- [ ] 在 Cloudflare Pages 新建项目。
-- [ ] 设置构建命令：`npm --prefix frontend run build`。
-- [ ] 设置输出目录：`frontend/dist`。
-- [ ] 保持前端 API 基础路径为 `/api`，不要改成独立 API 域名。
-- [ ] 配置 SPA fallback，确保 Vue Router 子路由刷新不 404。
-- [ ] 旧 Express 暂时继续运行，作为 API 迁移期后备。
+- [x] 在 Cloudflare Pages 新建项目。
+- [x] 设置构建命令：`npm --prefix frontend run build`。
+- [x] 设置输出目录：`frontend/dist`。
+- [x] 保持前端 API 基础路径为 `/api`，不要改成独立 API 域名。
+- [x] 配置 SPA fallback，确保 Vue Router 子路由刷新不 404。
+- [x] 旧 Express 暂时继续运行，作为 API 迁移期后备。
 
 验证：
 
-- [ ] 打开 Pages 域名首页。
-- [ ] 刷新 `/reading`、`/profile` 等前端子路由。
-- [ ] 确认前端资源加载正常。
+- [x] 打开 Pages 域名首页。
+- [x] 刷新 `/reading`、`/profile` 等前端子路由。
+- [x] 确认前端资源加载正常。
 
 ## 阶段 2：Worker 接管 `/api/health`
 
 目标：证明 Pages 域名下的 `/api/*` 能进入 Worker。
 
-- [ ] 新增 `worker/` 目录。
-- [ ] 新增 `worker/package.json`。
-- [ ] 新增 `worker/wrangler.toml`。
-- [ ] 新增 `worker/src/index.ts`。
-- [ ] 实现 `GET /api/health`。
-- [ ] 其他 `/api/*` 暂时返回 `501 Not migrated`。
-- [ ] 非 `/api/*` 返回 `404`。
-- [ ] 将 Pages 域名下的 `/api/*` 路由到 Worker。
+- [x] 新增 Pages Functions 目录 `functions/api/`。
+- [x] 新增 `functions/api/health.ts`。
+- [x] 新增 `functions/api/[[path]].ts`。
+- [x] 实现 `GET /api/health`。
+- [x] 其他 `/api/*` 暂时返回 `501 Not migrated`。
+- [ ] 非 `/api/*` 继续由 Pages 静态前端处理。
+- [ ] 重新部署 Pages，让 `scenelex.pages.dev/api/*` 进入 Functions。
 
 建议响应格式：
 
