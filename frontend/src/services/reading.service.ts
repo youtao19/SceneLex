@@ -1,4 +1,4 @@
-import { del, get, patch, post, readAuthToken } from './http'
+import { del, get, patch, post } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   ReadingAssistantChat,
@@ -123,15 +123,11 @@ export async function sendAssistantMessageStream(
   const headers = new Headers({
     'Content-Type': 'application/json'
   })
-  const token = readAuthToken()
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
 
   const response = await fetch(`/api/reading/assistant-chats/${chatId}/messages/stream`, {
     method: 'POST',
     headers,
+    credentials: 'same-origin',
     body: JSON.stringify({ question, questionMode })
   })
 

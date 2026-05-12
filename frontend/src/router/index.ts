@@ -31,7 +31,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const authState = readFromStorage<AuthState>(AUTH_STORAGE_KEY);
-  const isAuthenticated = Boolean(authState?.token && authState.user);
+  const isAuthenticated = Boolean(authState?.user);
   const requiresAuth = Boolean(to.meta.requiresAuth);
   const requiresAdmin = Boolean(to.meta.requiresAdmin);
   const guestOnly = Boolean(to.meta.guestOnly);

@@ -8,6 +8,7 @@ import path from 'path'
 import fs from 'fs'
 import cors from 'cors'
 import routes from './routes'
+import { env } from './config/env'
 import { errorMiddleware } from './middlewares/error.middleware'
 
 const app = express()
@@ -17,10 +18,34 @@ const uploadRootPath = path.join(backendRootPath, 'uploads')
 const frontendDistPath = path.join(repoRootPath, 'frontend/dist')
 
 /**
- * 允许前端跨域访问。
- * 前期开发时前后端端口不同，所以必须开启。
+ * 生产环境只允许明确配置的前端域名跨域访问，避免任意站点调用 API。
  */
-app.use(cors())
+const configuredCorsOrigins = env.corsOrigins
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+const allowedCorsOrigins = new Set([
+  ...configuredCorsOrigins,
+  'http://localhost:9003',
+  'http://127.0.0.1:9003',
+])
+
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true)
+      return
+    }
+
+    if (allowedCorsOrigins.has(origin)) {
+      callback(null, true)
+      return
+    }
+
+    callback(new Error('CORS origin is not allowed'))
+  }
+}))
 
 /**
  * 解析 JSON 请求体。

@@ -6,6 +6,7 @@ import {
 import { authService } from '../services/auth.service';
 import type { LoginPayload, RegisterPayload, UpdateProfilePayload } from '../types/auth';
 import { ok } from '../utils/response';
+import { clearSessionCookie, setSessionCookie } from '../utils/session-cookie';
 
 /**
  * 注册时由服务层统一创建用户和会话，控制器只负责协议转换。
@@ -18,14 +19,15 @@ export async function register(
   try {
     const payload = req.body as RegisterPayload;
     const result = await authService.register(payload);
-    return res.json(ok(result, '注册成功'));
+    setSessionCookie(res, result.token);
+    return res.json(ok({ user: result.user }, '注册成功'));
   } catch (error) {
     next(error);
   }
 }
 
 /**
- * 登录成功后直接回传 token 和用户信息，前端可以立刻进入业务页。
+ * 登录成功后把会话写入 HttpOnly Cookie，响应体只给前端渲染所需用户信息。
  */
 export async function login(
   req: Request,
@@ -35,7 +37,8 @@ export async function login(
   try {
     const payload = req.body as LoginPayload;
     const result = await authService.login(payload);
-    return res.json(ok(result, '登录成功'));
+    setSessionCookie(res, result.token);
+    return res.json(ok({ user: result.user }, '登录成功'));
   } catch (error) {
     next(error);
   }
@@ -57,7 +60,7 @@ export async function getMe(
 }
 
 /**
- * 用户资料更新以当前 token 为准，前端不需要也不能提交 userId。
+ * 用户资料更新以当前会话为准，前端不需要也不能提交 userId。
  */
 export async function updateProfile(
   req: Request,
@@ -113,6 +116,7 @@ export async function logout(
 ) {
   try {
     await authService.logout(readAuthToken(req));
+    clearSessionCookie(res);
     return res.json(ok(null, '已退出登录'));
   } catch (error) {
     next(error);

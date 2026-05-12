@@ -14,12 +14,10 @@ export interface AuthUser {
 }
 
 export interface AuthSession {
-  token: string
   user: AuthUser
 }
 
 export interface AuthState {
-  token: string
   user: AuthUser | null
 }
 
