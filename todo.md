@@ -165,23 +165,22 @@ Hyperdrive binding name: HYPERDRIVE
 
 建议迁移顺序：
 
-- [ ] `/api/words/lookup`
+- [x] `/api/words/lookup`
 - [ ] `/api/auth/session` 和登录态读取类接口
-- [ ] `/api/settings`
-- [ ] `/api/word-books`
-- [ ] `/api/history`
-- [ ] `/api/review`
-- [ ] `/api/system-word-books`
+- [x] `/api/settings`
+- [x] `/api/word-books`
+- [x] `/api/history`
+- [x] `/api/review`
+- [x] `/api/system-word-books`
 - [ ] `/api/reading`
-- [ ] `/api/ocr`
 - [ ] `/api/admin`
 
 每迁一个接口都要完成：
 
-- [ ] Worker 实现同名接口。
-- [ ] 响应格式和旧 Express 保持兼容。
-- [ ] 前端不用改或只做极小改动。
-- [ ] 从 fallback proxy 里排除该接口。
+- [x] Worker 实现同名接口。
+- [x] 响应格式和旧 Express 保持兼容。
+- [x] 前端不用改或只做极小改动。
+- [x] 从 fallback proxy 里排除该接口。
 - [ ] 手动跑一遍对应页面主流程。
 - [ ] 确认旧 Express 仍可作为回滚目标。
 

@@ -86,3 +86,51 @@ export async function decryptApiKey(encryptedValue, secret) {
 
   return new TextDecoder().decode(plaintext);
 }
+
+/**
+ * Encode a Uint8Array to base64url.
+ */
+function bytesToBase64url(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * Encrypt a plaintext string with AES-256-GCM, producing output
+ * compatible with Express (settings.repository.ts encryptApiKey).
+ *
+ * Express storage format: base64url(iv) + "." + base64url(tag) + "." + base64url(ciphertext)
+ */
+export async function encryptApiKey(plaintext, secret) {
+  const keyData = await deriveKey(secret);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt'],
+  );
+
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(plaintext);
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, tagLength: 128 },
+    key,
+    encoded,
+  );
+
+  // Web Crypto returns ciphertext + tag concatenated
+  const combined = new Uint8Array(encrypted);
+  const ciphertext = combined.slice(0, combined.length - 16);
+  const tag = combined.slice(combined.length - 16);
+
+  return [
+    bytesToBase64url(iv),
+    bytesToBase64url(tag),
+    bytesToBase64url(ciphertext),
+  ].join('.');
+}
