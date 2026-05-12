@@ -5,7 +5,7 @@
         <p class="card-label">{{ canManageModelSettings ? 'MODEL ROOM' : 'REVIEW ROOM' }}</p>
         <h2 class="section-title">更多</h2>
         <p v-if="canManageModelSettings">
-          这里直接控制后端当前进程使用的模型。保存后，新词生成和阅读问答都会走选中的服务与模型名。
+          这里查看后端当前使用的模型。Cloudflare 部署通过环境变量控制，新词生成和阅读问答都会走当前配置。
         </p>
         <p v-else>
           这里配置你自己的模型 API Key 和复习推送节奏。模型服务和模型名由管理员统一选择。
@@ -28,7 +28,7 @@
               <h3 id="model-title">模型设置</h3>
             </div>
             <span class="state-pill" :class="{ 'is-dirty': hasModelChanges }">
-              {{ hasModelChanges ? '未保存' : '已同步' }}
+              {{ modelSettingsReadOnly ? '环境变量' : (hasModelChanges ? '未保存' : '已同步') }}
             </span>
           </div>
 
@@ -43,6 +43,7 @@
                 class="provider-tile"
                 :class="{ 'is-active': selectedProvider === provider.id }"
                 type="button"
+                :disabled="modelSettingsReadOnly"
                 @click="chooseProvider(provider.id)"
               >
                 <span class="provider-icon">{{ providerMeta[provider.id].icon }}</span>
@@ -61,6 +62,7 @@
                   type="text"
                   autocomplete="off"
                   spellcheck="false"
+                  :disabled="modelSettingsReadOnly"
                   :placeholder="selectedProviderConfig?.model || '输入模型名'"
                 />
               </label>
@@ -71,6 +73,7 @@
                   :key="preset"
                   class="preset-chip"
                   type="button"
+                  :disabled="modelSettingsReadOnly"
                   @click="selectedModel = preset"
                 >
                   {{ preset }}
@@ -84,7 +87,7 @@
                   :disabled="!canSaveModel"
                   @click="saveModelSettings"
                 >
-                  保存模型设置
+                  {{ modelSettingsReadOnly ? '在环境变量中修改' : '保存模型设置' }}
                 </button>
                 <p v-if="modelSuccessMessage" class="save-result">{{ modelSuccessMessage }}</p>
               </div>
@@ -253,7 +256,7 @@
           </div>
           <div>
             <dt>配置来源</dt>
-            <dd>后端运行态</dd>
+            <dd>{{ settings?.source ?? '后端运行态' }}</dd>
           </div>
         </dl>
 
@@ -360,6 +363,7 @@ const hasModelChanges = computed(() => {
 
   return settings.value.provider !== selectedProvider.value || selectedProviderConfig.value?.model !== selectedModel.value;
 });
+const modelSettingsReadOnly = computed(() => settings.value?.readOnly === true);
 const hasApiKeyChanges = computed(() => {
   return Boolean(apiKeyInput.value.trim());
 });
@@ -368,7 +372,13 @@ const hasLearningChanges = computed(() => {
     || normalizedDailyReviewLimit.value !== savedDailyReviewLimit.value;
 });
 const canSaveModel = computed(() => {
-  return Boolean(settings.value && selectedModel.value.trim() && hasModelChanges.value && !isSaving.value);
+  return Boolean(
+    settings.value
+      && !modelSettingsReadOnly.value
+      && selectedModel.value.trim()
+      && hasModelChanges.value
+      && !isSaving.value,
+  );
 });
 const canSaveApiKey = computed(() => {
   return Boolean(apiKeySettings.value && hasApiKeyChanges.value && !isSavingApiKey.value);
