@@ -157,6 +157,12 @@ export default {
       return handleSettings(request, env);
     }
 
+    // Image article parsing
+    if (url.pathname === '/api/ocr') {
+      const { handleOcr } = await import('./ocr.js');
+      return handleOcr(request, env);
+    }
+
     // Word study (review)
     if (url.pathname.startsWith('/api/word/')) {
       const { handleWordStudy } = await import('./word-study.js');
