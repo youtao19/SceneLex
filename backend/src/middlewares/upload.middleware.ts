@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 
 // 确保上传目录存在
 const uploadDir = path.join(__dirname, '../../uploads/avatars');
@@ -12,11 +13,9 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
-    const userId = (req as any).authUser?.id || 'unknown';
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+  filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `avatar-${userId}-${uniqueSuffix}${ext}`);
+    cb(null, `avatar-${randomUUID()}${ext}`);
   },
 });
 
