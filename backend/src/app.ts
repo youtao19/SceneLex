@@ -30,7 +30,7 @@ const allowedCorsOrigins = new Set([
   'http://127.0.0.1:9003',
 ])
 
-app.use(cors({
+const apiCors = cors({
   credentials: true,
   origin(origin, callback) {
     if (!origin) {
@@ -45,7 +45,7 @@ app.use(cors({
 
     callback(new Error('CORS origin is not allowed'))
   }
-}))
+})
 
 /**
  * 解析 JSON 请求体。
@@ -61,7 +61,7 @@ app.use('/uploads', express.static(uploadRootPath))
 /**
  * 注册统一路由。
  */
-app.use('/api', routes)
+app.use('/api', apiCors, routes)
 
 /**
  * 健康检查接口。
