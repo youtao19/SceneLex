@@ -272,7 +272,7 @@
               :key="q"
               type="button"
               class="suggestion-chip"
-              @click="askQuestion(q)"
+              @click="prepareAssistantQuestion(q)"
             >
               {{ q }}
             </button>
@@ -294,6 +294,16 @@
         </div>
       </div>
       <div class="assistant-footer">
+        <div class="assistant-shortcuts" aria-label="助手快捷方式">
+          <button
+            class="assistant-shortcut"
+            type="button"
+            :disabled="assistantLoading || !userQuestion.trim()"
+            @click="applySentenceBreakdownShortcut"
+          >
+            拆句精读
+          </button>
+        </div>
         <textarea
           v-model="userQuestion"
           ref="assistantInputRef"
@@ -413,7 +423,7 @@ const assistantInputRef = ref<HTMLTextAreaElement | null>(null)
 const readingContentRef = ref<HTMLElement | null>(null)
 const errorMessage = ref('')
 const activeTokenId = ref('')
-const ocrMethod = ref<OcrMethod>('tesseract')
+const ocrMethod = ref<OcrMethod>('vision')
 const ocrLoading = ref(false)
 const saveLoading = ref(false)
 const historyLoading = ref(false)
@@ -460,8 +470,8 @@ const vFocus = {
 }
 
 const ocrMethods: Array<{ value: OcrMethod; label: string }> = [
-  { value: 'tesseract', label: 'Tesseract' },
-  { value: 'paddle', label: 'PaddleOCR' },
+  // { value: 'tesseract', label: 'Tesseract' },
+  // { value: 'paddle', label: 'PaddleOCR' },
   { value: 'vision', label: '多模态大模型' }
 ]
 
@@ -967,7 +977,7 @@ async function askQuestion(question?: string, questionMode: AssistantQuestionMod
 }
 
 /**
- * “问”入口要给新手可执行的拆句任务，避免助手只泛泛解释原文。
+ * 长拆句提示词作为快捷方式保存，默认“问”只放原句，避免用户看不到自己将发送什么。
  */
 function buildSelectedTextQuestion(text: string) {
   return `你是一个英语老师。
@@ -1074,7 +1084,7 @@ function updateSelectedTextFromSelection() {
 }
 
 /**
- * 选中的句子直接进入助手对话，并打开手机半屏助手。
+ * 选中的句子只预填到助手输入框，发送前让用户能继续编辑。
  */
 async function sendSelectedTextToAssistant() {
   const text = selectedText.value.trim()
@@ -1087,18 +1097,18 @@ async function sendSelectedTextToAssistant() {
   window.getSelection()?.removeAllRanges()
   assistantOpen.value = true
   wordPanel.open = false
-  await prepareAssistantQuestion(buildSelectedTextQuestion(text), 'sentence')
+  await prepareAssistantQuestion(text, 'sentence')
 }
 
 /**
- * 每句旁边的快捷入口，解决手机长按选择不稳定的问题。
+ * 每句旁边的快捷入口只填入原句，避免默认塞入长提示词。
  */
 function askAboutSentence(sentence: string) {
   assistantOpen.value = true
   wordPanel.open = false
   selectedText.value = ''
   window.getSelection()?.removeAllRanges()
-  prepareAssistantQuestion(buildSelectedTextQuestion(sentence), 'sentence')
+  prepareAssistantQuestion(sentence, 'sentence')
 }
 
 /**
@@ -1109,6 +1119,22 @@ async function prepareAssistantQuestion(question: string, questionMode: Assistan
   pendingQuestionMode.value = questionMode
   await nextTick()
   assistantInputRef.value?.focus()
+}
+
+/**
+ * 拆句提示词只在用户明确点快捷方式时套用，避免“问”把长提示词塞进输入框。
+ */
+async function applySentenceBreakdownShortcut() {
+  const text = userQuestion.value.trim()
+
+  if (!text || assistantLoading.value) {
+    return
+  }
+
+  const question = text.includes('请帮我彻底理解下面这个句子：')
+    ? text
+    : buildSelectedTextQuestion(text)
+  await prepareAssistantQuestion(question, 'sentence')
 }
 
 /**
@@ -1860,8 +1886,40 @@ onBeforeUnmount(() => {
 .assistant-footer {
   padding: 16px;
   border-top: 1px solid var(--sl-glass-border);
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 10px;
+}
+
+.assistant-shortcuts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assistant-shortcut {
+  padding: 7px 12px;
+  border: 1px solid rgba(244, 143, 177, 0.64);
+  border-radius: 999px;
+  background: rgba(255, 246, 250, 0.95);
+  color: var(--sl-peach-500);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.assistant-shortcut:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.assistant-shortcut:not(:disabled):hover {
+  background: var(--sl-peach-100);
+}
+
+.dark-theme .assistant-shortcut {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .assistant-input {

@@ -1,147 +1,204 @@
 <template>
   <section class="admin-page">
-    <header class="admin-hero">
-      <div>
-        <p class="card-label">ADMIN</p>
-        <h2 class="section-title">用户与密钥</h2>
-        <p>管理账号可用状态、管理员角色和注册访问密钥。</p>
+    <header class="admin-topbar">
+      <div class="title-block">
+        <p class="eyebrow">ADMIN LEDGER</p>
+        <h2 class="section-title">账号与授权</h2>
+        <p>集中处理账号状态、使用时长、管理员角色、VIP 权限和访问密钥。</p>
       </div>
-      <button class="peach-button" type="button" :disabled="isLoading" @click="loadAdminData">
-        刷新
-      </button>
+      <div class="topbar-actions">
+        <span v-if="userStore.user" class="admin-account-chip">
+          <span>{{ userStore.user.nickname }}</span>
+          <strong>管理员</strong>
+        </span>
+        <button class="control-button" type="button" :disabled="isLoading" @click="loadAdminData">
+          刷新
+        </button>
+      </div>
     </header>
+
+    <section class="metric-strip" aria-label="账号授权概览">
+      <article class="metric-card">
+        <span>全部账号</span>
+        <strong>{{ users.length }}</strong>
+      </article>
+      <article class="metric-card is-positive">
+        <span>可用账号</span>
+        <strong>{{ activeUserCount }}</strong>
+      </article>
+      <article class="metric-card is-warning">
+        <span>即将到期</span>
+        <strong>{{ expiringSoonCount }}</strong>
+      </article>
+      <article class="metric-card">
+        <span>访问密钥</span>
+        <strong>{{ accessKeys.length }}</strong>
+      </article>
+      <article class="metric-card is-cool">
+        <span>平均剩余</span>
+        <strong>{{ averageRemainingDays }} 天</strong>
+      </article>
+    </section>
 
     <p v-if="errorMessage" class="notice-box is-error" role="alert">{{ errorMessage }}</p>
     <p v-if="successMessage" class="notice-box" role="status">{{ successMessage }}</p>
 
-    <section class="admin-grid">
-      <article class="admin-panel surface-card" aria-labelledby="users-title">
-        <div class="panel-head">
-          <div>
-            <p class="card-label">USERS</p>
-            <h3 id="users-title">用户管理</h3>
-          </div>
-          <span class="state-pill">{{ users.length }} 个账号</span>
+    <section class="admin-workbench" aria-labelledby="key-create-title">
+      <div class="workbench-copy">
+        <p class="eyebrow">ACCESS KEY</p>
+        <h3 id="key-create-title">创建访问密钥</h3>
+        <p>密钥明文只在创建后出现一次。有效天数会在新用户注册时写入账号到期时间。</p>
+      </div>
+
+      <div class="key-form">
+        <label class="field-block">
+          <span>有效天数</span>
+          <span class="input-with-unit">
+            <input v-model.number="keyDays" type="number" min="1" max="3650" step="1" />
+            <em>天</em>
+          </span>
+        </label>
+        <label class="field-block note-field">
+          <span>备注（选填）</span>
+          <input v-model.trim="keyNote" type="text" maxlength="120" placeholder="例如：给 yadi，30 天" />
+        </label>
+        <button class="primary-button" type="button" :disabled="isBusy" @click="createKey">
+          创建访问密钥
+        </button>
+      </div>
+
+      <div v-if="createdAccessKey" class="created-key" aria-label="新访问密钥">
+        <span>新密钥</span>
+        <strong>{{ createdAccessKey }}</strong>
+        <button class="control-button is-compact" type="button" @click="copyCreatedKey">
+          复制
+        </button>
+      </div>
+    </section>
+
+    <section class="ledger-panel" aria-labelledby="users-title">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">USERS</p>
+          <h3 id="users-title">用户授权台账</h3>
+        </div>
+        <span class="state-pill">{{ users.length }} 个账号</span>
+      </div>
+
+      <div v-if="users.length === 0 && !isLoading" class="empty-box">暂无用户</div>
+      <div v-else class="user-ledger" role="table" aria-label="用户授权台账">
+        <div class="ledger-row ledger-header" role="row">
+          <span role="columnheader">账号</span>
+          <span role="columnheader">状态</span>
+          <span role="columnheader">权限</span>
+          <span role="columnheader">到期</span>
+          <span role="columnheader">续期与操作</span>
         </div>
 
-        <div v-if="users.length === 0 && !isLoading" class="empty-box">暂无用户</div>
-        <div v-else class="admin-table user-table" role="table" aria-label="用户管理">
-          <div class="table-row table-header" role="row">
-            <span role="columnheader">账号</span>
-            <span role="columnheader">状态</span>
-            <span role="columnheader">角色</span>
-            <span role="columnheader">VIP</span>
-            <span role="columnheader">到期</span>
-            <span role="columnheader">操作</span>
-          </div>
-          <div v-for="user in users" :key="user.id" class="table-row" role="row">
-            <span class="identity-cell" role="cell">
+        <div v-for="user in users" :key="user.id" class="ledger-row" role="row">
+          <span class="identity-cell" role="cell">
+            <span class="avatar-token" :class="avatarClass(user)">{{ avatarText(user) }}</span>
+            <span>
               <strong>{{ user.nickname }}</strong>
               <small>{{ user.email }}</small>
             </span>
-            <span role="cell">
-              <span class="status-chip" :class="`is-${user.accessStatus}`">
-                {{ accessStatusText(user.accessStatus) }}
-              </span>
+          </span>
+
+          <span role="cell">
+            <span class="status-chip" :class="`is-${user.accessStatus}`">
+              {{ accessStatusText(user.accessStatus) }}
             </span>
-            <span role="cell">
-              <span class="role-cell">
-                <span class="role-label">{{ user.role === 'admin' ? '管理员' : '普通用户' }}</span>
-                <button
-                  v-if="user.id !== userStore.user?.id"
-                  class="small-action"
-                  type="button"
-                  :disabled="isBusy"
-                  @click="openRoleDialog(user)"
-                >
-                  修改角色
-                </button>
-                <span v-else class="muted-text">当前账号</span>
-              </span>
+          </span>
+
+          <span class="permission-cell" role="cell">
+            <span class="role-label">{{ user.role === 'admin' ? '管理员' : '普通用户' }}</span>
+            <span class="vip-chip" :class="{ 'is-vip': user.isVip || user.role === 'admin' }">
+              {{ vipStatusText(user) }}
             </span>
-            <span role="cell">
-              <span class="role-cell">
-                <span class="vip-chip" :class="{ 'is-vip': user.isVip || user.role === 'admin' }">
-                  {{ vipStatusText(user) }}
-                </span>
-                <button
-                  v-if="user.role !== 'admin'"
-                  class="small-action"
-                  type="button"
-                  :disabled="isBusy"
-                  @click="toggleVip(user)"
-                >
-                  {{ user.isVip ? '取消 VIP' : '设为 VIP' }}
-                </button>
-                <span v-else class="muted-text">系统 API</span>
-              </span>
+            <button
+              v-if="user.id !== userStore.user?.id"
+              class="text-action"
+              type="button"
+              :disabled="isBusy"
+              @click="openRoleDialog(user)"
+            >
+              修改角色
+            </button>
+            <button
+              v-if="user.role !== 'admin'"
+              class="text-action"
+              type="button"
+              :disabled="isBusy"
+              @click="toggleVip(user)"
+            >
+              {{ user.isVip ? '取消 VIP' : '设为 VIP' }}
+            </button>
+            <span v-else class="muted-text">系统 API</span>
+          </span>
+
+          <span class="expiry-cell" role="cell">
+            <strong>{{ formatDate(user.accessExpiresAt) }}</strong>
+            <small :class="{ 'is-expired': readRemainingDays(user.accessExpiresAt) < 0 }">
+              {{ remainingDaysText(user.accessExpiresAt) }}
+            </small>
+          </span>
+
+          <span v-if="user.id === userStore.user?.id" class="self-cell" role="cell">
+            当前账号不在这里续期
+          </span>
+          <span v-else class="action-cell" role="cell">
+            <span class="renew-controls" aria-label="续期天数">
+              <button
+                v-for="days in quickRenewDays"
+                :key="days"
+                class="duration-chip"
+                :class="{ 'is-selected': renewDaysForUser(user.id) === days }"
+                type="button"
+                :disabled="isBusy"
+                @click="setRenewDays(user.id, days)"
+              >
+                {{ days }} 天
+              </button>
+              <label class="custom-days">
+                <span>自定义</span>
+                <input
+                  :value="renewDaysForUser(user.id)"
+                  type="number"
+                  min="1"
+                  max="3650"
+                  step="1"
+                  @input="updateRenewDays(user.id, $event)"
+                />
+              </label>
+              <button class="primary-button is-small" type="button" :disabled="isBusy" @click="renewUser(user.id)">
+                续期
+              </button>
             </span>
-            <span role="cell">{{ formatDate(user.accessExpiresAt) }}</span>
-            <span class="action-cell" role="cell">
-              <button class="small-action" type="button" :disabled="isBusy" @click="resumeUser(user.id)">
+            <span class="secondary-actions">
+              <button class="control-button is-compact" type="button" :disabled="isBusy" @click="resumeUser(user.id)">
                 恢复
               </button>
-              <button
-                class="small-action is-danger"
-                type="button"
-                :disabled="isBusy || user.id === userStore.user?.id"
-                @click="suspendUser(user.id)"
-              >
+              <button class="control-button is-compact is-danger" type="button" :disabled="isBusy" @click="suspendUser(user.id)">
                 停用
               </button>
-              <button class="small-action" type="button" :disabled="isBusy" @click="renewUser(user.id)">
-                续期 {{ renewDays }} 天
-              </button>
             </span>
-          </div>
+          </span>
         </div>
-      </article>
-
-      <aside class="admin-panel surface-card" aria-labelledby="key-create-title">
-        <div class="panel-head">
-          <div>
-            <p class="card-label">ACCESS</p>
-            <h3 id="key-create-title">创建密钥</h3>
-          </div>
-        </div>
-
-        <label class="field-block">
-          <span>有效天数</span>
-          <input v-model.number="keyDays" type="number" min="1" max="3650" step="1" />
-        </label>
-        <label class="field-block">
-          <span>备注</span>
-          <input v-model.trim="keyNote" type="text" maxlength="120" placeholder="给自己看的备注" />
-        </label>
-        <button class="peach-button key-button" type="button" :disabled="isBusy" @click="createKey">
-          创建访问密钥
-        </button>
-
-        <div v-if="createdAccessKey" class="created-key" aria-label="新访问密钥">
-          <span>新密钥</span>
-          <strong>{{ createdAccessKey }}</strong>
-          <button class="small-action copy-action" type="button" @click="copyCreatedKey">
-            复制密钥
-          </button>
-        </div>
-        <p class="key-help">
-          密钥明文只在创建后显示一次；列表里的旧密钥只保存校验摘要，无法反查原文。
-        </p>
-      </aside>
+      </div>
     </section>
 
-    <section class="admin-panel surface-card" aria-labelledby="keys-title">
+    <section class="ledger-panel" aria-labelledby="keys-title">
       <div class="panel-head">
         <div>
-          <p class="card-label">KEYS</p>
-          <h3 id="keys-title">密钥管理</h3>
+          <p class="eyebrow">KEYS</p>
+          <h3 id="keys-title">密钥台账</h3>
         </div>
-        <span class="state-pill">{{ accessKeys.length }} 个密钥</span>
+        <span class="state-pill">{{ revokedKeyCount }} 个已撤销</span>
       </div>
 
       <div v-if="accessKeys.length === 0 && !isLoading" class="empty-box">暂无密钥</div>
-      <div v-else class="admin-table key-table" role="table" aria-label="密钥管理">
-        <div class="table-row table-header" role="row">
+      <div v-else class="key-ledger" role="table" aria-label="密钥台账">
+        <div class="key-row key-header" role="row">
           <span role="columnheader">ID</span>
           <span role="columnheader">状态</span>
           <span role="columnheader">天数</span>
@@ -151,7 +208,7 @@
           <span role="columnheader">创建时间</span>
           <span role="columnheader">操作</span>
         </div>
-        <div v-for="accessKey in accessKeys" :key="accessKey.id" class="table-row" role="row">
+        <div v-for="accessKey in accessKeys" :key="accessKey.id" class="key-row" role="row">
           <span role="cell">#{{ accessKey.id }}</span>
           <span role="cell">
             <span class="status-chip" :class="`is-${accessKey.status}`">
@@ -163,10 +220,10 @@
           <span role="cell">{{ accessKey.boundUserEmail || '未绑定' }}</span>
           <span role="cell">{{ accessKey.note || '无备注' }}</span>
           <span role="cell">{{ formatDate(accessKey.createdAt) }}</span>
-          <span class="action-cell" role="cell">
+          <span class="key-action-cell" role="cell">
             <button
               v-if="accessKey.status === 'active'"
-              class="small-action is-danger"
+              class="control-button is-compact is-danger"
               type="button"
               :disabled="isBusy || accessKey.usedCount > 0"
               @click="setKeyStatus(accessKey.id, 'revoked')"
@@ -175,7 +232,7 @@
             </button>
             <button
               v-else-if="accessKey.status === 'revoked'"
-              class="small-action"
+              class="control-button is-compact"
               type="button"
               :disabled="isBusy"
               @click="setKeyStatus(accessKey.id, 'active')"
@@ -194,8 +251,8 @@
       role="presentation"
       @click.self="closeRoleDialog"
     >
-      <article class="confirm-dialog surface-card" role="dialog" aria-modal="true" aria-labelledby="role-dialog-title">
-        <p class="card-label">CONFIRM</p>
+      <article class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="role-dialog-title">
+        <p class="eyebrow">CONFIRM</p>
         <h3 id="role-dialog-title">确认修改角色</h3>
         <p>
           将
@@ -205,10 +262,10 @@
           。
         </p>
         <div class="confirm-actions">
-          <button class="small-action" type="button" :disabled="isBusy" @click="closeRoleDialog">
+          <button class="control-button" type="button" :disabled="isBusy" @click="closeRoleDialog">
             取消
           </button>
-          <button class="small-action is-danger" type="button" :disabled="isBusy" @click="confirmRoleChange">
+          <button class="control-button is-danger" type="button" :disabled="isBusy" @click="confirmRoleChange">
             确认修改
           </button>
         </div>
@@ -218,7 +275,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   createAdminAccessKey,
   fetchAdminAccessKeys,
@@ -239,13 +296,36 @@ const isBusy = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const keyDays = ref(30)
-const renewDays = ref(30)
 const keyNote = ref('')
 const createdAccessKey = ref('')
+const quickRenewDays = [7, 30, 90]
+const renewDaysByUser = ref<Record<number, number>>({})
 const roleChangeTarget = ref<{
   user: AdminUser
   nextRole: 'user' | 'admin'
 } | null>(null)
+
+const activeUserCount = computed(() => users.value.filter((user) => user.accessStatus === 'active').length)
+
+const expiringSoonCount = computed(() => (
+  users.value.filter((user) => {
+    const days = readRemainingDays(user.accessExpiresAt)
+    return user.accessStatus === 'active' && days >= 0 && days <= 7
+  }).length
+))
+
+const revokedKeyCount = computed(() => accessKeys.value.filter((accessKey) => accessKey.status === 'revoked').length)
+
+const averageRemainingDays = computed(() => {
+  const activeUsers = users.value.filter((user) => user.accessStatus === 'active')
+
+  if (activeUsers.length === 0) {
+    return 0
+  }
+
+  const totalDays = activeUsers.reduce((total, user) => total + Math.max(readRemainingDays(user.accessExpiresAt), 0), 0)
+  return Math.round(totalDays / activeUsers.length)
+})
 
 /**
  * 后端返回 ISO 时间，管理页只需要稳定展示日期和分钟。
@@ -265,6 +345,23 @@ function formatDate(value: string | null) {
 }
 
 /**
+ * 授权剩余天数用于管理决策，向上取整能避免当天到期被显示成 0 天。
+ */
+function readRemainingDays(value: string | null) {
+  if (!value) {
+    return 0
+  }
+
+  const expiresAt = new Date(value).getTime()
+
+  if (Number.isNaN(expiresAt)) {
+    return 0
+  }
+
+  return Math.ceil((expiresAt - Date.now()) / 86_400_000)
+}
+
+/**
  * 状态文案集中处理，表格和后续筛选不会各写一套。
  */
 function accessStatusText(status: AdminUser['accessStatus']) {
@@ -277,6 +374,23 @@ function accessStatusText(status: AdminUser['accessStatus']) {
   }
 
   return '过期'
+}
+
+/**
+ * 剩余天数和过期状态放在到期时间下方，管理员不用心算日期差。
+ */
+function remainingDaysText(value: string | null) {
+  const days = readRemainingDays(value)
+
+  if (days > 0) {
+    return `剩余 ${days} 天`
+  }
+
+  if (days === 0) {
+    return '今天到期'
+  }
+
+  return `已过期 ${Math.abs(days)} 天`
 }
 
 /**
@@ -303,6 +417,53 @@ function keyStatusText(status: AdminAccessKey['status']) {
   }
 
   return '已撤销'
+}
+
+/**
+ * 头像只取账号文本的前两个字符，避免引入新的图片资产和加载失败状态。
+ */
+function avatarText(user: AdminUser) {
+  const source = user.nickname || user.email
+  return source.slice(0, 2).toUpperCase()
+}
+
+/**
+ * 头像颜色固定按 id 分桶，刷新列表后不会跳色。
+ */
+function avatarClass(user: AdminUser) {
+  return `is-tone-${user.id % 4}`
+}
+
+/**
+ * 每个用户保留自己的续期输入，管理员批量处理时不容易串值。
+ */
+function renewDaysForUser(userId: number) {
+  return renewDaysByUser.value[userId] ?? 30
+}
+
+function setRenewDays(userId: number, days: number) {
+  renewDaysByUser.value = {
+    ...renewDaysByUser.value,
+    [userId]: days,
+  }
+}
+
+function updateRenewDays(userId: number, event: Event) {
+  const input = event.target as HTMLInputElement
+  setRenewDays(userId, Number(input.value))
+}
+
+/**
+ * 前端先做轻校验，后端仍是最终授权规则。
+ */
+function readRenewDays(userId: number) {
+  const days = renewDaysForUser(userId)
+
+  if (!Number.isInteger(days) || days <= 0) {
+    throw new Error('续期天数必须是大于 0 的整数')
+  }
+
+  return days
 }
 
 /**
@@ -365,12 +526,14 @@ async function resumeUser(userId: number) {
 }
 
 /**
- * 给用户续期固定天数，先保留最常用的 30 天快捷操作。
+ * 给用户续期指定天数，支持快捷天数和自定义天数。
  */
 async function renewUser(userId: number) {
+  const days = readRenewDays(userId)
+
   await runAdminAction(async () => {
-    await updateAdminUserAccess(userId, 'renew', renewDays.value)
-    successMessage.value = '用户已续期'
+    await updateAdminUserAccess(userId, 'renew', days)
+    successMessage.value = `用户已续期 ${days} 天`
   })
 }
 
@@ -463,84 +626,137 @@ onMounted(loadAdminData)
 
 <style scoped>
 .admin-page {
-  max-width: 1520px;
+  width: min(100%, 1540px);
   margin: 0 auto;
-  padding: 40px 20px 72px;
+  padding: 28px 28px 72px;
   display: grid;
-  gap: 20px;
+  gap: 18px;
+  --admin-ink: #1d1a17;
+  --admin-soft: #6f665d;
+  --admin-line: rgba(42, 36, 31, 0.12);
+  --admin-paper: rgba(255, 253, 250, 0.88);
+  --admin-warm: #fff8f2;
+  --admin-peach: #ff4f6d;
+  --admin-green: #047857;
+  --admin-amber: #b45309;
+  --admin-blue: #2563eb;
 }
 
-.admin-hero {
-  min-height: 190px;
-  padding: 32px;
-  border: 1px solid rgba(30, 30, 30, 0.08);
-  border-radius: 8px;
+.admin-topbar {
   display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 24px;
-  background:
-    linear-gradient(135deg, rgba(241, 250, 245, 0.96), rgba(255, 246, 232, 0.92)),
-    repeating-linear-gradient(90deg, rgba(20, 20, 20, 0.06) 0 1px, transparent 1px 34px);
-  box-shadow: 0 18px 45px rgba(56, 42, 25, 0.11);
-}
-
-.admin-hero p {
-  margin: 10px 0 0;
-  color: #5d554b;
-  line-height: 1.8;
-}
-
-.admin-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 20px;
-  align-items: start;
-}
-
-.admin-panel {
-  min-width: 0;
-  padding: 24px;
-  border-radius: 8px;
-}
-
-.panel-head {
-  display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--sl-glass-border);
+  justify-content: space-between;
+  gap: 24px;
 }
 
-.panel-head h3 {
+.title-block {
+  display: grid;
+  gap: 6px;
+}
+
+.title-block p {
   margin: 0;
-  color: var(--sl-text-main);
-  font-family: var(--sl-display-font);
-  font-size: 25px;
+  color: var(--admin-soft);
 }
 
-.state-pill {
-  min-height: 34px;
-  padding: 0 13px;
+.section-title {
+  margin: 0;
+  color: var(--admin-ink);
+  font-family: var(--sl-display-font);
+  font-size: 34px;
+  line-height: 1.05;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #b95035;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-account-chip {
+  min-height: 38px;
+  padding: 0 8px 0 14px;
+  border: 1px solid var(--admin-line);
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  color: #047857;
-  background: rgba(220, 252, 231, 0.72);
-  border: 1px solid rgba(4, 120, 87, 0.18);
-  font-size: 13px;
+  gap: 10px;
+  color: var(--admin-ink);
+  background: rgba(255, 255, 255, 0.72);
   font-weight: 900;
-  white-space: nowrap;
+}
+
+.admin-account-chip strong {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #be123c;
+  background: #ffe4ea;
+  font-size: 12px;
+}
+
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 16px 42px rgba(58, 42, 33, 0.07);
+}
+
+.metric-card {
+  min-height: 86px;
+  padding: 16px 18px;
+  border-right: 1px solid var(--admin-line);
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.metric-card:last-child {
+  border-right: 0;
+}
+
+.metric-card span {
+  color: var(--admin-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.metric-card strong {
+  color: var(--admin-ink);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.metric-card.is-positive {
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.72), rgba(255, 255, 255, 0.32));
+}
+
+.metric-card.is-warning {
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.8), rgba(255, 255, 255, 0.32));
+}
+
+.metric-card.is-cool {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.8), rgba(255, 255, 255, 0.32));
 }
 
 .notice-box,
 .empty-box {
   padding: 14px 16px;
+  border: 1px solid rgba(4, 120, 87, 0.16);
   border-radius: 8px;
   color: #30553a;
   background: rgba(236, 253, 245, 0.78);
-  border: 1px solid rgba(4, 120, 87, 0.16);
 }
 
 .notice-box.is-error {
@@ -549,37 +765,167 @@ onMounted(loadAdminData)
   border-color: rgba(190, 18, 60, 0.18);
 }
 
-.admin-table {
-  margin-top: 18px;
-  display: grid;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.table-row {
-  min-width: 980px;
-  min-height: 58px;
-  padding: 12px;
-  border: 1px solid rgba(30, 30, 30, 0.07);
+.admin-workbench,
+.ledger-panel {
+  border: 1px solid var(--admin-line);
   border-radius: 8px;
+  background: var(--admin-paper);
+  box-shadow: 0 16px 42px rgba(58, 42, 33, 0.07);
+}
+
+.admin-workbench {
+  padding: 18px;
   display: grid;
-  grid-template-columns: minmax(180px, 1.35fr) 90px 110px 130px 140px minmax(240px, 1.2fr);
-  align-items: center;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(520px, 1.4fr);
+  gap: 18px;
+  align-items: end;
+}
+
+.workbench-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.workbench-copy h3,
+.panel-head h3,
+.confirm-dialog h3 {
+  margin: 0;
+  color: var(--admin-ink);
+  font-family: var(--sl-display-font);
+  font-size: 22px;
+}
+
+.workbench-copy p:not(.eyebrow),
+.panel-head p {
+  margin: 0;
+  color: var(--admin-soft);
+}
+
+.key-form {
+  display: grid;
+  grid-template-columns: 140px minmax(180px, 1fr) auto;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.54);
+  align-items: end;
 }
 
-.key-table .table-row {
-  min-width: 900px;
-  grid-template-columns: 70px 90px 80px 80px minmax(150px, 1fr) minmax(130px, 1fr) 140px 90px;
+.field-block {
+  display: grid;
+  gap: 7px;
+  color: var(--admin-soft);
+  font-size: 13px;
+  font-weight: 900;
 }
 
-.table-header {
+.field-block input {
+  width: 100%;
   min-height: 42px;
-  color: #7a6c5e;
-  background: transparent;
-  border-style: dashed;
+  padding: 0 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  color: var(--admin-ink);
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.input-with-unit {
+  position: relative;
+  display: block;
+}
+
+.input-with-unit input {
+  padding-right: 40px;
+}
+
+.input-with-unit em {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  color: var(--admin-soft);
+  font-style: normal;
+  transform: translateY(-50%);
+}
+
+.created-key {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px solid rgba(4, 120, 87, 0.16);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #14532d;
+  background: rgba(236, 253, 245, 0.8);
+}
+
+.created-key strong {
+  overflow-wrap: anywhere;
+}
+
+.panel-head {
+  min-height: 66px;
+  padding: 18px;
+  border-bottom: 1px solid var(--admin-line);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.state-pill {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(4, 120, 87, 0.18);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--admin-green);
+  background: rgba(220, 252, 231, 0.72);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.user-ledger,
+.key-ledger {
+  overflow-x: auto;
+}
+
+.ledger-row,
+.key-row {
+  min-width: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--admin-line);
+  display: grid;
+  align-items: center;
+  gap: 14px;
+}
+
+.ledger-row {
+  grid-template-columns:
+    minmax(180px, 1.15fr)
+    70px
+    minmax(160px, 1fr)
+    170px
+    minmax(390px, 1.55fr);
+}
+
+.key-row {
+  grid-template-columns: 68px 98px 86px 80px minmax(160px, 1fr) minmax(150px, 1fr) 150px 86px;
+}
+
+.ledger-row:last-child,
+.key-row:last-child {
+  border-bottom: 0;
+}
+
+.ledger-header,
+.key-header {
+  min-height: 42px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  color: #7b7066;
+  background: rgba(250, 247, 243, 0.78);
   font-size: 12px;
   font-weight: 900;
 }
@@ -587,150 +933,238 @@ onMounted(loadAdminData)
 .identity-cell {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.identity-cell strong,
+.identity-cell small,
+.expiry-cell strong,
+.expiry-cell small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .identity-cell small,
-.muted-text {
-  color: #7a6c5e;
+.muted-text,
+.self-cell {
+  color: var(--admin-soft);
 }
 
-.role-cell {
+.avatar-token {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #be123c;
+  background: #ffe4ea;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.avatar-token.is-tone-1 { color: #047857; background: #d1fae5; }
+.avatar-token.is-tone-2 { color: #2563eb; background: #dbeafe; }
+.avatar-token.is-tone-3 { color: #c2410c; background: #ffedd5; }
+
+.permission-cell,
+.action-cell {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
+.action-cell {
+  justify-content: space-between;
+}
+
 .role-label {
-  color: #2f352f;
+  color: var(--admin-ink);
   font-weight: 900;
+}
+
+.vip-chip,
+.status-chip {
+  min-height: 27px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .vip-chip {
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   color: #6b5c46;
-  background: rgba(245, 238, 225, 0.82);
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
+  background: rgba(245, 238, 225, 0.88);
 }
 
 .vip-chip.is-vip {
-  color: #7c2d12;
-  background: rgba(255, 237, 213, 0.88);
-}
-
-.status-chip {
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
+  color: #c2410c;
+  background: rgba(255, 237, 213, 0.92);
 }
 
 .status-chip.is-active {
-  color: #047857;
-  background: rgba(220, 252, 231, 0.72);
+  color: var(--admin-green);
+  background: rgba(220, 252, 231, 0.78);
 }
 
 .status-chip.is-suspended,
 .status-chip.is-revoked {
   color: #9f1239;
-  background: rgba(255, 241, 242, 0.82);
+  background: rgba(255, 241, 242, 0.86);
 }
 
 .status-chip.is-expired,
 .status-chip.is-used {
-  color: #92400e;
-  background: rgba(254, 243, 199, 0.78);
+  color: var(--admin-amber);
+  background: rgba(254, 243, 199, 0.82);
 }
 
-.action-cell {
+.expiry-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.expiry-cell small {
+  color: var(--admin-green);
+  font-weight: 900;
+}
+
+.expiry-cell small.is-expired {
+  color: var(--admin-amber);
+}
+
+.renew-controls,
+.secondary-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
 
-.small-action {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid rgba(30, 30, 30, 0.12);
+.control-button,
+.duration-chip,
+.text-action,
+.primary-button {
+  min-height: 34px;
   border-radius: 8px;
-  color: #2f352f;
-  background: rgba(255, 255, 255, 0.72);
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
-.small-action.is-danger {
-  color: #9f1239;
+.control-button,
+.duration-chip {
+  padding: 0 11px;
+  border: 1px solid var(--admin-line);
+  color: var(--admin-ink);
+  background: rgba(255, 255, 255, 0.86);
 }
 
-.small-action:disabled,
-.peach-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.control-button.is-compact {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
-.field-block {
-  margin-top: 18px;
-  display: grid;
-  gap: 8px;
-  color: #5d554b;
-  font-weight: 800;
+.control-button.is-danger {
+  color: #be123c;
+  border-color: rgba(244, 63, 94, 0.26);
 }
 
-.field-block input {
-  width: 100%;
-  min-height: 44px;
+.duration-chip {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.duration-chip.is-selected {
+  color: #be123c;
+  background: rgba(255, 228, 233, 0.86);
+  border-color: rgba(244, 63, 94, 0.28);
+}
+
+.text-action {
+  min-height: 27px;
+  padding: 0;
+  border: 0;
+  color: #9f3b48;
+  background: transparent;
+  font-size: 12px;
+}
+
+.primary-button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  color: #fff;
+  background: #f44760;
+  box-shadow: 0 12px 26px rgba(244, 71, 96, 0.22);
+}
+
+.primary-button.is-small {
+  min-height: 30px;
   padding: 0 12px;
-  border: 1px solid rgba(30, 30, 30, 0.12);
+  font-size: 12px;
+}
+
+.control-button:hover:not(:disabled),
+.duration-chip:hover:not(:disabled),
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(58, 42, 33, 0.1);
+}
+
+.custom-days {
+  height: 30px;
+  padding-left: 9px;
+  border: 1px solid var(--admin-line);
   border-radius: 8px;
-  color: var(--sl-text-main);
-  background: rgba(255, 255, 255, 0.72);
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  background: #fff;
+}
+
+.custom-days span {
+  color: var(--admin-soft);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.custom-days input {
+  width: 56px;
+  height: 100%;
+  padding: 0 7px;
+  border: 0;
+  color: var(--admin-ink);
+  background: transparent;
   font: inherit;
+  font-weight: 900;
 }
 
-.key-button {
-  width: 100%;
-  margin-top: 18px;
+.control-button:disabled,
+.duration-chip:disabled,
+.text-action:disabled,
+.primary-button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.created-key {
-  margin-top: 18px;
-  padding: 14px;
-  border-radius: 8px;
-  display: grid;
-  gap: 8px;
-  color: #30553a;
-  background: rgba(236, 253, 245, 0.78);
-  border: 1px solid rgba(4, 120, 87, 0.16);
-}
-
-.created-key strong {
-  overflow-wrap: anywhere;
-  font-size: 18px;
-}
-
-.copy-action {
-  justify-self: start;
-}
-
-.key-help {
-  margin: 12px 0 0;
-  color: #7a6c5e;
-  font-size: 13px;
-  line-height: 1.7;
+.key-action-cell {
+  display: flex;
+  align-items: center;
 }
 
 .confirm-overlay {
@@ -747,20 +1181,15 @@ onMounted(loadAdminData)
 .confirm-dialog {
   width: min(440px, 100%);
   padding: 24px;
+  border: 1px solid var(--admin-line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 70px rgba(20, 16, 18, 0.22);
 }
 
-.confirm-dialog h3 {
-  margin: 0;
-  color: var(--sl-text-main);
-  font-family: var(--sl-display-font);
-  font-size: 25px;
-}
-
-.confirm-dialog p {
+.confirm-dialog p:not(.eyebrow) {
   margin: 16px 0 0;
-  color: #5d554b;
+  color: var(--admin-soft);
   line-height: 1.8;
 }
 
@@ -771,102 +1200,110 @@ onMounted(loadAdminData)
   gap: 10px;
 }
 
-@media (max-width: 1120px) {
-  .admin-grid {
+@media (max-width: 1280px) {
+  .metric-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .metric-card {
+    border-bottom: 1px solid var(--admin-line);
+  }
+
+  .admin-workbench,
+  .key-form {
     grid-template-columns: 1fr;
   }
 
-  .table-row,
-  .key-table .table-row {
+  .note-field {
     min-width: 0;
+  }
+}
+
+@media (max-width: 980px) {
+  .ledger-row,
+  .key-row {
     grid-template-columns: 1fr;
   }
 
-  .table-header {
+  .ledger-header,
+  .key-header {
     display: none;
   }
+
+  .ledger-row > span,
+  .key-row > span {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ledger-row > span::before,
+  .key-row > span::before {
+    color: #7b7066;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .ledger-row > span:nth-child(1)::before { content: "账号"; }
+  .ledger-row > span:nth-child(2)::before { content: "状态"; }
+  .ledger-row > span:nth-child(3)::before { content: "权限"; }
+  .ledger-row > span:nth-child(4)::before { content: "到期"; }
+  .ledger-row > span:nth-child(5)::before { content: "操作"; }
+
+  .key-row > span:nth-child(1)::before { content: "ID"; }
+  .key-row > span:nth-child(2)::before { content: "状态"; }
+  .key-row > span:nth-child(3)::before { content: "天数"; }
+  .key-row > span:nth-child(4)::before { content: "使用"; }
+  .key-row > span:nth-child(5)::before { content: "绑定"; }
+  .key-row > span:nth-child(6)::before { content: "备注"; }
+  .key-row > span:nth-child(7)::before { content: "创建"; }
+  .key-row > span:nth-child(8)::before { content: "操作"; }
 }
 
 @media (max-width: 720px) {
   .admin-page {
     padding: 18px 10px 34px;
-    gap: 14px;
   }
 
-  .admin-hero {
+  .admin-topbar,
+  .topbar-actions,
+  .panel-head {
     align-items: stretch;
     flex-direction: column;
-    min-height: auto;
-    padding: 22px;
-    gap: 18px;
   }
 
-  .admin-panel {
-    padding: 18px;
+  .metric-strip {
+    grid-template-columns: 1fr;
   }
 
-  .panel-head {
-    flex-direction: column;
+  .metric-card {
+    border-right: 0;
   }
 
-  .table-row,
-  .key-table .table-row {
-    min-height: 0;
+  .ledger-row,
+  .key-row {
     padding: 14px;
-    gap: 12px;
   }
 
-  .table-row:not(.table-header) > span {
-    min-width: 0;
-    display: grid;
-    grid-template-columns: 82px minmax(0, 1fr);
-    align-items: center;
-    gap: 10px;
+  .ledger-row > span,
+  .key-row > span {
+    grid-template-columns: 80px minmax(0, 1fr);
   }
-
-  .table-row:not(.table-header) > span::before {
-    color: #7a6c5e;
-    font-size: 12px;
-    font-weight: 900;
-  }
-
-  .user-table .table-row:not(.table-header) > span:nth-child(1)::before { content: "账号"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(2)::before { content: "状态"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(3)::before { content: "角色"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(4)::before { content: "VIP"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(5)::before { content: "到期"; }
-  .user-table .table-row:not(.table-header) > span:nth-child(6)::before { content: "操作"; }
-
-  .key-table .table-row:not(.table-header) > span:nth-child(1)::before { content: "ID"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(2)::before { content: "状态"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(3)::before { content: "天数"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(4)::before { content: "使用"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(5)::before { content: "绑定"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(6)::before { content: "备注"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(7)::before { content: "创建"; }
-  .key-table .table-row:not(.table-header) > span:nth-child(8)::before { content: "操作"; }
 
   .identity-cell {
-    gap: 2px;
+    grid-template-columns: 34px minmax(0, 1fr);
   }
 
-  .identity-cell small,
-  .key-table .table-row:not(.table-header) > span {
-    overflow-wrap: anywhere;
-  }
-
-  .role-cell,
   .action-cell {
-    justify-content: flex-start;
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .confirm-overlay {
     align-items: end;
     padding: 12px;
-  }
-
-  .confirm-dialog {
-    width: 100%;
   }
 }
 </style>
