@@ -13,6 +13,9 @@ backend/data/*.csv
 backend/data/*.csv.gz
 backend/data/*.zip
 backend/data/ecdict.compact.json
+backend/uploads/*
+backups/
+backend/data/
 
 output
 ocr-service/.venv

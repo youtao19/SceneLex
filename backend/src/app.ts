@@ -14,7 +14,7 @@ import { errorMiddleware } from './middlewares/error.middleware'
 const app = express()
 const backendRootPath = path.resolve(__dirname, '..')
 const repoRootPath = path.resolve(backendRootPath, '..')
-const uploadRootPath = path.join(backendRootPath, 'uploads')
+const avatarUploadPath = path.join(backendRootPath, 'uploads/avatars')
 const frontendDistPath = path.join(repoRootPath, 'frontend/dist')
 
 /**
@@ -54,9 +54,12 @@ app.use(express.json())
 
 /**
  * 静态资源访问。
- * 用于访问上传的用户头像等文件。
+ * 头像需要公开渲染，但不要把整个 uploads 根目录暴露出去。
  */
-app.use('/uploads', express.static(uploadRootPath))
+app.use('/uploads/avatars', express.static(avatarUploadPath, {
+  dotfiles: 'deny',
+  fallthrough: false,
+}))
 
 /**
  * 注册统一路由。
@@ -90,7 +93,7 @@ if (fs.existsSync(frontendDistPath)) {
     if (req.method !== 'GET') return next()
     if (
       req.path.startsWith('/api') ||
-      req.path.startsWith('/uploads') ||
+      req.path.startsWith('/uploads/avatars') ||
       req.path === '/health'
     ) {
       return next()
