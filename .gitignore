@@ -18,3 +18,4 @@ output
 ocr-service/.venv
 ocr-service/uploads/*
 !ocr-service/uploads/.gitkeep
+ecosystem.config.cjs
