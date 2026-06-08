@@ -1,31 +1,42 @@
 <template>
   <section class="settings-page">
-    <header class="settings-hero">
-      <div class="hero-copy">
-        <p class="card-label">{{ canManageModelSettings ? 'MODEL ROOM' : 'REVIEW ROOM' }}</p>
+    <header class="settings-topbar">
+      <div>
+        <p class="eyebrow">{{ canManageModelSettings ? 'CONTROL DECK' : 'PERSONAL SETTINGS' }}</p>
         <h2 class="section-title">更多</h2>
-        <p v-if="canManageModelSettings">
-          这里直接控制后端当前进程使用的模型。保存后，新词生成和阅读问答都会走选中的服务与模型名。
-        </p>
-        <p v-else>
-          这里配置你自己的模型 API Key 和复习推送节奏。模型服务和模型名由管理员统一选择。
+        <p>
+          {{ canManageModelSettings
+            ? '把模型运行态、个人密钥和复习节奏拆开管理，减少误改。'
+            : '管理你的个人模型密钥和复习推送节奏。' }}
         </p>
       </div>
-
-      <div v-if="canManageModelSettings" class="hero-meter" aria-label="当前模型">
-        <span class="meter-label">ACTIVE</span>
-        <strong>{{ activeProviderName }}</strong>
-        <small>{{ activeModelName }}</small>
+      <div class="status-board" aria-label="当前配置状态">
+        <article v-if="canManageModelSettings">
+          <span>当前模型</span>
+          <strong>{{ activeProviderName }}</strong>
+          <small>{{ activeModelName }}</small>
+        </article>
+        <article>
+          <span>个人密钥</span>
+          <strong>{{ selectedApiKeyProviderName }}</strong>
+          <small>{{ selectedApiKeyConfig ? describeApiKeyStatus(selectedApiKeyConfig) : '读取中' }}</small>
+        </article>
+        <article>
+          <span>复习推送</span>
+          <strong>{{ dailyReviewLimitEnabled ? normalizedDailyReviewLimit : 'ALL' }}</strong>
+          <small>{{ dailyReviewLimitEnabled ? '每日数量限制' : '展示所有到期词' }}</small>
+        </article>
       </div>
     </header>
 
-    <section class="settings-board" :class="{ 'is-learning-only': !canManageModelSettings }">
-      <div class="settings-stack">
-        <article v-if="canManageModelSettings" class="model-panel surface-card" aria-labelledby="model-title">
+    <section class="settings-layout" :class="{ 'is-personal-only': !canManageModelSettings }">
+      <div class="settings-main">
+        <article v-if="canManageModelSettings" class="settings-panel is-model" aria-labelledby="model-title">
           <div class="panel-head">
             <div>
-              <p class="card-label">GENERATION</p>
-              <h3 id="model-title">模型设置</h3>
+              <p class="eyebrow">GENERATION</p>
+              <h3 id="model-title">后端模型运行态</h3>
+              <p>保存后，新词生成和阅读问答都会切到这组 provider 与模型名。</p>
             </div>
             <span class="state-pill" :class="{ 'is-dirty': hasModelChanges }">
               {{ hasModelChanges ? '未保存' : '已同步' }}
@@ -53,7 +64,7 @@
               </button>
             </div>
 
-            <div class="model-form">
+            <div class="inline-form">
               <label class="field-block">
                 <span>模型名称</span>
                 <input
@@ -64,7 +75,6 @@
                   :placeholder="selectedProviderConfig?.model || '输入模型名'"
                 />
               </label>
-
               <div class="preset-row" aria-label="常用模型">
                 <button
                   v-for="preset in activePresets"
@@ -76,27 +86,25 @@
                   {{ preset }}
                 </button>
               </div>
-
-              <div class="action-row">
-                <button
-                  class="peach-button save-button"
-                  type="button"
-                  :disabled="!canSaveModel"
-                  @click="saveModelSettings"
-                >
-                  保存模型设置
-                </button>
-                <p v-if="modelSuccessMessage" class="save-result">{{ modelSuccessMessage }}</p>
-              </div>
+              <button
+                class="primary-action"
+                type="button"
+                :disabled="!canSaveModel"
+                @click="saveModelSettings"
+              >
+                保存模型设置
+              </button>
             </div>
+            <p v-if="modelSuccessMessage" class="save-result">{{ modelSuccessMessage }}</p>
           </template>
         </article>
 
-        <article class="model-panel surface-card" aria-labelledby="api-key-title">
+        <article class="settings-panel" aria-labelledby="api-key-title">
           <div class="panel-head">
             <div>
-              <p class="card-label">API KEY</p>
+              <p class="eyebrow">API KEY</p>
               <h3 id="api-key-title">个人模型密钥</h3>
+              <p>个人 Key 只服务当前账号；保存前会先测试，成功后才写入。</p>
             </div>
             <span class="state-pill" :class="{ 'is-dirty': hasApiKeyChanges }">
               {{ hasApiKeyChanges ? '未保存' : '已同步' }}
@@ -104,14 +112,12 @@
           </div>
 
           <div v-if="apiKeyErrorMessage" class="notice-box is-error">{{ apiKeyErrorMessage }}</div>
-          <div v-if="hasApiKeyChanges" class="notice-box">
-            保存时会先测试这个 API Key，测试通过后才会写入。
-          </div>
+          <div v-if="hasApiKeyChanges" class="notice-box">保存时会先测试这个 API Key， 测试通过后才会写入。</div>
           <div v-if="apiKeySettings?.activeProvider === 'ollama'" class="notice-box">
             当前系统使用 Ollama，本地服务不需要 API Key。管理员切到 Kimi 或 DeepSeek 后会优先使用你保存的密钥。
           </div>
 
-          <div class="api-key-form">
+          <div class="api-key-grid">
             <div class="provider-grid is-compact" aria-label="API Key 服务">
               <button
                 v-for="provider in apiKeySettings?.providers ?? []"
@@ -129,44 +135,46 @@
               </button>
             </div>
 
-            <label class="field-block">
-              <span>{{ selectedApiKeyProviderName }} API Key</span>
-              <input
-                v-model.trim="apiKeyInput"
-                type="password"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="粘贴你的 API Key；留空保存会清除"
-              />
-            </label>
-
-            <div class="action-row">
-              <button
-                class="peach-button save-button"
-                type="button"
-                :disabled="!canSaveApiKey"
-                @click="saveApiKeySettings"
-              >
-                {{ isSavingApiKey ? '正在测试...' : '保存个人密钥' }}
-              </button>
-              <button
-                class="ghost-button"
-                type="button"
-                :disabled="!selectedApiKeyConfig?.hasUserApiKey || isSavingApiKey"
-                @click="clearApiKeySettings"
-              >
-                清除
-              </button>
+            <div class="secret-form">
+              <label class="field-block">
+                <span>{{ selectedApiKeyProviderName }} API Key</span>
+                <input
+                  v-model.trim="apiKeyInput"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="粘贴你的 API Key；留空保存会清除"
+                />
+              </label>
+              <div class="action-row">
+                <button
+                  class="primary-action"
+                  type="button"
+                  :disabled="!canSaveApiKey"
+                  @click="saveApiKeySettings"
+                >
+                  {{ isSavingApiKey ? '正在测试...' : '保存个人密钥' }}
+                </button>
+                <button
+                  class="secondary-action"
+                  type="button"
+                  :disabled="!selectedApiKeyConfig?.hasUserApiKey || isSavingApiKey"
+                  @click="clearApiKeySettings"
+                >
+                  清除
+                </button>
+              </div>
               <p v-if="apiKeySuccessMessage" class="save-result">{{ apiKeySuccessMessage }}</p>
             </div>
           </div>
         </article>
 
-        <article class="model-panel surface-card" aria-labelledby="learning-title">
+        <article class="settings-panel" aria-labelledby="learning-title">
           <div class="panel-head">
             <div>
-              <p class="card-label">REVIEW</p>
-              <h3 id="learning-title">复习推送</h3>
+              <p class="eyebrow">REVIEW</p>
+              <h3 id="learning-title">复习推送节奏</h3>
+              <p>只控制复习舱每天展示多少到期词，不会删除或跳过词库数据。</p>
             </div>
             <span class="state-pill" :class="{ 'is-dirty': hasLearningChanges }">
               {{ hasLearningChanges ? '未保存' : '已同步' }}
@@ -175,7 +183,7 @@
 
           <div v-if="learningErrorMessage" class="notice-box is-error">{{ learningErrorMessage }}</div>
 
-          <div class="learning-form">
+          <div class="review-console">
             <button
               class="switch-row"
               type="button"
@@ -183,15 +191,15 @@
               @click="toggleDailyReviewLimit"
             >
               <span>
-                <strong>启用每日数量限制</strong>
-                <small>{{ dailyReviewLimitEnabled ? '复习舱会按下方数量推送到期词' : '关闭时恢复默认：展示所有到期词' }}</small>
+                <strong>每日数量限制</strong>
+                <small>{{ dailyReviewLimitEnabled ? '按设定数量推送到期词' : '关闭后展 示所有到期词' }}</small>
               </span>
               <span class="switch-track" :class="{ 'is-on': dailyReviewLimitEnabled }">
                 <span class="switch-thumb"></span>
               </span>
             </button>
 
-            <label class="field-block">
+            <label class="field-block review-count-field">
               <span>每天推送数量</span>
               <input
                 v-model.number="dailyReviewLimit"
@@ -203,25 +211,24 @@
               />
             </label>
 
-            <input
-              v-model.number="dailyReviewLimit"
-              class="review-slider"
-              :disabled="!dailyReviewLimitEnabled"
-              type="range"
-              min="1"
-              max="100"
-              step="1"
-              aria-label="每天推送数量"
-            />
-
-            <div class="review-limit-preview">
+            <div class="review-meter">
               <strong>{{ dailyReviewLimitEnabled ? normalizedDailyReviewLimit : 'ALL' }}</strong>
               <span>{{ dailyReviewLimitEnabled ? '个到期单词 / 天' : '所有到期单词' }}</span>
+              <input
+                v-model.number="dailyReviewLimit"
+                class="review-slider"
+                :disabled="!dailyReviewLimitEnabled"
+                type="range"
+                min="1"
+                max="100"
+                step="1"
+                aria-label="每天推送数量"
+              />
             </div>
 
             <div class="action-row">
               <button
-                class="peach-button save-button"
+                class="primary-action"
                 type="button"
                 :disabled="!canSaveLearning"
                 @click="saveLearningSettings"
@@ -234,13 +241,18 @@
         </article>
       </div>
 
-      <aside v-if="canManageModelSettings" class="diagnostic-panel surface-card" aria-label="运行诊断">
-        <p class="card-label">RUNTIME</p>
+      <aside v-if="canManageModelSettings" class="runtime-panel" aria-label="运行诊断">
+        <p class="eyebrow">RUNTIME</p>
         <h3>运行诊断</h3>
+        <p>{{ activeProviderDescription }}</p>
 
         <dl v-if="selectedProviderConfig" class="diagnostic-list">
           <div>
-            <dt>服务地址</dt>
+            <dt>服务</dt>
+            <dd>{{ selectedProviderName }}</dd>
+          </div>
+          <div>
+            <dt>地址</dt>
             <dd>{{ selectedProviderConfig.baseURL }}</dd>
           </div>
           <div>
@@ -251,16 +263,7 @@
             <dt>密钥</dt>
             <dd>{{ keyStatus }}</dd>
           </div>
-          <div>
-            <dt>配置来源</dt>
-            <dd>后端运行态</dd>
-          </div>
         </dl>
-
-        <div class="runtime-note">
-          <strong>{{ selectedProviderName }}</strong>
-          <p>{{ activeProviderDescription }}</p>
-        </div>
       </aside>
     </section>
   </section>
@@ -416,7 +419,7 @@ async function loadSettings() {
         selectedModel.value = modelResponse.data.providers.find((provider) => provider.id === modelResponse.data.provider)?.model ?? '';
       })
       .catch((error) => {
-        modelErrorMessage.value = error instanceof Error ? error.message : '读取模型设置失败';
+        modelErrorMessage.value = error instanceof Error ? error.message : '读取模型设 置失败';
       })
       .finally(() => {
         isLoading.value = false;
@@ -496,7 +499,7 @@ async function saveModelSettings() {
     selectedModel.value = response.data.providers.find((provider) => provider.id === response.data.provider)?.model ?? '';
     modelSuccessMessage.value = '已保存，下一次生成会使用这组模型设置。';
   } catch (error) {
-    modelErrorMessage.value = error instanceof Error ? error.message : '保存模型设置失败';
+    modelErrorMessage.value = error instanceof Error ? error.message : '保存模型设置失 败';
   } finally {
     isSaving.value = false;
   }
@@ -530,7 +533,7 @@ async function saveApiKeySettings() {
     return;
   }
 
-  await saveApiKey(apiKeyInput.value.trim(), '测试通过，已保存。下一次生成会优先使用你的密钥。');
+  await saveApiKey(apiKeyInput.value.trim(), '测试通过，已保存。下一次生成会优先使用你 的密钥。');
 }
 
 async function clearApiKeySettings() {
@@ -577,113 +580,170 @@ onMounted(loadSettings);
 
 <style scoped>
 .settings-page {
-  max-width: 1180px;
+  width: min(100%, 1320px);
   margin: 0 auto;
-  padding: 40px 20px 72px;
+  padding: 34px 28px 72px;
   display: grid;
-  gap: 22px;
+  gap: 18px;
+  --settings-ink: #1d1a17;
+  --settings-soft: #6f665d;
+  --settings-line: rgba(42, 36, 31, 0.12);
+  --settings-paper: rgba(255, 253, 250, 0.88);
+  --settings-panel: rgba(255, 255, 255, 0.74);
+  --settings-green: #047857;
+  --settings-amber: #b45309;
+  --settings-rose: #e0445f;
 }
 
-.settings-hero {
-  min-height: 210px;
-  padding: 34px;
-  border: 1px solid rgba(30, 30, 30, 0.08);
-  border-radius: 8px;
+.settings-topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 0.72fr) minmax(420px, 1fr);
+  gap: 18px;
   align-items: end;
-  gap: 28px;
-  color: #1c1a17;
-  background:
-    linear-gradient(135deg, rgba(255, 246, 232, 0.96), rgba(234, 248, 239, 0.92)),
-    repeating-linear-gradient(90deg, rgba(20, 20, 20, 0.06) 0 1px, transparent 1px 34px);
-  box-shadow: 0 18px 45px rgba(56, 42, 25, 0.11);
-  overflow: hidden;
 }
 
-.hero-copy p {
-  max-width: 680px;
-  margin: 10px 0 0;
-  color: #5d554b;
-  line-height: 1.8;
-}
-
-.hero-meter {
-  min-height: 146px;
-  padding: 18px;
-  border: 1px solid rgba(28, 26, 23, 0.16);
-  border-radius: 8px;
+.settings-topbar > div:first-child {
   display: grid;
-  align-content: space-between;
-  background: rgba(255, 255, 255, 0.52);
+  gap: 7px;
 }
 
-.meter-label {
-  color: #9a5224;
+.settings-topbar p {
+  margin: 0;
+  color: var(--settings-soft);
+  line-height: 1.7;
+}
+
+.section-title {
+  margin: 0;
+  color: var(--settings-ink);
+  font-family: var(--sl-display-font);
+  font-size: 34px;
+  line-height: 1.05;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #b95035;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
-.hero-meter strong {
-  font-family: var(--sl-display-font);
-  font-size: 34px;
-  line-height: 1;
+.status-board {
+  border: 1px solid var(--settings-line);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  background: var(--settings-panel);
+  box-shadow: 0 16px 42px rgba(58, 42, 33, 0.07);
 }
 
-.hero-meter small {
-  color: #4d6653;
-  font-weight: 800;
+.status-board article {
+  min-height: 96px;
+  padding: 16px;
+  border-right: 1px solid var(--settings-line);
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.status-board article:last-child {
+  border-right: 0;
+}
+
+.status-board span,
+.status-board small {
+  color: var(--settings-soft);
+  font-weight: 900;
+}
+
+.status-board span {
+  font-size: 12px;
+}
+
+.status-board strong {
+  color: var(--settings-ink);
+  font-size: 22px;
+  line-height: 1.08;
   overflow-wrap: anywhere;
 }
 
-.settings-board {
+.settings-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 18px;
   align-items: start;
 }
 
-.settings-board.is-learning-only {
-  grid-template-columns: minmax(0, 720px);
-  justify-content: center;
+.settings-layout.is-personal-only {
+  grid-template-columns: minmax(0, 900px);
 }
 
-.model-panel,
-.diagnostic-panel {
-  border-radius: 8px;
-}
-
-.model-panel {
-  padding: 26px;
-}
-
-.settings-stack {
+.settings-main {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
-.diagnostic-panel {
+.settings-panel,
+.runtime-panel {
+  border: 1px solid var(--settings-line);
+  border-radius: 8px;
+  background: var(--settings-paper);
+  box-shadow: 0 16px 42px rgba(58, 42, 33, 0.07);
+}
+
+.settings-panel {
+  overflow: hidden;
+}
+
+.runtime-panel {
   position: sticky;
   top: 96px;
-  padding: 24px;
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.runtime-panel h3 {
+  margin: 0;
+  color: var(--settings-ink);
+  font-family: var(--sl-display-font);
+  font-size: 22px;
+}
+
+.runtime-panel p {
+  margin: 0;
+  color: var(--settings-soft);
+  line-height: 1.7;
 }
 
 .panel-head {
+  padding: 18px;
+  border-bottom: 1px solid var(--settings-line);
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--sl-glass-border);
 }
 
-.panel-head h3,
-.diagnostic-panel h3 {
+.panel-head > div {
+  display: grid;
+  gap: 5px;
+}
+
+.panel-head h3 {
   margin: 0;
-  color: var(--sl-text-main);
+  color: var(--settings-ink);
   font-family: var(--sl-display-font);
-  font-size: 25px;
+  font-size: 22px;
+}
+
+.panel-head p:not(.eyebrow) {
+  margin: 0;
+  color: var(--settings-soft);
+  line-height: 1.65;
 }
 
 .state-pill {
@@ -692,7 +752,7 @@ onMounted(loadSettings);
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  color: #047857;
+  color: var(--settings-green);
   background: rgba(220, 252, 231, 0.72);
   border: 1px solid rgba(4, 120, 87, 0.18);
   font-size: 13px;
@@ -701,18 +761,18 @@ onMounted(loadSettings);
 }
 
 .state-pill.is-dirty {
-  color: #9a3412;
+  color: var(--settings-amber);
   background: rgba(255, 237, 213, 0.78);
   border-color: rgba(154, 52, 18, 0.18);
 }
 
 .notice-box {
-  margin-top: 18px;
+  margin: 14px 18px 0;
   padding: 14px 16px;
   border-radius: 8px;
-  color: var(--sl-text-soft);
-  background: rgba(255, 255, 255, 0.36);
-  border: 1px solid var(--sl-glass-border);
+  color: var(--settings-soft);
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid var(--settings-line);
   font-weight: 800;
 }
 
@@ -723,29 +783,29 @@ onMounted(loadSettings);
 }
 
 .provider-grid {
-  margin-top: 22px;
+  padding: 18px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 .provider-grid.is-compact {
-  margin-top: 0;
+  padding: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .provider-tile {
-  min-height: 108px;
-  padding: 16px;
-  border: 1px solid var(--sl-glass-border-strong);
+  min-height: 94px;
+  padding: 14px;
+  border: 1px solid var(--settings-line);
   border-radius: 8px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   text-align: left;
-  color: var(--sl-text-main);
-  background: rgba(255, 255, 255, 0.28);
+  color: var(--settings-ink);
+  background: rgba(255, 255, 255, 0.64);
   cursor: pointer;
 }
 
@@ -756,8 +816,8 @@ onMounted(loadSettings);
 }
 
 .provider-tile:focus-visible,
-.save-button:focus-visible,
-.ghost-button:focus-visible,
+.primary-action:focus-visible,
+.secondary-action:focus-visible,
 .preset-chip:focus-visible {
   outline: 3px solid rgba(22, 101, 52, 0.22);
   outline-offset: 2px;
@@ -765,13 +825,13 @@ onMounted(loadSettings);
 
 .provider-tile.is-active {
   border-color: rgba(22, 101, 52, 0.42);
-  background: linear-gradient(135deg, rgba(236, 253, 245, 0.8), rgba(255, 247, 237, 0.64));
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.82), rgba(255, 247, 237, 0.7));
   box-shadow: 0 14px 32px rgba(22, 101, 52, 0.12);
 }
 
 .provider-icon {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -788,26 +848,29 @@ onMounted(loadSettings);
 
 .provider-tile small {
   margin-top: 5px;
-  color: var(--sl-text-soft);
+  color: var(--settings-soft);
   font-weight: 700;
 }
 
-.model-form {
-  margin-top: 24px;
+.inline-form {
+  padding: 0 18px 18px;
   display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 1fr) auto;
   gap: 16px;
+  align-items: end;
 }
 
-.api-key-form {
-  margin-top: 22px;
+.api-key-grid {
+  padding: 18px;
   display: grid;
-  gap: 16px;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(280px, 1fr);
+  gap: 18px;
+  align-items: start;
 }
 
-.learning-form {
-  margin-top: 22px;
+.secret-form {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .switch-row {
@@ -821,8 +884,8 @@ onMounted(loadSettings);
   align-items: center;
   gap: 16px;
   text-align: left;
-  color: var(--sl-text-main);
-  background: rgba(255, 255, 255, 0.62);
+  color: var(--settings-ink);
+  background: rgba(255, 255, 255, 0.7);
   cursor: pointer;
 }
 
@@ -844,7 +907,7 @@ onMounted(loadSettings);
 
 .switch-row small {
   margin-top: 5px;
-  color: var(--sl-text-soft);
+  color: var(--settings-soft);
   font-weight: 800;
 }
 
@@ -880,7 +943,7 @@ onMounted(loadSettings);
 
 .field-block {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .field-block span {
@@ -893,16 +956,13 @@ onMounted(loadSettings);
 
 .field-block input {
   width: 100%;
-  min-height: 62px;
-  padding: 0 18px;
-  border: 2px solid rgba(23, 74, 47, 0.28);
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--settings-line);
   border-radius: 8px;
-  color: var(--sl-text-main);
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 12px 24px rgba(23, 74, 47, 0.08);
-  font-size: 17px;
+  color: var(--settings-ink);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
   font-weight: 900;
   outline: none;
 }
@@ -915,9 +975,7 @@ onMounted(loadSettings);
 .field-block input:focus {
   border-color: #166534;
   background: #ffffff;
-  box-shadow:
-    0 0 0 4px rgba(22, 101, 52, 0.16),
-    0 18px 34px rgba(23, 74, 47, 0.14);
+  box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.16);
 }
 
 .field-block input:disabled,
@@ -933,24 +991,6 @@ onMounted(loadSettings);
   cursor: pointer;
 }
 
-.review-limit-preview {
-  min-height: 76px;
-  padding: 16px;
-  border-radius: 8px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  color: #174a2f;
-  background: rgba(217, 249, 157, 0.34);
-  border: 1px solid rgba(22, 101, 52, 0.14);
-}
-
-.review-limit-preview strong {
-  font-family: var(--sl-display-font);
-  font-size: 42px;
-  line-height: 1;
-}
-
 .preset-row {
   display: flex;
   flex-wrap: wrap;
@@ -960,10 +1000,10 @@ onMounted(loadSettings);
 .preset-chip {
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid var(--sl-glass-border-strong);
+  border: 1px solid var(--settings-line);
   border-radius: 999px;
-  color: var(--sl-text-soft);
-  background: rgba(255, 255, 255, 0.3);
+  color: var(--settings-soft);
+  background: rgba(255, 255, 255, 0.72);
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -982,28 +1022,35 @@ onMounted(loadSettings);
   align-items: center;
 }
 
-.save-button {
-  border-radius: 8px;
-}
-
-.ghost-button {
-  min-height: 44px;
+.primary-action,
+.secondary-action {
+  min-height: 42px;
   padding: 0 18px;
-  border: 1px solid rgba(23, 74, 47, 0.22);
   border-radius: 8px;
-  color: #174a2f;
-  background: rgba(255, 255, 255, 0.54);
   font-weight: 900;
   cursor: pointer;
 }
 
-.ghost-button:hover {
-  border-color: rgba(23, 74, 47, 0.38);
-  background: rgba(236, 253, 245, 0.7);
+.primary-action {
+  border: 1px solid transparent;
+  color: #fff;
+  background: #f44760;
+  box-shadow: 0 12px 26px rgba(244, 71, 96, 0.22);
 }
 
-.save-button:disabled,
-.ghost-button:disabled {
+.secondary-action {
+  border: 1px solid rgba(23, 74, 47, 0.22);
+  color: #174a2f;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.primary-action:disabled,
+.secondary-action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
@@ -1011,80 +1058,115 @@ onMounted(loadSettings);
 
 .save-result {
   margin: 0;
-  color: #047857;
+  color: var(--settings-green);
   font-weight: 800;
 }
 
-.diagnostic-list {
-  margin: 20px 0 0;
+.review-console {
+  padding: 18px;
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(240px, 1fr) 180px minmax(240px, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.review-console .action-row {
+  grid-column: 1 / -1;
+}
+
+.review-meter {
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid rgba(22, 101, 52, 0.14);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  color: #174a2f;
+  background: rgba(217, 249, 157, 0.28);
+}
+
+.review-meter strong {
+  font-family: var(--sl-display-font);
+  font-size: 38px;
+  line-height: 1;
+}
+
+.review-meter span {
+  font-weight: 900;
+}
+
+.diagnostic-list {
+  margin: 0;
+  display: grid;
+  gap: 0;
 }
 
 .diagnostic-list div {
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--sl-glass-border);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--settings-line);
 }
 
 .diagnostic-list dt {
-  color: var(--sl-text-mute);
+  color: var(--settings-soft);
   font-size: 12px;
   font-weight: 900;
 }
 
 .diagnostic-list dd {
   margin: 6px 0 0;
-  color: var(--sl-text-main);
+  color: var(--settings-ink);
   font-weight: 800;
   overflow-wrap: anywhere;
 }
 
-.runtime-note {
-  margin-top: 18px;
-  padding: 16px;
-  border-radius: 8px;
-  color: #174a2f;
-  background: rgba(217, 249, 157, 0.34);
-  border: 1px solid rgba(22, 101, 52, 0.14);
-}
-
-.runtime-note p {
-  margin: 8px 0 0;
-  line-height: 1.7;
-}
-
-@media (max-width: 980px) {
-  .settings-hero,
-  .settings-board {
+@media (max-width: 1180px) {
+  .settings-topbar,
+  .settings-layout,
+  .inline-form,
+  .api-key-grid,
+  .review-console {
     grid-template-columns: 1fr;
   }
 
-  .diagnostic-panel {
+  .runtime-panel {
     position: static;
+  }
+}
+
+@media (max-width: 860px) {
+  .status-board {
+    grid-template-columns: 1fr;
+  }
+
+  .status-board article {
+    border-right: 0;
+    border-bottom: 1px solid var(--settings-line);
+  }
+
+  .status-board article:last-child {
+    border-bottom: 0;
+  }
+
+  .provider-grid,
+  .provider-grid.is-compact {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
   .settings-page {
-    padding: 24px 12px 56px;
-  }
-
-  .settings-hero,
-  .model-panel,
-  .diagnostic-panel {
-    padding: 22px;
-  }
-
-  .provider-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .provider-grid.is-compact {
-    grid-template-columns: 1fr;
+    padding: 18px 10px 40px;
   }
 
   .panel-head {
     flex-direction: column;
+  }
+
+  .settings-panel,
+  .runtime-panel,
+  .settings-topbar,
+  .status-board {
+    border-radius: 8px;
   }
 }
 </style>
