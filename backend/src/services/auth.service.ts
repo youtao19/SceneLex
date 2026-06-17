@@ -102,6 +102,11 @@ function getAccessIssue(user: AuthUser) {
     };
   }
 
+  // 管理员是授权维护入口，不能因为普通访问有效期到期而失去救援能力。
+  if (user.role === 'admin') {
+    return null;
+  }
+
   if (user.accessStatus === 'expired') {
     return {
       status: 'expired' as const,
