@@ -173,6 +173,8 @@ npm run start:tunnel
 
 ## Operations
 
+Server update and restart notes: [docs/server-operations.md](docs/server-operations.md).
+
 Create an access key:
 
 ```bash
@@ -186,6 +188,8 @@ npm run user:suspend
 npm run user:resume
 npm run user:renew
 ```
+
+Admin accounts keep login and admin-panel access after `access_expires_at`; use `user:suspend` when an admin must be explicitly disabled.
 
 Prewarm CET-6 system word cards:
 
