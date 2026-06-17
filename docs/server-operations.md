@@ -82,6 +82,18 @@ pm2 save
 
 注意：`ecosystem.config.cjs` 里包含数据库密码和模型 API Key，不要提交到 git。
 
+头像使用 Cloudflare R2 时，需要在 `ecosystem.config.cjs` 中配置：
+
+```js
+R2_ACCOUNT_ID: 'Cloudflare account id',
+R2_AVATAR_BUCKET: 'scenelex-avatars',
+R2_ACCESS_KEY_ID: 'R2 access key id',
+R2_SECRET_ACCESS_KEY: 'R2 secret access key',
+R2_AVATAR_PUBLIC_BASE_URL: 'https://avatars.scenlex.cn',
+```
+
+如果这些变量全部留空，头像会继续保存到服务器本地 `backend/uploads/avatars`。如果只配置了一部分，后端会拒绝头像上传，避免文件写到错误位置。
+
 ## 第一次启动或重新注册 PM2 应用
 
 如果 PM2 里没有 `scenelex` 这个应用，可以重新注册：
