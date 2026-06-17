@@ -122,6 +122,13 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_API_KEY=
 
 USER_API_KEY_SECRET=
+
+# Optional Cloudflare R2 avatar storage
+R2_ACCOUNT_ID=
+R2_AVATAR_BUCKET=scenelex-avatars
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_AVATAR_PUBLIC_BASE_URL=https://avatars.scenlex.cn
 ```
 
 For shared deployments, ordinary users should save their own Kimi or DeepSeek API keys in the settings page. Server-level API keys should be treated as admin/system fallback credentials.
@@ -163,7 +170,7 @@ Run the compiled backend:
 npm run start:prod
 ```
 
-When `frontend/dist` exists, the backend serves the built frontend and API from the same port. User avatars are served from `/uploads/avatars`.
+When `frontend/dist` exists, the backend serves the built frontend and API from the same port. User avatars are uploaded to Cloudflare R2 when all `R2_*` variables are configured; otherwise they fall back to `/uploads/avatars`.
 
 For temporary public sharing through ngrok:
 

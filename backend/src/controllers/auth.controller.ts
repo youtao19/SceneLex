@@ -3,6 +3,7 @@ import {
   readAuthToken,
   readAuthUser,
 } from '../middlewares/auth.middleware';
+import { uploadAvatarFile } from '../services/avatar-storage.service';
 import { authService } from '../services/auth.service';
 import type { LoginPayload, RegisterPayload, UpdateProfilePayload } from '../types/auth';
 import { ok } from '../utils/response';
@@ -96,9 +97,7 @@ export async function updateAvatar(
       });
     }
 
-    // 构建可访问的公开 URL
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-
+    const avatarUrl = await uploadAvatarFile(authUser.id, req.file);
     const result = await authService.updateAvatar(authUser.id, avatarUrl);
     return res.json(ok(result, '头像已更新'));
   } catch (error) {
