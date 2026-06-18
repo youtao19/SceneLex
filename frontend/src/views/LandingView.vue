@@ -149,11 +149,15 @@
     </div>
 
     <!-- Bottom Left Icon -->
-    <div class="bottom-left-icon">
-      <div class="chat-bubble">
+    <a class="bottom-left-icon" :href="contactMailto" aria-label="联系管理员申请访问密钥">
+      <div class="chat-bubble" aria-hidden="true">
         <div class="chat-inner"></div>
       </div>
-    </div>
+      <span class="contact-hint">
+        <strong>没有访问密钥？</strong>
+        <span>点击联系管理员</span>
+      </span>
+    </a>
   </div>
 </template>
 
@@ -178,6 +182,10 @@ const submitError = ref('')
 const submitSuccess = ref('')
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
+const contactEmail = 'peach19@foxmail.com'
+const contactSubject = '申请开通 SceneLex 访问密钥'
+const contactBody = '你好，我想申请开通 SceneLex 访问密钥，请协助处理。谢谢。'
+const contactMailto = `mailto:${contactEmail}?subject=${encodeURIComponent(contactSubject)}&body=${encodeURIComponent(contactBody)}`
 
 function handleWheel(e: WheelEvent) {
   if (e.deltaY > 0 && !isScrolled.value) {
@@ -681,6 +689,18 @@ async function handleSubmit() {
   position: absolute;
   bottom: 40px;
   left: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 50% 50% 50% 12px;
+  outline: none;
+  color: inherit;
+  text-decoration: none;
+}
+
+.bottom-left-icon:focus-visible {
+  border-radius: 20px;
+  box-shadow: 0 0 0 4px rgba(126, 196, 197, 0.28);
 }
 
 .chat-bubble {
@@ -716,5 +736,41 @@ async function handleSubmit() {
   border-width: 4px 4px 0 0;
   border-style: solid;
   border-color: white transparent transparent transparent;
+}
+
+.contact-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid rgba(76, 160, 165, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 12px 24px rgba(76, 160, 165, 0.16);
+  color: var(--sl-text-main);
+  line-height: 1.35;
+  white-space: nowrap;
+  backdrop-filter: blur(14px);
+}
+
+.contact-hint strong {
+  font-size: 14px;
+}
+
+.contact-hint span {
+  font-size: 12px;
+  color: var(--sl-text-mute);
+}
+
+@media (max-width: 640px) {
+  .bottom-left-icon {
+    bottom: 24px;
+    left: 20px;
+    gap: 10px;
+  }
+
+  .contact-hint {
+    padding: 8px 12px;
+  }
 }
 </style>
