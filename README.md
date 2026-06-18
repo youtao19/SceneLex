@@ -124,11 +124,9 @@ DEEPSEEK_API_KEY=
 USER_API_KEY_SECRET=
 
 # Optional Cloudflare R2 avatar storage
-R2_ACCOUNT_ID=
-R2_AVATAR_BUCKET=scenelex-avatars
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
 R2_AVATAR_PUBLIC_BASE_URL=https://avatars.scenlex.cn
+R2_AVATAR_UPLOAD_URL=https://scenelex-avatar-upload.wuyoutao19.workers.dev
+R2_AVATAR_UPLOAD_TOKEN=
 ```
 
 For shared deployments, ordinary users should save their own Kimi or DeepSeek API keys in the settings page. Server-level API keys should be treated as admin/system fallback credentials.
