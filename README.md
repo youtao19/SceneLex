@@ -125,7 +125,7 @@ USER_API_KEY_SECRET=
 
 # Optional Cloudflare R2 avatar storage
 R2_AVATAR_PUBLIC_BASE_URL=https://avatars.scenlex.cn
-R2_AVATAR_UPLOAD_URL=https://scenelex-avatar-upload.wuyoutao19.workers.dev
+R2_AVATAR_UPLOAD_URL=https://avatar-upload.scenlex.cn
 R2_AVATAR_UPLOAD_TOKEN=
 ```
 
