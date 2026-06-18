@@ -19,9 +19,7 @@ export const env = {
   modelGlobalConcurrency: Number(process.env.MODEL_GLOBAL_CONCURRENCY ?? 3),
   modelUserConcurrency: Number(process.env.MODEL_USER_CONCURRENCY ?? 1),
   modelQueueTimeoutMs: Number(process.env.MODEL_QUEUE_TIMEOUT_MS ?? 30_000),
-  r2AccountId: process.env.R2_ACCOUNT_ID ?? '',
-  r2AvatarBucket: process.env.R2_AVATAR_BUCKET ?? '',
-  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
-  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
   r2AvatarPublicBaseUrl: process.env.R2_AVATAR_PUBLIC_BASE_URL ?? '',
+  r2AvatarUploadUrl: process.env.R2_AVATAR_UPLOAD_URL ?? '',
+  r2AvatarUploadToken: process.env.R2_AVATAR_UPLOAD_TOKEN ?? '',
 };

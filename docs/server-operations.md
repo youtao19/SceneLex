@@ -85,12 +85,12 @@ pm2 save
 头像使用 Cloudflare R2 时，需要在 `ecosystem.config.cjs` 中配置：
 
 ```js
-R2_ACCOUNT_ID: 'Cloudflare account id',
-R2_AVATAR_BUCKET: 'scenelex-avatars',
-R2_ACCESS_KEY_ID: 'R2 access key id',
-R2_SECRET_ACCESS_KEY: 'R2 secret access key',
 R2_AVATAR_PUBLIC_BASE_URL: 'https://avatars.scenlex.cn',
+R2_AVATAR_UPLOAD_URL: 'https://scenelex-avatar-upload.wuyoutao19.workers.dev',
+R2_AVATAR_UPLOAD_TOKEN: 'Worker upload token',
 ```
+
+当前 R2 bucket 是 `scenelex-avatars`，bucket 绑定在 Cloudflare Worker 上，后端只调用 Worker 上传入口。
 
 如果这些变量全部留空，头像会继续保存到服务器本地 `backend/uploads/avatars`。如果只配置了一部分，后端会拒绝头像上传，避免文件写到错误位置。
 

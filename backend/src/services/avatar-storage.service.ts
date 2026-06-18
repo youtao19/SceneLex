@@ -1,18 +1,15 @@
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { env } from '../config/env';
 import { HttpError } from '../utils/http-error';
 
 const localAvatarDir = path.join(__dirname, '../../uploads/avatars');
 
 interface R2AvatarConfig {
-  accountId: string;
-  bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
   publicBaseUrl: string;
+  uploadUrl: string;
+  uploadToken: string;
 }
 
 /**
@@ -30,11 +27,9 @@ function getAvatarExtension(mimetype: string) {
  */
 function readR2AvatarConfig(): R2AvatarConfig | null {
   const values = [
-    env.r2AccountId,
-    env.r2AvatarBucket,
-    env.r2AccessKeyId,
-    env.r2SecretAccessKey,
     env.r2AvatarPublicBaseUrl,
+    env.r2AvatarUploadUrl,
+    env.r2AvatarUploadToken,
   ];
 
   if (values.every((value) => !value)) {
@@ -46,11 +41,9 @@ function readR2AvatarConfig(): R2AvatarConfig | null {
   }
 
   return {
-    accountId: env.r2AccountId,
-    bucket: env.r2AvatarBucket,
-    accessKeyId: env.r2AccessKeyId,
-    secretAccessKey: env.r2SecretAccessKey,
     publicBaseUrl: env.r2AvatarPublicBaseUrl.replace(/\/+$/, ''),
+    uploadUrl: env.r2AvatarUploadUrl,
+    uploadToken: env.r2AvatarUploadToken,
   };
 }
 
@@ -72,7 +65,16 @@ async function saveLocalAvatar(file: Express.Multer.File, extension: string) {
 }
 
 /**
- * R2 使用 S3-compatible API，服务端上传能避免把写入密钥暴露给浏览器。
+ * Node Buffer 的底层内存可能被共享，复制成精确长度的 ArrayBuffer 再交给 fetch。
+ */
+function copyBufferToArrayBuffer(buffer: Buffer) {
+  const body = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(body).set(buffer);
+  return body;
+}
+
+/**
+ * R2 写入由 Worker 持有 bucket binding，后端只需要短口令调用上传入口。
  */
 async function saveR2Avatar(
   userId: number,
@@ -81,22 +83,27 @@ async function saveR2Avatar(
   config: R2AvatarConfig,
 ) {
   const objectKey = buildAvatarObjectKey(userId, extension);
-  const client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  });
+  const body = copyBufferToArrayBuffer(file.buffer);
+  let response: Response;
 
-  await client.send(new PutObjectCommand({
-    Bucket: config.bucket,
-    Key: objectKey,
-    Body: file.buffer,
-    ContentType: file.mimetype,
-    CacheControl: 'public, max-age=31536000, immutable',
-  }));
+  try {
+    response = await fetch(config.uploadUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': file.mimetype,
+        'content-length': String(file.buffer.length),
+        'x-scenelex-upload-token': config.uploadToken,
+        'x-scenelex-object-key': objectKey,
+      },
+      body,
+    });
+  } catch {
+    throw new HttpError(502, '头像上传到 R2 失败');
+  }
+
+  if (!response.ok) {
+    throw new HttpError(502, '头像上传到 R2 失败');
+  }
 
   return `${config.publicBaseUrl}/${objectKey}`;
 }
