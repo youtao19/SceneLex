@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import LandingView from '../views/LandingView.vue';
 import HomeView from '../views/HomeView.vue';
 import HistoryView from '../views/HistoryView.vue';
@@ -25,6 +25,18 @@ const router = createRouter({
     { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
     { path: '/admin', name: 'admin', component: AdminView, meta: { requiresAuth: true, requiresAdmin: true } },
+    /**
+     * 设置页原型。只在开发环境注册，而且用动态 import，
+     * 生产构建里 import.meta.env.DEV 为 false，这整段会被替换掉，原型代码不会进产物。
+     * 验证完删掉。
+     */
+    ...(import.meta.env.DEV
+      ? ([{
+          path: '/settings-prototype',
+          name: 'settings-prototype',
+          component: () => import('../views/SettingsPrototypeView.vue'),
+        }] as RouteRecordRaw[])
+      : []),
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });
