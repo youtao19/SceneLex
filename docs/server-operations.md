@@ -45,9 +45,9 @@ Express 后端同时负责两件事：
 
 ### 已核实的代码和配置
 
-- 服务器当前检出分支：`main`（`production` 已冻结，不再使用）。
+- 服务器当前检出分支：`main`（`production` 已于 2026-10-08 删除）。
 - 服务器当前提交：`50f59a6`（`docs: 补充服务器运行状态核查结果`）。
-- 切换前已确认 `production`（`d265968`）是 `main` 的祖先，所以切分支不丢任何提交。
+- 切换前已确认 `production`（`d265968`）是 `main` 的祖先，所以切分支不丢任何提交；确认后已删除本地、GitHub、Gitee 和服务器上的 `production`。
 - 服务器的 `origin` 和 `gitee` 均指向 `https://gitee.com/youtao19/SceneLex.git`，部署从 Gitee 拉取。
 - 生产环境配置文件：`/root/SceneLex/ecosystem.config.cjs`。
 - 当前默认 AI 提供商：DeepSeek；视觉 OCR 提供商：Kimi。
@@ -81,9 +81,9 @@ cd /root/SceneLex
 
 ## 更新代码并重启服务
 
-部署步骤是：备份数据库 → 从 Gitee 更新代码 → 安装依赖 → 构建 → 重启 PM2 → 检查服务。
+部署步骤是：备份数据库 → 从 Gitee 更新代码 → 安装依赖 → `npm run verify` → 重启 PM2 → 检查服务。
 
-仓库现有主线约定为 `main`，旧的 `production` 分支已冻结。服务器已于 2026-10-08 切到 `main`，下面的 `git switch main` 对新环境才需要。
+仓库现有主线约定为 `main`，旧的 `production` 分支已删除。服务器已于 2026-10-08 切到 `main`，下面的 `git switch main` 只对新环境需要。
 
 先登录服务器并检查工作区；如果有未提交修改，先确认其用途，不要直接覆盖：
 
@@ -108,6 +108,7 @@ cd /root/SceneLex
 git fetch gitee main
 git switch main
 git pull --ff-only gitee main
+npm install             # 依赖变了不装会让构建或启动失败
 npm run verify          # 类型检查 + 测试 + 构建，先在服务器上跑一遍再重启
 pm2 restart scenelex
 pm2 save
