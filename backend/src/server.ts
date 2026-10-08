@@ -26,7 +26,27 @@ async function startServer() {
   })
 }
 
+/**
+ * 连不上数据库时补一句可操作的提示。
+ * 本地配置指向线上库，忘了开 SSH 隧道是最常见的失败原因，
+ * 否则使用者只能看到一个裸的 ECONNREFUSED 堆栈。
+ */
+function isConnectionRefused(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: string }).code === 'ECONNREFUSED'
+  )
+}
+
 startServer().catch((error) => {
   console.error('server failed to start:', error)
+
+  if (isConnectionRefused(error)) {
+    console.error(
+      '提示: 数据库连不上。本地开发连的是线上库，先另开一个终端跑 npm run dev:db-tunnel 建立隧道。',
+    )
+  }
+
   process.exit(1)
 })

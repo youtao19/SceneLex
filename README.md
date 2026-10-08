@@ -138,6 +138,8 @@ MIGRATE_ON_STARTUP=false
 
 `MIGRATE_ON_STARTUP=false` is mandatory here: the backend applies migrations on startup, and with a tunnel that means any migration you have not deployed yet gets applied straight to production.
 
+Because of this, `npm run dev` **on its own will fail** while the tunnel is closed — the backend exits with `connect ECONNREFUSED 127.0.0.1:5433` and `ts-node-dev` keeps respawning it. Vite still starts on 9003, but every `/api` call fails. Start the tunnel first, or switch `DATABASE_URL` in `backend/.env.dev.local` back to the local database when you do not need production data.
+
 > Your local server writes to real data. Logging in creates sessions, generating cards writes `system_word_cards`, and the startup word-book seed upserts reference data. Use a separate database if you need to test destructive changes.
 
 ## AI Provider Setup
