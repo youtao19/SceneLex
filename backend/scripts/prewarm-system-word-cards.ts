@@ -78,11 +78,13 @@ async function main() {
 
     try {
       const result = await wordService.generateWordContent(
-        0,
         item.word,
         false,
         item.exam_meanings,
         bookItemId,
+        // 预热的是全局系统词卡，不属于任何用户；userId 为空时模型走服务端 Key。
+        undefined,
+        true,
       );
 
       console.log(`  ok: ${result.source}, meanings=${result.meanings.length}`);

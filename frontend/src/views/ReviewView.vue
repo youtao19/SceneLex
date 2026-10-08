@@ -183,7 +183,7 @@ import WordDetailModal from '../components/WordDetailModal.vue'
 import { fetchHistoryList } from '../services/history.service'
 import { getTodayWords, reviewWord, rollbackReviewWord } from '../services/word.service'
 import type { HistoryArchive } from '../types/history'
-import type { ReviewRating, ReviewRollbackPayload, StoredWord } from '../types/word'
+import type { ReviewRating, ReviewRollbackPayload, StoredWord, WordMeaningItem } from '../types/word'
 
 const queue = ref<StoredWord[]>([])
 const archive = ref<HistoryArchive | null>(null)
@@ -279,6 +279,25 @@ async function loadQueue() {
 }
 
 /**
+ * mock 只写页面真正用到的字段，其余按 WordMeaningItem 补齐，
+ * 否则每个义项都要重复一遍空数组。
+ */
+function buildMockMeaning(input: {
+  partOfSpeech: string
+  meaning: string
+  example: string
+  tip: string
+}): WordMeaningItem {
+  return {
+    ...input,
+    sceneTitle: '',
+    examples: [input.example],
+    explanation: input.tip,
+    imageQueries: [],
+  }
+}
+
+/**
  * 测试词只服务于页面验收，使用负数 id 可以明确区分它们不是数据库记录。
  */
 function buildMockReviewWords(): StoredWord[] {
@@ -291,18 +310,18 @@ function buildMockReviewWords(): StoredWord[] {
       phonetic: '/rɪˈzɪliənt/',
       primaryMeaning: '有韧性的；能恢复的',
       meanings: [
-        {
+        buildMockMeaning({
           partOfSpeech: 'adj.',
           meaning: '有韧性的；能从困难中恢复的',
           example: 'a resilient student after repeated setbacks',
           tip: 're- 像“重新”，silent 不是真的沉默；重点记“受挫后重新站起来”。',
-        },
-        {
+        }),
+        buildMockMeaning({
           partOfSpeech: 'adj.',
           meaning: '材料有弹性的',
           example: 'resilient rubber returns to shape',
           tip: '把它想成被按下又弹回来的材料。',
-        },
+        }),
       ],
       ease: 2.5,
       interval: 1,
@@ -317,18 +336,18 @@ function buildMockReviewWords(): StoredWord[] {
       phonetic: '/ɪˈlæbərət/',
       primaryMeaning: '详细说明；复杂精致的',
       meanings: [
-        {
+        buildMockMeaning({
           partOfSpeech: 'v.',
           meaning: '详细说明',
           example: 'elaborate on the main idea',
           tip: '考试里常见 elaborate on，后面接要展开解释的观点。',
-        },
-        {
+        }),
+        buildMockMeaning({
           partOfSpeech: 'adj.',
           meaning: '复杂精致的',
           example: 'an elaborate plan with many steps',
           tip: '看到很多细节、很多步骤，就联想到 elaborate。',
-        },
+        }),
       ],
       ease: 2.2,
       interval: 2,
@@ -343,12 +362,12 @@ function buildMockReviewWords(): StoredWord[] {
       phonetic: '/ˈsʌtəl/',
       primaryMeaning: '微妙的；不易察觉的',
       meanings: [
-        {
+        buildMockMeaning({
           partOfSpeech: 'adj.',
           meaning: '微妙的；不明显的',
           example: 'a subtle change in tone',
           tip: 'subtle 常形容变化很小，但会影响理解。',
-        },
+        }),
       ],
       ease: 2.8,
       interval: 3,

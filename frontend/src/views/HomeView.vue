@@ -50,7 +50,7 @@
                   <button
                     class="peach-button save-btn"
                     :disabled="previewLoading"
-                    @click="handleGenerateScene"
+                    @click="handleGenerateScene()"
                   >
                     {{ previewLoading ? 'Generating...' : '生成场景词卡' }}
                   </button>
@@ -136,7 +136,7 @@
               </div>
               <div v-else-if="lookupMissingWord" class="missing-placeholder">
                 <p>词库里暂时没有这个单词。</p>
-                <button class="peach-button save-btn" type="button" :disabled="previewLoading" @click="handleGenerateScene">
+                <button class="peach-button save-btn" type="button" :disabled="previewLoading" @click="handleGenerateScene()">
                   {{ previewLoading ? 'Generating...' : '直接生成场景词卡' }}
                 </button>
               </div>
