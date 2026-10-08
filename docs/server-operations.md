@@ -2,7 +2,9 @@
 
 本文档记录 SceneLex 在服务器 `<origin-ip-removed>` 上的实际运行方式，以及更新代码后的重启步骤。
 
-最近一次运行状态核验：2026-10-08（北京时间）。以下运行状态是该次 SSH 检查的快照，后续发布后应重新核对。
+最近一次运行状态核验：2026-10-08（北京时间）。当天随后完成了一次真实发布，把服务器切到 `main` 并启用了迁移机制；发布结果见下面「本次验证范围」。
+
+> 文中的「已核实」都是某次实际检查的快照，不代表当前状态。部署后请重新核对。
 
 ## 服务器信息
 
@@ -43,22 +45,32 @@ Express 后端同时负责两件事：
 
 ### 已核实的代码和配置
 
-- 服务器当前检出分支：`production`。
-- 服务器当前提交：`d265968`（`feat: 添加注册页密钥申请入口`），工作区无未提交修改。
-- 服务器的 `origin` 和 `gitee` 均指向 `https://gitee.com/youtao19/SceneLex.git`。
-- 检查时 Gitee 的 `main`、`production` 分支均指向上述提交。
+- 服务器当前检出分支：`main`（`production` 已冻结，不再使用）。
+- 服务器当前提交：`50f59a6`（`docs: 补充服务器运行状态核查结果`）。
+- 切换前已确认 `production`（`d265968`）是 `main` 的祖先，所以切分支不丢任何提交。
+- 服务器的 `origin` 和 `gitee` 均指向 `https://gitee.com/youtao19/SceneLex.git`，部署从 Gitee 拉取。
 - 生产环境配置文件：`/root/SceneLex/ecosystem.config.cjs`。
 - 当前默认 AI 提供商：DeepSeek；视觉 OCR 提供商：Kimi。
 - 数据库连接、模型密钥及用户密钥加密配置由 PM2 环境变量提供。本文只记录配置位置，不记录凭据明文。
 
 ### 本次验证范围
 
+发布前（只读检查）：
+
 - PM2 的 `scenelex` 为 `online`，自动重启开启；Nginx 和 PostgreSQL 服务运行正常。
 - Nginx 配置检查通过，域名请求转发至 `http://127.0.0.1:3003`。
-- 服务器本机和公网的 `/health` 返回 HTTP 200，响应为 `{"success":true,"message":"backend is running"}`。
-- 服务器本机和公网首页返回 HTTP 200；本次没有核对首页响应体、前端资源加载或完整页面交互。
-- 未验证登录、单词生成、OCR、头像上传等完整业务流程。
-- 本次只读检查，没有更新代码、构建或重启服务。本地尚未提交的修改没有部署到服务器。
+- 服务器本机和公网的 `/health` 返回 HTTP 200。
+
+发布后：
+
+- 备份到 `/root/backups/scenelex_db-2026-10-08-153904.sql.gz`（24M，`gzip -t` 通过）后才开始发布。
+- 服务器上 `npm run verify`（类型检查 + 45 个测试 + 构建）通过。
+- 两个迁移执行成功并记入 `pgmigrations`；第二次重启输出 `No migrations to run!`，确认幂等。
+- `words.user_id` 从可空变成 NOT NULL，`user_id IS NULL` 的 1 行按设计被删除；其余数据量逐项比对无变化（users 5、system_word_book_items 18596、word_books 7、reading_articles 6、dictionary_entries 768739 等）。
+- 本机和公网 `check-health.sh` 都通过；线上首页引用的 JS 与服务器刚构建的产物一致。
+- 接口冒烟：`/api/words`、`/api/history`、`/api/word-books`、`/api/admin` 未登录均返回 401，未知 `/api/*` 返回 404。
+
+仍未验证：登录、单词生成、OCR、头像上传等需要凭据或人工操作的完整业务流程。
 
 ## 登录服务器
 
@@ -71,7 +83,7 @@ cd /root/SceneLex
 
 部署步骤是：备份数据库 → 从 Gitee 更新代码 → 安装依赖 → 构建 → 重启 PM2 → 检查服务。
 
-仓库现有主线约定为 `main`，旧的 `production` 分支已冻结。上面的服务器快照仍为 `production`；下面命令显式切换到 `main`，这次文档更新没有执行分支切换。
+仓库现有主线约定为 `main`，旧的 `production` 分支已冻结。服务器已于 2026-10-08 切到 `main`，下面的 `git switch main` 对新环境才需要。
 
 先登录服务器并检查工作区；如果有未提交修改，先确认其用途，不要直接覆盖：
 
@@ -80,7 +92,7 @@ cd /root/SceneLex
 git status
 ```
 
-**先备份数据库并确认命令成功，再继续发布。** 本地正在开发的迁移机制会在后端启动时执行未应用的迁移，不能把它当成本次已部署的功能：
+**先备份数据库并确认命令成功，再继续发布。** 后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据：
 
 ```bash
 set -o pipefail
@@ -96,24 +108,31 @@ cd /root/SceneLex
 git fetch gitee main
 git switch main
 git pull --ff-only gitee main
-npm install
-npm run build
+npm run verify          # 类型检查 + 测试 + 构建，先在服务器上跑一遍再重启
 pm2 restart scenelex
 pm2 save
 ```
+
+> 用 `pm2 restart scenelex` 即可；只有改了 `ecosystem.config.cjs` 才需要用 `pm2 restart ecosystem.config.cjs --only scenelex --update-env` 重新读取环境变量。
 
 重启后按下面顺序检查：
 
 ```bash
 pm2 status
-pm2 logs scenelex --lines 50 --nostream
+pm2 logs scenelex --lines 50 --nostream   # 确认 [migrate] 输出
 sh ./scripts/check-health.sh http://127.0.0.1:3003
 sh ./scripts/check-health.sh https://scenlex.cn
 ```
 
-若本次发布已包含迁移机制，检查日志中的 `[migrate]` 输出；迁移失败时后端不会启动。先定位失败原因。需要回滚时，确认对应迁移支持回滚，并为手动 CLI 提供生产 `DATABASE_URL` 等配置，再执行 `npm --prefix backend run migrate:down`。普通 npm 命令不会自动继承 PM2 中的环境变量。
+看 `[migrate]` 输出确认迁移结果：正常是列出执行的迁移，无待执行时是 `No migrations to run!`。**迁移失败时后端不会启动**，这是有意的：宁可服务不可用，也不要让线上跑在半套 schema 上。
 
-`scripts/check-health.sh` 在本次检查时属于本地未提交内容；只有随代码发布到服务器后才能使用。
+需要回滚时，确认对应迁移支持回滚，并为手动 CLI 提供生产 `DATABASE_URL` 等配置，再执行 `npm --prefix backend run migrate:down`。普通 npm 命令不会自动继承 PM2 中的环境变量。
+
+检查迁移是否记入数据库：
+
+```bash
+sudo -u postgres psql -d scenelex_db -Atc "select id, name from pgmigrations order by id;"
+```
 
 `check-health.sh` 的预期输出：
 
@@ -351,6 +370,12 @@ npm run dev:frontend
 
 ```bash
 npm run dev:backend
+```
+
+提交前跑一遍本地门禁，和 CI 完全一致：
+
+```bash
+npm run verify    # typecheck + test + build
 ```
 
 生产构建命令：
