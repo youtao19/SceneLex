@@ -34,7 +34,7 @@ export function updateAdminUserRole(userId: number, role: 'user' | 'admin') {
 }
 
 /**
- * 修改用户 VIP 状态，VIP 可以使用服务器统一配置的模型 API。
+ * 修改用户角色。
  */
 /**
  * 管理页读取访问密钥列表。

@@ -4,7 +4,7 @@
       <div class="title-block">
         <p class="eyebrow">ADMIN LEDGER</p>
         <h2 class="section-title">账号与授权</h2>
-        <p>集中处理账号状态、使用时长、管理员角色、VIP 权限和访问密钥。</p>
+        <p>集中处理账号状态、使用时长、管理员角色和访问密钥。</p>
       </div>
       <div class="topbar-actions">
         <span v-if="userStore.user" class="admin-account-chip">

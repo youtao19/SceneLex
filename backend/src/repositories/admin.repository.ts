@@ -156,7 +156,7 @@ export async function updateAdminUserRole(userId: number, role: UserRole) {
 }
 
 /**
- * VIP 只影响系统 API 使用权，不改变账号登录状态或管理员角色。
+ * 改角色不影响账号登录状态和到期时间。
  */
 /**
  * 注册码列表优先显示可用 key，管理员创建后能立刻在顶部看到。

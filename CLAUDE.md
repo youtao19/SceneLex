@@ -48,7 +48,7 @@ Key layers:
 - **`controllers/`** — Extract request params/body, call services, send responses via `utils/response.ts` helpers.
 - **`services/`** — All business logic. This is where AI calls, validation, and cross-cutting concerns live.
 - **`repositories/`** — All PostgreSQL queries using `config/database.ts` (`query()`, `withTransaction()`). No ORM — raw parameterized SQL.
-- **`middlewares/`** — Auth (session-based, HttpOnly cookie), access control (VIP/active users), rate limiting, model concurrency limiting, admin guard.
+- **`middlewares/`** — Auth (session-based, HttpOnly cookie), access control (active users), rate limiting, model concurrency limiting, admin guard.
 - **`config/`** — `env.ts` loads `.env.dev.local` (dev) or `.env` (prod). `ai.ts` defines Ollama/Kimi/DeepSeek provider configs. `database.ts` owns the pg Pool, `query()`/`withTransaction()` helpers, and `initializeDatabase()`. `migrations.ts` wraps the `node-pg-migrate` runner.
 
 ### Database migrations
@@ -79,7 +79,7 @@ Three strategies: Tesseract (local CLI), PaddleOCR (Python microservice at port 
 
 ### Auth Flow
 
-Session-based with HttpOnly cookies — `user_sessions` table stores token hashes. Auth middleware validates session tokens from cookies on every request. Access middleware checks `access_status` and `access_expires_at` for VIP/paid users.
+Session-based with HttpOnly cookies — `user_sessions` table stores token hashes. Auth middleware validates session tokens from cookies on every request. Access middleware checks `access_status` and `access_expires_at` so expired accounts stop working.
 
 ## Conventions
 
