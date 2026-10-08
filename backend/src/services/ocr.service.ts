@@ -4,33 +4,17 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { aiConfig } from '../config/ai'
-import { settingsService } from './settings.service'
+import { extractTextFromImage } from './llm.service'
 import { HttpError } from '../utils/http-error'
-import type { UserAiSecrets } from './llm.service'
+import type { AiEndpoint } from '../types/endpoint'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_VISION_OCR_TIMEOUT = 180_000
-
-type VisionOcrProvider = 'ollama' | 'kimi'
-
-interface OllamaVisionResponse {
-  response?: string
-  thinking?: string
-}
 
 export type OcrMethod = 'tesseract' | 'paddle' | 'vision'
 
 interface PaddleOcrResponse {
   text?: string
-}
-
-interface KimiVisionResponse {
-  choices?: Array<{
-    message?: {
-      content?: string | null
-    }
-  }>
 }
 
 const extensionByMimeType: Record<string, string> = {
@@ -68,7 +52,7 @@ Rules:
 }
 
 /**
- * 视觉 OCR 比普通生词生成慢，独立超时避免被 OLLAMA_TIMEOUT 误伤。
+ * 视觉 OCR 比普通生词生成慢，独立超时避免被模型默认超时误伤。
  */
 function readVisionOcrTimeout() {
   return Number(process.env.OCR_TIMEOUT ?? DEFAULT_VISION_OCR_TIMEOUT)
@@ -79,29 +63,6 @@ function readVisionOcrTimeout() {
  */
 function readPaddleOcrTimeout() {
   return Number(process.env.PADDLE_OCR_TIMEOUT ?? 60_000)
-}
-
-/**
- * Kimi 走远程视觉模型，单独超时方便和本地 Ollama vision 分开调。
- */
-function readKimiOcrTimeout() {
-  return Number(process.env.KIMI_OCR_TIMEOUT ?? process.env.OCR_TIMEOUT ?? DEFAULT_VISION_OCR_TIMEOUT)
-}
-
-/**
- * 多模态按钮只表达能力类型，具体模型来源由启动环境变量决定。
- */
-export function readVisionOcrProvider(): VisionOcrProvider {
-  const provider = (process.env.OCR_VISION_PROVIDER ?? 'ollama')
-    .split('#')[0]
-    .trim()
-    .toLowerCase()
-
-  if (provider === 'ollama' || provider === 'kimi') {
-    return provider
-  }
-
-  throw new Error(`OCR_VISION_PROVIDER 只支持 ollama 或 kimi，当前值是：${provider}`)
 }
 
 /**
@@ -150,49 +111,33 @@ async function extractWithTesseract(file: Express.Multer.File) {
 }
 
 /**
- * 多模态模型适合复杂截图，但比 Tesseract 慢，所以只在用户主动选择时调用。
+ * 多模态识别走用户自己的端点，图片用 base64 发送。
+ * 以前这里按 OCR_VISION_PROVIDER 分 ollama / kimi 两条路，现在只剩一条。
  */
-async function extractWithOllamaVision(file: Express.Multer.File) {
-  const model = process.env.OCR_MODEL || 'gemma4:e4b'
+async function extractWithVisionEndpoint(file: Express.Multer.File, endpoint: AiEndpoint | null) {
+  if (!endpoint) {
+    throw new HttpError(400, '没有可用于 OCR 的端点，请给某个端点填写视觉模型')
+  }
+
   const timeout = readVisionOcrTimeout()
-  let response: Response
 
   try {
-    response = await fetch(`${aiConfig.ollama.baseURL}/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        prompt: buildArticleOcrPrompt(),
-        images: [file.buffer.toString('base64')],
-        stream: false,
-        keep_alive: '10m',
-        options: {
-          temperature: 0,
-          num_predict: 1400
-        }
-      }),
-      signal: AbortSignal.timeout(timeout)
-    })
+    return await extractTextFromImage(
+      endpoint,
+      buildArticleOcrPrompt(),
+      file.buffer.toString('base64'),
+      file.mimetype,
+    )
   } catch (error) {
     if (isTimeoutError(error)) {
-      throw new HttpError(504, `多模态 OCR 超时（${Math.round(timeout / 1000)} 秒）。模型仍可能可用，请调大 OCR_TIMEOUT 或换更小的 OCR_MODEL。`)
+      throw new HttpError(
+        504,
+        `多模态 OCR 超时（${Math.round(timeout / 1000)} 秒）。可以调大 OCR_TIMEOUT 或换更小的视觉模型。`,
+      )
     }
 
     throw error
   }
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`OCR 模型调用失败：${response.status} ${errorText}`)
-  }
-
-  const data = (await response.json()) as OllamaVisionResponse
-  const text = data.response || data.thinking || ''
-
-  return cleanExtractedText(text)
 }
 
 /**
@@ -234,129 +179,26 @@ async function extractWithPaddleOcr(file: Express.Multer.File) {
 }
 
 /**
- * Kimi vision 使用 OpenAI-compatible 图片 content 数组，适合远程多模态兜底。
- */
-async function extractWithKimiVision(
-  file: Express.Multer.File,
-  userId?: number,
-  canUseServerApiKey = true,
-) {
-  const userSecrets: UserAiSecrets = userId
-    ? await settingsService.getUserAiSecrets(userId, canUseServerApiKey)
-    : {}
-  const serverApiKey = process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY || ''
-  const apiKey = userSecrets.kimi || (canUseServerApiKey ? serverApiKey : '')
-  const baseURL = process.env.KIMI_BASE_URL ?? 'https://api.moonshot.cn/v1'
-  const model = process.env.KIMI_MODEL ?? 'kimi-k2.6'
-  const timeout = readKimiOcrTimeout()
-
-  if (!apiKey) {
-    throw new HttpError(400, 'Kimi OCR 调用失败：请先在更多页面配置自己的 Kimi API Key')
-  }
-
-  let response: Response
-
-  try {
-    response = await fetch(`${baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an OCR engine. Return only the text extracted from the image.'
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`
-                }
-              },
-              {
-                type: 'text',
-                text: buildArticleOcrPrompt()
-              }
-            ]
-          }
-        ],
-        max_tokens: 1800,
-        thinking: {
-          type: 'disabled'
-        },
-        stream: false
-      }),
-      signal: AbortSignal.timeout(timeout)
-    })
-  } catch (error) {
-    if (isTimeoutError(error)) {
-      throw new HttpError(504, `Kimi OCR 超时（${Math.round(timeout / 1000)} 秒）。请调大 KIMI_OCR_TIMEOUT 或换更清晰的图片。`)
-    }
-
-    throw error
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Kimi OCR 调用失败：${response.status} ${errorText}`)
-  }
-
-  const data = (await response.json()) as KimiVisionResponse
-  const text = data.choices?.[0]?.message?.content ?? ''
-
-  return cleanExtractedText(text)
-}
-
-/**
- * 多模态 OCR 共用一个前端入口，启动时再决定走本地模型还是 Kimi。
- */
-async function extractWithVisionModel(
-  file: Express.Multer.File,
-  userId?: number,
-  canUseServerApiKey = true,
-) {
-  if (readVisionOcrProvider() === 'kimi') {
-    return extractWithKimiVision(file, userId, canUseServerApiKey)
-  }
-
-  return extractWithOllamaVision(file)
-}
-
-/**
  * 阅读页按用户选择调用单一识别引擎，失败原因能更直接地反馈给用户。
  */
 export async function extractArticleTextFromImage(
-  file?: Express.Multer.File,
-  methodValue?: unknown,
-  userId?: number,
-  canUseServerApiKey = true,
+  file: Express.Multer.File | undefined,
+  methodValue: unknown,
+  visionEndpoint: AiEndpoint | null,
 ) {
   if (!file) {
     throw new HttpError(400, '请上传需要识别的图片')
   }
 
   const method = parseOcrMethod(methodValue)
-  const text = await (async () => {
-    if (method === 'vision') {
-      return extractWithVisionModel(file, userId, canUseServerApiKey)
-    }
 
-    if (method === 'paddle') {
-      return extractWithPaddleOcr(file)
-    }
-
-    return extractWithTesseract(file)
-  })()
-
-  if (!hasReadableEnglish(text)) {
-    return text
+  if (method === 'vision') {
+    return extractWithVisionEndpoint(file, visionEndpoint)
   }
 
-  return text
+  if (method === 'paddle') {
+    return extractWithPaddleOcr(file)
+  }
+
+  return extractWithTesseract(file)
 }

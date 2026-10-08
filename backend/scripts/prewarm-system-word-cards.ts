@@ -1,6 +1,6 @@
 import { getDatabasePool, initializeDatabase, query } from '../src/config/database';
-import { aiConfig } from '../src/config/ai';
 import { wordService } from '../src/services/word.service';
+import type { AiEndpoint } from '../src/types/endpoint';
 import type { WordRequiredMeaning } from '../src/types/word';
 
 interface CandidateRow {
@@ -25,6 +25,25 @@ function readPositiveArg(name: string, fallback: number) {
 
 function readBookCode() {
   return readArgValue('--book') || 'cet6';
+}
+
+/**
+ * 预热脚本没有用户身份，端点只能从环境变量来。
+ * 现在没有服务器兜底，所以这条路径必须显式给一组凭证。
+ * 兼容 DEEPSEEK_* 是为了让服务器上已有的配置不用改。
+ */
+function readPrewarmEndpoint(): AiEndpoint {
+  const baseUrl = process.env.PREWARM_BASE_URL || 'https://api.deepseek.com/v1';
+  const apiKey = process.env.PREWARM_API_KEY || process.env.DEEPSEEK_API_KEY || '';
+  const model = process.env.PREWARM_MODEL || process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+
+  if (!apiKey) {
+    throw new Error(
+      '预热需要 API Key：设置 PREWARM_API_KEY，或者沿用 DEEPSEEK_API_KEY。普通 npm 命令不会继承 PM2 里的环境变量。',
+    );
+  }
+
+  return { id: 0, label: 'prewarm', baseUrl, apiKey, model, visionModel: '' };
 }
 
 /**
@@ -63,12 +82,13 @@ async function main() {
 
   await initializeDatabase();
 
+  const endpoint = readPrewarmEndpoint();
   const candidates = await listCandidates(bookCode, startOrder, limit);
 
   console.log(
     `系统词卡预热：book=${bookCode}, startOrder=${startOrder}, limit=${limit}, queued=${candidates.length}`,
   );
-  console.log(`ai provider: ${aiConfig.provider}, model: ${aiConfig[aiConfig.provider].model}`);
+  console.log(`ai provider: ${endpoint.baseUrl}, model: ${endpoint.model}`);
 
   for (let i = 0; i < candidates.length; i += 1) {
     const item = candidates[i];
@@ -82,9 +102,7 @@ async function main() {
         false,
         item.exam_meanings,
         bookItemId,
-        // 预热的是全局系统词卡，不属于任何用户；userId 为空时模型走服务端 Key。
-        undefined,
-        true,
+        endpoint,
       );
 
       console.log(`  ok: ${result.source}, meanings=${result.meanings.length}`);

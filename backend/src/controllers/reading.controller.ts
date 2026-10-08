@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import { readAuthUser } from '../middlewares/auth.middleware'
+import { endpointService } from '../services/endpoint.service'
 import { readingHistoryService } from '../services/reading-history.service'
 import { readingService } from '../services/reading.service'
-import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
 import type {
   ReadingSentenceTranslatePayload,
@@ -20,11 +20,11 @@ export async function lookupReadingWord(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await readingService.lookupWordForUser(
-      authUser.id,
+    const endpoint = await endpointService.resolveDefaultEndpoint(authUser.id)
+    const result = await readingService.lookupWord(
+      endpoint,
       req.body.word ?? '',
       req.body.sentence ?? '',
-      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Reading word looked up'))
   } catch (error) {
@@ -42,10 +42,10 @@ export async function translateReadingSentence(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const result = await readingService.translateSentenceForUser(
-      authUser.id,
+    const endpoint = await endpointService.resolveDefaultEndpoint(authUser.id)
+    const result = await readingService.translateSentence(
+      endpoint,
       req.body.sentence ?? '',
-      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Reading sentence translated'))
   } catch (error) {
@@ -139,11 +139,11 @@ export async function chatWithAssistant(
 ) {
   try {
     const authUser = readAuthUser(req)
+    const endpoint = await endpointService.resolveDefaultEndpoint(authUser.id)
     const result = await readingService.chat(
+      endpoint,
       req.body.content ?? '',
       req.body.question ?? '',
-      authUser.id,
-      canUseSystemApi(authUser),
     )
     return res.json(ok(result, 'Assistant replied'))
   } catch (error) {

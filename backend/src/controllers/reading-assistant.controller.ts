@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { readAuthUser } from '../middlewares/auth.middleware'
+import { endpointService } from '../services/endpoint.service'
 import { readingAssistantService } from '../services/reading-assistant.service'
-import { canUseSystemApi } from '../utils/system-api-access'
 import type {
   CreateReadingAssistantChatPayload,
   SendReadingAssistantMessagePayload,
@@ -79,7 +79,7 @@ export async function sendAssistantMessage(
       authUser.id,
       req.params.chatId,
       req.body,
-      canUseSystemApi(authUser),
+      await endpointService.resolveDefaultEndpoint(authUser.id),
     )
     return res.json(ok(result, 'Assistant replied'))
   } catch (error) {
@@ -107,7 +107,7 @@ export async function streamAssistantMessage(
       authUser.id,
       req.params.chatId,
       req.body,
-      canUseSystemApi(authUser),
+      await endpointService.resolveDefaultEndpoint(authUser.id),
       {
         onUserMessage: (message) => {
           writeStreamEvent(res, {

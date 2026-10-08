@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { extractArticleTextFromImage } from '../services/ocr.service';
+import { endpointService } from '../services/endpoint.service';
 import { readAuthUser } from '../middlewares/auth.middleware';
-import { canUseSystemApi } from '../utils/system-api-access';
 import { ok } from '../utils/response';
 
 /**
@@ -14,11 +14,14 @@ export async function recognizeArticleText(
 ) {
   try {
     const authUser = readAuthUser(req);
+    // 只有选 vision 时才需要端点，tesseract 和 paddle 都在本地跑。
+    const visionEndpoint = req.body.method === 'vision'
+      ? await endpointService.resolveVisionEndpoint(authUser.id)
+      : null;
     const text = await extractArticleTextFromImage(
       req.file,
       req.body.method,
-      authUser.id,
-      canUseSystemApi(authUser),
+      visionEndpoint,
     );
     res.json(ok({ text }, 'Article OCR completed'));
   } catch (error) {

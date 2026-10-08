@@ -7,6 +7,7 @@ import {
 } from '../repositories/reading-assistant.repository'
 import { findReadingArticle } from '../repositories/reading-history.repository'
 import { readingService } from './reading.service'
+import type { AiEndpoint } from '../types/endpoint'
 import type {
   CreateReadingAssistantChatPayload,
   ReadingAssistantMessage,
@@ -152,7 +153,7 @@ export const readingAssistantService = {
     userId: number,
     chatIdInput: string,
     payload: SendReadingAssistantMessagePayload,
-    canUseServerApiKey = false,
+    endpoint: AiEndpoint,
   ) {
     const chatId = readId(chatIdInput)
     const question = normalizeQuestion(payload.question ?? '')
@@ -169,12 +170,11 @@ export const readingAssistantService = {
 
     try {
       const answer = await readingService.chatWithHistory(
+        endpoint,
         chat.articleContent,
         question,
         buildRecentHistory(previousMessages),
         questionMode,
-        userId,
-        canUseServerApiKey,
       )
       assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
     } catch (error) {
@@ -195,7 +195,7 @@ export const readingAssistantService = {
     userId: number,
     chatIdInput: string,
     payload: SendReadingAssistantMessagePayload,
-    canUseServerApiKey: boolean,
+    endpoint: AiEndpoint,
     handlers: StreamMessageHandlers,
   ) {
     const chatId = readId(chatIdInput)
@@ -215,13 +215,12 @@ export const readingAssistantService = {
 
     try {
       const answer = await readingService.chatWithHistoryStream(
+        endpoint,
         chat.articleContent,
         question,
         buildRecentHistory(previousMessages),
         handlers.onDelta,
         questionMode,
-        userId,
-        canUseServerApiKey,
       )
       assistantMessage = await createReadingAssistantMessage(chat.id, 'assistant', answer.text)
     } catch (error) {

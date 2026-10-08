@@ -1,8 +1,9 @@
 import { buildWordPrompt } from '../prompts/word.prompt';
-import { generateWithLocalModel } from './llm.service';
+import { generateWordJson } from './llm.service';
 import { dictionaryService } from './dictionary.service';
 import { settingsService } from './settings.service';
 import { buildPrimaryMeaning } from '../utils/word-meaning';
+import type { AiEndpoint } from '../types/endpoint';
 import {
   findWordById,
   listTodayWords,
@@ -496,14 +497,14 @@ export const wordService = {
 
   /**
    * 普通查词默认走系统缓存，个人 words 只保存用户确认学习的进度。
+   * endpoint 允许为空：命中系统缓存时不需要调模型，只有真要生成时才要求端点。
    */
   async generateWordContent(
     word: string,
     forceRegenerate = false,
     requiredMeaningsInput: unknown = [],
     systemBookItemIdInput: unknown = null,
-    userId?: number,
-    canUseServerApiKey = true,
+    endpoint: AiEndpoint | null = null,
   ): Promise<WordGenerateResult> {
     const cleanWord = normalizeWord(word);
 
@@ -532,8 +533,12 @@ export const wordService = {
     }
 
     const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined, requiredMeanings);
-    const userSecrets = userId ? await settingsService.getUserAiSecrets(userId, canUseServerApiKey) : {};
-    const rawText = await generateWithLocalModel(prompt, userSecrets);
+
+    if (!endpoint) {
+      throw new HttpError(400, '还没有配置模型端点，请先到设置里添加一个');
+    }
+
+    const rawText = await generateWordJson(endpoint, prompt);
     let parsed: unknown;
 
     try {

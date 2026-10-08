@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { readAuthUser } from '../middlewares/auth.middleware'
+import { endpointService } from '../services/endpoint.service'
 import { wordService } from '../services/word.service'
-import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
 import type { ReviewRating, ReviewRollbackPayload, WordMeaningItem, WordRequiredMeaning } from '../types/word'
 
@@ -38,13 +38,14 @@ export async function generateWordContent(
       requiredMeanings?: WordRequiredMeaning[]
       systemBookItemId?: number
     }
+    // 端点可能为空：命中系统词卡缓存时不需要调模型。
+    const endpoint = await endpointService.findDefaultEndpoint(authUser.id)
     const result = await wordService.generateWordContent(
       word ?? '',
       forceRegenerate === true,
       requiredMeanings,
       systemBookItemId,
-      authUser.id,
-      canUseSystemApi(authUser),
+      endpoint,
     )
     return res.json(ok(result, 'Word preview generated'))
   } catch (error) {
