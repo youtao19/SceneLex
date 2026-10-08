@@ -2,15 +2,22 @@
 
 本文档记录 SceneLex 在服务器 `<origin-ip-removed>` 上的实际运行方式，以及更新代码后的重启步骤。
 
+最近一次运行状态核验：2026-10-08（北京时间）。以下运行状态是该次 SSH 检查的快照，后续发布后应重新核对。
+
 ## 服务器信息
 
 - 登录用户：`root`
+- 操作系统：Ubuntu 24.04.2 LTS
 - 项目目录：`/root/SceneLex`
 - 对外域名：`https://scenlex.cn`、`https://www.scenlex.cn`
 - 后端端口：`3003`
-- 进程管理：PM2
+- Node.js：22.22.2
+- 进程管理：PM2，应用名 `scenelex`，单进程 fork 模式
+- 后端启动文件：`/root/SceneLex/backend/dist/server.js`
 - 反向代理：Nginx
 - 数据库：本机 PostgreSQL 16
+
+前端、后端、数据库均运行在这台服务器上。Nginx、PM2 和 PostgreSQL 由 systemd 管理；已核实 Nginx 与 `pm2-root` 开机启动配置启用。
 
 ## 当前运行链路
 
@@ -18,16 +25,40 @@
 
 ```text
 用户浏览器
+-> https://scenlex.cn 或 https://www.scenlex.cn
 -> Cloudflare
--> Nginx 443
+-> <origin-ip-removed> 的 Nginx 443
 -> http://127.0.0.1:3003
 -> Express 后端
+   ├─ 页面和静态资源 -> /root/SceneLex/frontend/dist
+   └─ /api/* -> PostgreSQL 127.0.0.1:5432/scenelex_db
 ```
 
 Express 后端同时负责两件事：
 
 - `/api/*`：处理后端 API 请求。
 - 非 API 页面：读取 `frontend/dist`，返回前端打包后的 Vue 页面。
+
+`npm run build` 同时构建前后端。生产环境由同一个 Express 进程提供页面和 API，不需要启动 Vite 开发服务器。
+
+### 已核实的代码和配置
+
+- 服务器当前检出分支：`production`。
+- 服务器当前提交：`d265968`（`feat: 添加注册页密钥申请入口`），工作区无未提交修改。
+- 服务器的 `origin` 和 `gitee` 均指向 `https://gitee.com/youtao19/SceneLex.git`。
+- 检查时 Gitee 的 `main`、`production` 分支均指向上述提交。
+- 生产环境配置文件：`/root/SceneLex/ecosystem.config.cjs`。
+- 当前默认 AI 提供商：DeepSeek；视觉 OCR 提供商：Kimi。
+- 数据库连接、模型密钥及用户密钥加密配置由 PM2 环境变量提供。本文只记录配置位置，不记录凭据明文。
+
+### 本次验证范围
+
+- PM2 的 `scenelex` 为 `online`，自动重启开启；Nginx 和 PostgreSQL 服务运行正常。
+- Nginx 配置检查通过，域名请求转发至 `http://127.0.0.1:3003`。
+- 服务器本机和公网的 `/health` 返回 HTTP 200，响应为 `{"success":true,"message":"backend is running"}`。
+- 服务器本机和公网首页返回 HTTP 200；本次没有核对首页响应体、前端资源加载或完整页面交互。
+- 未验证登录、单词生成、OCR、头像上传等完整业务流程。
+- 本次只读检查，没有更新代码、构建或重启服务。本地尚未提交的修改没有部署到服务器。
 
 ## 登录服务器
 
@@ -38,37 +69,51 @@ cd /root/SceneLex
 
 ## 更新代码并重启服务
 
-如果服务器上的代码是通过 git 管理，按下面步骤更新：
+部署步骤是：备份数据库 → 从 Gitee 更新代码 → 安装依赖 → 构建 → 重启 PM2 → 检查服务。
+
+仓库现有主线约定为 `main`，旧的 `production` 分支已冻结。上面的服务器快照仍为 `production`；下面命令显式切换到 `main`，这次文档更新没有执行分支切换。
+
+先登录服务器并检查工作区；如果有未提交修改，先确认其用途，不要直接覆盖：
 
 ```bash
 cd /root/SceneLex
 git status
-git fetch origin main
-git pull --ff-only origin main
+```
+
+**先备份数据库并确认命令成功，再继续发布。** 本地正在开发的迁移机制会在后端启动时执行未应用的迁移，不能把它当成本次已部署的功能：
+
+```bash
+set -o pipefail
+mkdir -p /root/backups
+sudo -u postgres pg_dump scenelex_db | gzip > /root/backups/scenelex_db-$(date +%F-%H%M).sql.gz
+```
+
+工作区干净、备份成功后，在 Bash 中执行；任何一步失败都应停止后续步骤：
+
+```bash
+set -e
+cd /root/SceneLex
+git fetch gitee main
+git switch main
+git pull --ff-only gitee main
 npm install
 npm run build
 pm2 restart scenelex
-```
-
-> 注意：`main` 现在是唯一主线。旧的 `production` 分支已冻结，不要再向它提交。
-
-**重启前先备份数据库**，因为后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据：
-
-```bash
-mkdir -p /root/backups
-pg_dump -U peach scenelex_db | gzip > /root/backups/scenelex_db-$(date +%F-%H%M).sql.gz
+pm2 save
 ```
 
 重启后按下面顺序检查：
 
 ```bash
 pm2 status
-pm2 logs scenelex --lines 50 | grep migrate   # 确认迁移结果
+pm2 logs scenelex --lines 50 --nostream
 sh ./scripts/check-health.sh http://127.0.0.1:3003
 sh ./scripts/check-health.sh https://scenlex.cn
 ```
 
-迁移失败时后端**不会启动**，这是有意的：宁可服务不可用，也不要让线上跑在半套 schema 上。此时看 `pm2 logs scenelex` 里的 `[migrate]` 输出定位，回滚用 `npm --prefix backend run migrate:down`。
+若本次发布已包含迁移机制，检查日志中的 `[migrate]` 输出；迁移失败时后端不会启动。先定位失败原因。需要回滚时，确认对应迁移支持回滚，并为手动 CLI 提供生产 `DATABASE_URL` 等配置，再执行 `npm --prefix backend run migrate:down`。普通 npm 命令不会自动继承 PM2 中的环境变量。
+
+`scripts/check-health.sh` 在本次检查时属于本地未提交内容；只有随代码发布到服务器后才能使用。
 
 `check-health.sh` 的预期输出：
 
@@ -77,7 +122,7 @@ sh ./scripts/check-health.sh https://scenlex.cn
 ✅ /health 正常，首页返回 HTML
 ```
 
-它同时校验 `/health` 的 JSON 契约和首页真的返回 HTML —— 只看 HTTP 200 不够，因为前端 dist 缺失时 SPA fallback 依然会返回 200。
+它校验 `/health` 的响应字段和首页的 `Content-Type: text/html`。通过检查仅代表服务入口可用，还需要在浏览器验证页面加载和本次修改涉及的业务流程。
 
 也可以直接 curl：
 
@@ -100,11 +145,11 @@ curl https://scenlex.cn/health
 /root/SceneLex/ecosystem.config.cjs
 ```
 
-修改这个文件后，需要用 `--update-env` 让 PM2 重新读取环境变量：
+修改这个文件后，需要指定配置文件重新加载，并用 `--update-env` 更新环境变量；仅按应用名重启不会重新读取文件中的修改：
 
 ```bash
 cd /root/SceneLex
-pm2 restart scenelex --update-env
+pm2 restart ecosystem.config.cjs --only scenelex --update-env
 pm2 save
 ```
 
@@ -118,7 +163,7 @@ R2_AVATAR_UPLOAD_URL: 'https://avatar-upload.scenlex.cn',
 R2_AVATAR_UPLOAD_TOKEN: 'Worker upload token',
 ```
 
-当前 R2 bucket 是 `scenelex-avatars`，bucket 绑定在 Cloudflare Worker 上，后端只调用 Worker 上传入口。
+项目现有 R2 方案使用 `scenelex-avatars` bucket，bucket 绑定在 Cloudflare Worker 上，后端只调用 Worker 上传入口。本次没有验证 Worker、bucket 或上传功能的运行状态。
 
 如果这些变量全部留空，头像会继续保存到服务器本地 `backend/uploads/avatars`。如果只配置了一部分，后端会拒绝头像上传，避免文件写到错误位置。
 
@@ -199,6 +244,24 @@ systemctl reload nginx
 systemctl status nginx
 ```
 
+### HTTPS 证书
+
+Nginx 使用 Let's Encrypt 证书，证书路径为：
+
+```text
+/etc/letsencrypt/live/scenlex.cn/fullchain.pem
+/etc/letsencrypt/live/scenlex.cn/privkey.pem
+```
+
+本次核实证书到期时间为 2026-12-10 02:50:09 UTC（北京时间 10:50:09），`certbot.timer` 已存在并安排定时执行；定时器存在不代表未来续期一定成功。
+
+查看证书有效期和续期任务：
+
+```bash
+openssl x509 -in /etc/letsencrypt/live/scenlex.cn/fullchain.pem -noout -dates
+systemctl list-timers certbot.timer --all
+```
+
 ## 数据库连接
 
 生产服务通过 `DATABASE_URL` 连接本机 PostgreSQL：
@@ -264,10 +327,10 @@ systemctl status nginx
 
 ```bash
 systemctl status postgresql
-pm2 env 0 | grep DATABASE_URL
+sudo -u postgres psql -d scenelex_db -Atc "select 1;"
 ```
 
-不要把完整数据库密码或 API Key 粘贴到聊天、issue 或提交记录里。
+该 SQL 只能确认本机管理员连接可用，不能代替应用账号的连接验证。应用连接配置需在服务器上核对 `ecosystem.config.cjs`，不要输出完整 `DATABASE_URL` 或把数据库密码、API Key 粘贴到聊天、issue 或提交记录里。
 
 ## 本地开发命令
 
