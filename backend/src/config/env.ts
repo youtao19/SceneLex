@@ -19,7 +19,6 @@ export function readMigrateOnStartup(value: string | undefined) {
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3003),
-  aiProvider: process.env.AI_PROVIDER ?? 'ollama',
   databaseUrl: process.env.DATABASE_URL ?? '',
   migrateOnStartup: readMigrateOnStartup(process.env.MIGRATE_ON_STARTUP),
   dictionaryJsonPath: process.env.DICTIONARY_JSON_PATH ?? '',

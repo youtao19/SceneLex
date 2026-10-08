@@ -210,6 +210,16 @@ export const endpointService = {
   },
 
   /**
+   * 不抛错的版本：词卡命中系统缓存时根本不需要调模型，
+   * 所以调用方要先拿到「可能为空」的端点，而不是在这里就把请求打回去。
+   */
+  async findDefaultEndpoint(userId: number): Promise<AiEndpoint | null> {
+    const row = await findDefaultEndpointRow(userId)
+
+    return row ? mapEndpointRow(row) : null
+  },
+
+  /**
    * 生成请求的入口。没有默认端点说明用户还没配过 ——
    * 现在没有服务器兜底，这里必须给出可操作的错误，而不是静默失败。
    */

@@ -1,40 +1,35 @@
 /**
  * 文件作用：
- * 暴露前端可操作的本机运行设置。
+ * 个人设置：模型端点和复习节奏。
  */
 
 import { Router } from 'express'
 import {
-  getAiSettings,
-  getLearningSettings,
-  getUserApiKeySettings,
-  updateAiModelSettings,
-  updateLearningSettings,
-  updateUserApiKeySettings,
-} from '../controllers/settings.controller'
-import { adminMiddleware } from '../middlewares/admin.middleware'
+  createEndpoint,
+  deleteEndpoint,
+  listEndpoints,
+  setDefaultEndpoint,
+  testEndpointConnection,
+  updateEndpoint,
+} from '../controllers/endpoint.controller'
+import { getLearningSettings, updateLearningSettings } from '../controllers/settings.controller'
 
 const router = Router()
 
 /**
- * 读取当前模型运行配置。
+ * 端点列表和预设一起返回，设置页首屏只需要一次请求。
  */
-router.get('/ai', adminMiddleware, getAiSettings)
+router.get('/endpoints', listEndpoints)
 
 /**
- * 切换当前模型服务和模型名。
+ * 测试连接：不落库，但同样要过 SSRF 校验。
  */
-router.patch('/ai', adminMiddleware, updateAiModelSettings)
+router.post('/endpoints/test', testEndpointConnection)
 
-/**
- * 读取当前用户自己的云端模型密钥状态。
- */
-router.get('/api-keys', getUserApiKeySettings)
-
-/**
- * 保存或清除当前用户自己的云端模型密钥。
- */
-router.patch('/api-keys', updateUserApiKeySettings)
+router.post('/endpoints', createEndpoint)
+router.patch('/endpoints/:endpointId', updateEndpoint)
+router.delete('/endpoints/:endpointId', deleteEndpoint)
+router.post('/endpoints/:endpointId/default', setDefaultEndpoint)
 
 /**
  * 读取学习节奏设置。

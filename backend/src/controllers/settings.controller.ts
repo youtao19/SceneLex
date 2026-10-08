@@ -1,25 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
-import { isAiProvider, readAiSettings, updateAiSettings } from '../config/ai'
 import { readAuthUser } from '../middlewares/auth.middleware'
 import { settingsService } from '../services/settings.service'
-import { canUseSystemApi } from '../utils/system-api-access'
 import { ok } from '../utils/response'
-import { HttpError } from '../utils/http-error'
-
-/**
- * 设置页需要读取当前真实运行态，而不是展示前端写死的占位值。
- */
-export async function getAiSettings(
-  _req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    return res.json(ok(readAiSettings(), 'AI settings fetched'))
-  } catch (error) {
-    next(error)
-  }
-}
 
 /**
  * 学习设置按用户保存，控制复习舱每天最多推送多少到期单词。
@@ -60,81 +42,6 @@ export async function updateLearningSettings(
     )
 
     return res.json(ok(result, 'Learning settings updated'))
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
- * 普通用户只能看到自己的 API Key 配置状态，看不到服务器或其他用户的明文。
- */
-export async function getUserApiKeySettings(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const authUser = readAuthUser(req)
-    const result = await settingsService.getUserApiKeySettings(authUser.id, canUseSystemApi(authUser))
-
-    return res.json(ok(result, 'User API key settings fetched'))
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
- * 用户保存自己的模型 API Key，后续生成请求会优先使用这份密钥。
- */
-export async function updateUserApiKeySettings(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const authUser = readAuthUser(req)
-    const { provider, apiKey } = req.body as {
-      provider?: unknown
-      apiKey?: unknown
-    }
-    const result = await settingsService.updateUserApiKey(
-      authUser.id,
-      provider,
-      apiKey,
-      canUseSystemApi(authUser),
-    )
-
-    return res.json(ok(result, 'User API key settings updated'))
-  } catch (error) {
-    next(error)
-  }
-}
-
-/**
- * 只允许切换 provider 和 model，连接地址与密钥仍由本机环境管理。
- */
-export async function updateAiModelSettings(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const { provider, model } = req.body as {
-      provider?: string
-      model?: string
-    }
-    const cleanProvider = provider?.trim().toLowerCase() ?? ''
-    const cleanModel = model?.trim() ?? ''
-
-    if (!isAiProvider(cleanProvider)) {
-      throw new HttpError(400, '模型服务只支持 ollama、kimi 或 deepseek')
-    }
-
-    if (!cleanModel) {
-      throw new HttpError(400, '模型名称不能为空')
-    }
-
-    return res.json(ok(updateAiSettings(cleanProvider, cleanModel), 'AI settings updated'))
   } catch (error) {
     next(error)
   }
