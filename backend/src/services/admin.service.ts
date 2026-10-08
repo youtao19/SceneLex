@@ -6,14 +6,17 @@ import {
   updateAdminAccessKeyStatus,
   updateAdminUserAccess,
   updateAdminUserRole,
+  updateAdminUserVip,
 } from '../repositories/admin.repository';
 import type {
   CreateAdminAccessKeyPayload,
   UpdateAdminAccessKeyPayload,
   UpdateAdminUserAccessPayload,
   UpdateAdminUserRolePayload,
+  UpdateAdminUserVipPayload,
 } from '../types/admin';
 import type { AccessStatus, UserRole } from '../types/auth';
+import { endpointService } from './endpoint.service'
 import { HttpError } from '../utils/http-error';
 import { hashToken } from '../utils/token';
 
@@ -74,6 +77,17 @@ function readUserRole(role: unknown): UserRole {
   }
 
   throw new HttpError(400, '角色无效');
+}
+
+/**
+ * VIP 是明确授权开关，避免字符串 truthy 值误开系统端点使用权。
+ */
+function readVipFlag(isVip: unknown) {
+  if (typeof isVip === 'boolean') {
+    return isVip;
+  }
+
+  throw new HttpError(400, 'VIP 状态无效');
 }
 
 /**
@@ -172,6 +186,44 @@ export const adminService = {
     }
 
     return user;
+  },
+
+  /**
+   * 开通或取消 VIP。VIP 现在唯一的含义是：可以用管理员配置的系统端点。
+   */
+  async updateUserVip(
+    _currentAdminId: number,
+    userIdInput: string,
+    payload: UpdateAdminUserVipPayload,
+  ) {
+    const userId = readId(userIdInput);
+    const isVip = readVipFlag(payload.isVip);
+    const user = await updateAdminUserVip(userId, isVip);
+
+    if (!user) {
+      throw new HttpError(404, '用户不存在');
+    }
+
+    return user;
+  },
+
+  /**
+   * 系统端点是全局配置，只有管理员能读能改。
+   */
+  async readSystemEndpoint() {
+    return endpointService.readSystemEndpoint();
+  },
+
+  async saveSystemEndpoint(input: unknown) {
+    return endpointService.saveSystemEndpoint(input as Record<string, unknown>);
+  },
+
+  async deleteSystemEndpoint() {
+    await endpointService.deleteSystemEndpoint();
+  },
+
+  async testSystemEndpoint(input: unknown) {
+    return endpointService.testConnection(input as Record<string, unknown>, true);
   },
 
   /**

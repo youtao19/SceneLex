@@ -14,6 +14,11 @@ export interface AiEndpoint {
   model: string
   /** 空字符串表示这个端点不做视觉 OCR。 */
   visionModel: string
+  /**
+   * 管理员配置的系统端点。只影响出站校验：管理员就是服务器主人，
+   * 允许他指向内网；用户填的端点永远是 false。
+   */
+  trusted: boolean
 }
 
 /** 给前端的形态：密钥只留掩码。 */

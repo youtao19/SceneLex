@@ -8,6 +8,7 @@ interface UserRow {
   nickname: string;
   avatar_url: string | null;
   role: 'user' | 'admin';
+  is_vip: boolean;
   access_status: 'active' | 'suspended' | 'expired';
   access_expires_at: string | Date;
   password_salt: string;
@@ -30,6 +31,7 @@ function mapUserRow(row: UserRow): AuthUser {
     nickname: row.nickname,
     avatarUrl: row.avatar_url,
     role: row.role,
+    isVip: row.is_vip,
     accessStatus: row.access_status,
     accessExpiresAt: new Date(row.access_expires_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
@@ -60,6 +62,7 @@ export async function findUserByEmail(email: string) {
         nickname,
         avatar_url,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         password_salt,
@@ -107,6 +110,7 @@ export async function createUser(
         nickname,
         avatar_url,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         password_salt,
@@ -154,6 +158,7 @@ export async function findUserByTokenHash(tokenHash: string) {
         u.nickname,
         u.avatar_url,
         u.role,
+        u.is_vip,
         u.access_status,
         u.access_expires_at,
         u.password_salt,
@@ -208,6 +213,7 @@ export async function updateUserProfile(userId: number, nickname: string) {
         nickname,
         avatar_url,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         password_salt,
@@ -242,6 +248,7 @@ export async function updateUserAvatar(userId: number, avatarUrl: string) {
         nickname,
         avatar_url,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         password_salt,

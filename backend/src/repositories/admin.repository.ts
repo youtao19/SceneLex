@@ -7,6 +7,7 @@ interface AdminUserRow {
   email: string;
   nickname: string;
   role: UserRole;
+  is_vip: boolean;
   access_status: AccessStatus;
   access_expires_at: string | Date;
   created_at: string | Date;
@@ -35,6 +36,7 @@ function mapAdminUserRow(row: AdminUserRow): AdminUser {
     email: row.email,
     nickname: row.nickname,
     role: row.role,
+    isVip: row.is_vip,
     accessStatus: row.access_status,
     accessExpiresAt: new Date(row.access_expires_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
@@ -71,6 +73,7 @@ export async function listAdminUsers() {
         email,
         nickname,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         created_at,
@@ -109,6 +112,7 @@ export async function updateAdminUserAccess(
         email,
         nickname,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         created_at,
@@ -127,6 +131,38 @@ export async function updateAdminUserAccess(
 /**
  * 角色只接受服务层校验后的枚举值，避免页面传入任意字符串污染授权逻辑。
  */
+/**
+ * VIP 只决定能不能用系统端点，不影响登录状态、到期时间和管理员权限。
+ */
+export async function updateAdminUserVip(userId: number, isVip: boolean) {
+  const result = await query<AdminUserRow>(
+    `
+      UPDATE users
+      SET
+        is_vip = $2,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING
+        id,
+        email,
+        nickname,
+        role,
+        is_vip,
+        access_status,
+        access_expires_at,
+        created_at,
+        updated_at
+    `,
+    [userId, isVip],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return mapAdminUserRow(result.rows[0]);
+}
+
 export async function updateAdminUserRole(userId: number, role: UserRole) {
   const result = await query<AdminUserRow>(
     `
@@ -140,6 +176,7 @@ export async function updateAdminUserRole(userId: number, role: UserRole) {
         email,
         nickname,
         role,
+        is_vip,
         access_status,
         access_expires_at,
         created_at,

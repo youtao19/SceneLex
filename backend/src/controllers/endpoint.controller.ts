@@ -4,6 +4,7 @@ import { readAuthUser } from '../middlewares/auth.middleware'
 import { endpointService } from '../services/endpoint.service'
 import { HttpError } from '../utils/http-error'
 import { ok } from '../utils/response'
+import { canUseSystemEndpoint } from '../utils/system-endpoint-access'
 
 /**
  * 路径参数必须收敛成正整数，否则会把 NaN 传进 SQL。
@@ -21,13 +22,31 @@ function readEndpointId(value: string) {
 /**
  * 预设跟着列表一起返回：前端抽屉里的预设卡片和端点列表是同一个页面的两块，
  * 分成两个请求只会让首屏多一次往返。
+ *
+ * system 只告诉前端「你还有没有系统端点可用」，不返回地址和密钥。
  */
 export async function listEndpoints(req: Request, res: Response, next: NextFunction) {
   try {
     const authUser = readAuthUser(req)
     const endpoints = await endpointService.listEndpoints(authUser.id)
+    const canUse = canUseSystemEndpoint(authUser)
+    const systemView = canUse ? await endpointService.readSystemEndpoint() : null
 
-    return res.json(ok({ endpoints, presets: ENDPOINT_PRESETS }, 'Endpoints fetched'))
+    return res.json(
+      ok(
+        {
+          endpoints,
+          presets: ENDPOINT_PRESETS,
+          system: {
+            canUse,
+            available: Boolean(systemView),
+            label: systemView?.label ?? null,
+            model: systemView?.model ?? null,
+          },
+        },
+        'Endpoints fetched',
+      ),
+    )
   } catch (error) {
     next(error)
   }

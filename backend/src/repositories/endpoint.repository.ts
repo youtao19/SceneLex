@@ -35,6 +35,7 @@ export function mapEndpointRow(row: EndpointRow): AiEndpoint {
     apiKey: decryptSecret(row.api_key_ciphertext),
     model: row.model,
     visionModel: row.vision_model,
+    trusted: false,
   }
 }
 

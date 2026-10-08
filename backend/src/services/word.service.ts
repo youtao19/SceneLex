@@ -535,7 +535,7 @@ export const wordService = {
     const prompt = buildWordPrompt(cleanWord, dictionaryEntry ?? undefined, requiredMeanings);
 
     if (!endpoint) {
-      throw new HttpError(400, '还没有配置模型端点，请先到设置里添加一个');
+      throw new HttpError(400, '还没有配置模型端点。可以自己添加一个，或联系管理员开通系统端点。');
     }
 
     const rawText = await generateWordJson(endpoint, prompt);

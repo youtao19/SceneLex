@@ -79,7 +79,7 @@ export async function sendAssistantMessage(
       authUser.id,
       req.params.chatId,
       req.body,
-      await endpointService.resolveDefaultEndpoint(authUser.id),
+      await endpointService.resolveEndpointForUser(authUser),
     )
     return res.json(ok(result, 'Assistant replied'))
   } catch (error) {
@@ -107,7 +107,7 @@ export async function streamAssistantMessage(
       authUser.id,
       req.params.chatId,
       req.body,
-      await endpointService.resolveDefaultEndpoint(authUser.id),
+      await endpointService.resolveEndpointForUser(authUser),
       {
         onUserMessage: (message) => {
           writeStreamEvent(res, {

@@ -150,6 +150,12 @@ async function assertHostResolvesToPublicAddress(hostname: string) {
 export interface GuardEndpointOptions {
   /** 管理员维护的预设地址，允许指向内网、允许 http。 */
   trustedUrls?: string[];
+  /**
+   * 跳过地址校验，只给管理员自己配置的系统端点用。
+   * 管理员就是这台服务器的主人，把自己服务器指向内网不是攻击，而是正常运维
+   * （例如指到内网的 vLLM）。用户填的端点绝不能走这个分支。
+   */
+  allowPrivateAddresses?: boolean;
 }
 
 /**
@@ -172,6 +178,10 @@ export async function assertSafeEndpointUrl(
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new UnsafeEndpointUrlError(`只支持 http 和 https，当前是 ${url.protocol}`);
+  }
+
+  if (options.allowPrivateAddresses) {
+    return url;
   }
 
   if (isTrustedEndpointUrl(rawUrl, trustedUrls)) {

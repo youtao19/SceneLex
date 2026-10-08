@@ -5,6 +5,7 @@ export interface AdminUser {
   email: string;
   nickname: string;
   role: UserRole;
+  isVip: boolean;
   accessStatus: AccessStatus;
   accessExpiresAt: string;
   createdAt: string;
@@ -36,6 +37,10 @@ export interface CreatedAdminAccessKey extends AdminAccessKey {
 export interface UpdateAdminUserAccessPayload {
   action?: 'suspend' | 'resume' | 'renew';
   days?: number;
+}
+
+export interface UpdateAdminUserVipPayload {
+  isVip?: boolean;
 }
 
 export interface UpdateAdminUserRolePayload {

@@ -43,7 +43,8 @@ function readPrewarmEndpoint(): AiEndpoint {
     );
   }
 
-  return { id: 0, label: 'prewarm', baseUrl, apiKey, model, visionModel: '' };
+  // 管理员自己在跑这个脚本，所以允许指向内网地址。
+  return { id: 0, label: 'prewarm', baseUrl, apiKey, model, visionModel: '', trusted: true };
 }
 
 /**

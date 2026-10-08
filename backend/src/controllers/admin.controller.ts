@@ -6,6 +6,7 @@ import type {
   UpdateAdminAccessKeyPayload,
   UpdateAdminUserAccessPayload,
   UpdateAdminUserRolePayload,
+  UpdateAdminUserVipPayload,
 } from '../types/admin';
 import { ok } from '../utils/response';
 
@@ -70,6 +71,89 @@ export async function updateUserRole(
       payload,
     );
     return res.json(ok(user, '用户角色已更新'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 开通或取消 VIP。
+ */
+export async function updateUserVip(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const payload = req.body as UpdateAdminUserVipPayload;
+    const authUser = readAuthUser(req);
+    const user = await adminService.updateUserVip(
+      authUser.id,
+      readRouteParam(req.params.userId),
+      payload,
+    );
+    return res.json(ok(user, '用户 VIP 状态已更新'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 读取系统端点配置。没配过时返回 null，前端据此显示「还没配置」。
+ */
+export async function getSystemEndpoint(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    return res.json(ok(await adminService.readSystemEndpoint(), 'System endpoint fetched'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 保存系统端点：VIP 用户没有自己的端点时会用它。
+ */
+export async function saveSystemEndpoint(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    return res.json(ok(await adminService.saveSystemEndpoint(req.body), 'System endpoint saved'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 删除后 VIP 用户如果没有自己的端点就不能再用模型，所以前端要二次确认。
+ */
+export async function deleteSystemEndpoint(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    await adminService.deleteSystemEndpoint();
+    return res.json(ok(null, 'System endpoint deleted'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 保存前测试连通性，配置错了不用等用户来报。
+ */
+export async function testSystemEndpoint(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    return res.json(ok(await adminService.testSystemEndpoint(req.body), 'System endpoint tested'));
   } catch (error) {
     next(error);
   }

@@ -16,7 +16,7 @@ export async function recognizeArticleText(
     const authUser = readAuthUser(req);
     // 只有选 vision 时才需要端点，tesseract 和 paddle 都在本地跑。
     const visionEndpoint = req.body.method === 'vision'
-      ? await endpointService.resolveVisionEndpoint(authUser.id)
+      ? await endpointService.resolveVisionEndpointForUser(authUser)
       : null;
     const text = await extractArticleTextFromImage(
       req.file,

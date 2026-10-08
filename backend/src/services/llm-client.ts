@@ -1,4 +1,5 @@
 import { readTrustedEndpointUrls } from '../config/endpoint-presets'
+import { HttpError } from '../utils/http-error'
 import { safeFetch } from '../utils/ssrf-guard'
 import type { AiEndpoint } from '../types/endpoint'
 
@@ -43,7 +44,15 @@ export interface ChatCompletionResult {
   finishReason: string
 }
 
-export class LlmRequestError extends Error {}
+/**
+ * 继承 HttpError 是为了让状态码正确：模型服务失败是上游问题（502），
+ * 不是我们的 500，前端也不该把它当成服务端 bug 上报。
+ */
+export class LlmRequestError extends HttpError {
+  constructor(message: string) {
+    super(502, message)
+  }
+}
 
 const DEFAULT_TIMEOUT = 120_000
 
@@ -167,7 +176,7 @@ export async function chatCompletion(
         body: JSON.stringify(buildBody(endpoint, messages, options, false)),
         signal: AbortSignal.timeout(timeoutMs),
       },
-      { trustedUrls: readTrustedEndpointUrls() },
+      { trustedUrls: readTrustedEndpointUrls(), allowPrivateAddresses: endpoint.trusted },
     )
   } catch (error) {
     if (isTimeoutError(error)) {
@@ -237,7 +246,7 @@ export async function chatCompletionStream(
         body: JSON.stringify(buildBody(endpoint, messages, options, true)),
         signal: AbortSignal.timeout(timeoutMs),
       },
-      { trustedUrls: readTrustedEndpointUrls() },
+      { trustedUrls: readTrustedEndpointUrls(), allowPrivateAddresses: endpoint.trusted },
     )
   } catch (error) {
     if (isTimeoutError(error)) {
