@@ -84,7 +84,42 @@ Default local URLs:
 - Backend: `http://localhost:3003`
 - Health check: `http://localhost:3003/health`
 
-The backend auto-initializes required tables on startup.
+The backend runs versioned migrations on startup, then seeds the built-in word books.
+
+## Development Workflow
+
+Run the full local gate before committing — it is exactly what CI runs:
+
+```bash
+npm run verify     # typecheck + test + build
+```
+
+Individual steps:
+
+```bash
+npm run typecheck  # vue-tsc (frontend) + tsc (backend)
+npm test           # vitest: frontend + backend
+npm run build      # production build
+```
+
+After starting the backend, confirm it is actually serving:
+
+```bash
+npm run health:check         # local http://127.0.0.1:3003
+npm run health:check:prod    # https://scenlex.cn
+```
+
+`main` is the only development branch. Do not open long-lived branches off it.
+
+## Database Migrations
+
+The schema lives in `backend/migrations/` as versioned migrations and is applied automatically on backend startup. See [backend/migrations/README.md](backend/migrations/README.md) for how to add one.
+
+```bash
+npm --prefix backend run migrate:status   # what has been applied
+npm --prefix backend run migrate:up       # apply pending migrations
+npm --prefix backend run migrate:down     # roll back the last migration
+```
 
 ## AI Provider Setup
 

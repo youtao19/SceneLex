@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run install:all          # Install dependencies for root, frontend, and backend
+npm run install:all          # Install dependencies (root workspaces cover both apps)
 npm run dev                  # Start both Vite dev server (port 9003) and Express API (port 3003)
 npm run dev:frontend         # Vite dev server only
 npm run dev:backend          # Express API with ts-node-dev only
@@ -13,10 +13,20 @@ npm run dev:ollama           # Both apps with AI_PROVIDER=ollama
 npm run dev:kimi             # Both apps with AI_PROVIDER=kimi
 npm run dev:deepseek         # Both apps with AI_PROVIDER=deepseek
 npm run dev:ocr              # Start PaddleOCR Python microservice (port 8001)
+npm run typecheck            # vue-tsc (frontend) + tsc (backend)
+npm test                     # vitest, both apps
 npm run build                # Build both frontend and backend for production
+npm run verify               # typecheck + test + build (what CI runs)
 npm run start:prod           # Run compiled backend (node backend/dist/server.js)
+npm run health:check         # Assert /health + served HTML on localhost:3003
+npm run health:check:prod    # Same check against https://scenlex.cn
 npm run dict:download        # Download ECDICT dictionary data
 npm run prewarm:cet6         # Prewarm CET-6 system word cards via AI
+
+# Database migrations (applied automatically on startup):
+npm --prefix backend run migrate:status
+npm --prefix backend run migrate:up
+npm --prefix backend run migrate:down
 
 # User management scripts:
 npm run key:create           # Create access key
@@ -25,7 +35,7 @@ npm run user:resume          # Resume a user
 npm run user:renew           # Renew user access
 ```
 
-No test runner is configured. `npm run build` is the minimum verification step. Frontend proxies `/api` and `/uploads` to `http://localhost:3003` in dev mode.
+CI (`.github/workflows/ci.yml`) runs typecheck, test, and build on every push and pull request to `main`. `main` is the single development branch. Frontend proxies `/api` and `/uploads` to `http://localhost:3003` in dev mode.
 
 ## Architecture
 
@@ -39,9 +49,13 @@ Key layers:
 - **`services/`** — All business logic. This is where AI calls, validation, and cross-cutting concerns live.
 - **`repositories/`** — All PostgreSQL queries using `config/database.ts` (`query()`, `withTransaction()`). No ORM — raw parameterized SQL.
 - **`middlewares/`** — Auth (session-based, HttpOnly cookie), access control (VIP/active users), rate limiting, model concurrency limiting, admin guard.
-- **`config/`** — `env.ts` loads `.env.dev.local` (dev) or `.env` (prod). `ai.ts` defines Ollama/Kimi/DeepSeek provider configs. `database.ts` creates the pg Pool and runs `initializeDatabase()` to create all tables with `IF NOT EXISTS` + seed system word books.
+- **`config/`** — `env.ts` loads `.env.dev.local` (dev) or `.env` (prod). `ai.ts` defines Ollama/Kimi/DeepSeek provider configs. `database.ts` owns the pg Pool, `query()`/`withTransaction()` helpers, and `initializeDatabase()`. `migrations.ts` wraps the `node-pg-migrate` runner.
 
-Database is auto-initialized on startup. Tables include: `users`, `access_keys`, `user_sessions`, `user_learning_settings`, `user_ai_api_keys`, `words` (with Anki SM-2 SRS fields), `word_books`, `word_book_items`, `system_word_books`, `system_word_book_items`, `system_word_card_previews`, `system_word_cards`, `dictionary_entries`, `reading_articles`, `reading_assistant_chats`, `reading_assistant_messages`.
+### Database migrations
+
+All DDL lives in `backend/migrations/` as timestamped `.cjs` files using `pgm.sql()`. `initializeDatabase()` runs `runMigrations()` and then seeds the built-in word books — it must never contain DDL again. Migrations run in a single transaction with a `wait` advisory lock, so overlapping PM2 restarts are safe; a failing migration deliberately prevents the server from starting. `node-pg-migrate` v9 is ESM-only, so it is imported dynamically from the CommonJS backend. See `backend/migrations/README.md`.
+
+Tables include: `users`, `access_keys`, `user_sessions`, `user_learning_settings`, `user_ai_api_keys`, `words` (with Anki SM-2 SRS fields), `word_books`, `word_book_items`, `system_word_books`, `system_word_book_items`, `system_word_card_previews`, `system_word_cards`, `dictionary_entries`, `reading_articles`, `reading_assistant_chats`, `reading_assistant_messages`.
 
 ### Frontend (Vue 3 + TypeScript, ESM modules)
 

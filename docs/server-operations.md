@@ -43,17 +43,45 @@ cd /root/SceneLex
 ```bash
 cd /root/SceneLex
 git status
-git fetch gitee production
-git pull --ff-only gitee production
+git fetch origin main
+git pull --ff-only origin main
 npm install
 npm run build
 pm2 restart scenelex
 ```
 
-重启后检查服务：
+> 注意：`main` 现在是唯一主线。旧的 `production` 分支已冻结，不要再向它提交。
+
+**重启前先备份数据库**，因为后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据：
+
+```bash
+mkdir -p /root/backups
+pg_dump -U peach scenelex_db | gzip > /root/backups/scenelex_db-$(date +%F-%H%M).sql.gz
+```
+
+重启后按下面顺序检查：
 
 ```bash
 pm2 status
+pm2 logs scenelex --lines 50 | grep migrate   # 确认迁移结果
+sh ./scripts/check-health.sh http://127.0.0.1:3003
+sh ./scripts/check-health.sh https://scenlex.cn
+```
+
+迁移失败时后端**不会启动**，这是有意的：宁可服务不可用，也不要让线上跑在半套 schema 上。此时看 `pm2 logs scenelex` 里的 `[migrate]` 输出定位，回滚用 `npm --prefix backend run migrate:down`。
+
+`check-health.sh` 的预期输出：
+
+```
+检查目标: https://scenlex.cn
+✅ /health 正常，首页返回 HTML
+```
+
+它同时校验 `/health` 的 JSON 契约和首页真的返回 HTML —— 只看 HTTP 200 不够，因为前端 dist 缺失时 SPA fallback 依然会返回 200。
+
+也可以直接 curl：
+
+```bash
 curl http://127.0.0.1:3003/health
 curl https://scenlex.cn/health
 ```
