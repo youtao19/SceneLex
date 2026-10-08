@@ -157,6 +157,15 @@ curl https://scenlex.cn/health
 {"success":true,"message":"backend is running"}
 ```
 
+## 本次发布带来的变化（2026-10-08 之后）
+
+模型配置从「环境变量里的全局 provider」改成「用户自己在设置页填端点」，所以：
+
+- 线上 `ecosystem.config.cjs` 里的 `AI_PROVIDER`、`KIMI_*`、`DEEPSEEK_*`、`OCR_VISION_PROVIDER`、`OCR_MODEL` 已经**没有代码读取**了，留着不影响运行，但也不用再改。
+- `USER_API_KEY_SECRET` **必须保持不变**：迁移是把旧的密钥密文原样搬到端点表，换密钥会让已存的端点全部解不开。
+- 迁移会把每个用户旧的 kimi / deepseek 密钥转成端点（DeepSeek 优先作为默认）。**没有存过密钥的用户迁移后一个端点都没有**，他们需要自己在设置页配一个才能用生成和 OCR —— 因为服务器兜底 Key 已经去掉了。
+- 词卡预热脚本不再能借用服务端 Key，需要在环境里给 `PREWARM_BASE_URL` / `PREWARM_API_KEY` / `PREWARM_MODEL`（或沿用 `DEEPSEEK_*`）。
+
 ## 如果修改了环境变量
 
 生产环境变量在服务器的 PM2 配置文件中：
