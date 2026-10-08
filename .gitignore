@@ -4,6 +4,8 @@ dist
 __pycache__
 .env.local
 .env.*.local
+# 本地改 env 前的备份（.env.dev.local.bak-20261008-155241 这类）也含密钥，必须一起忽略
+.env.*.local.*
 coverage
 *.log
 frontend/.vite

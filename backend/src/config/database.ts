@@ -217,6 +217,14 @@ export async function initializeDatabase() {
     return;
   }
 
+  if (!env.migrateOnStartup) {
+    // 本地开发连线上库时必须关掉：启动自动迁移会把本地还没发布的迁移直接应用到线上。
+    // 仍然探测一次连通性，避免连不上时静默启动。
+    await query('SELECT 1');
+    console.log('[db] MIGRATE_ON_STARTUP=false，跳过迁移与词书播种');
+    return;
+  }
+
   await runMigrations();
 
   // 内置词书是随版本迭代的参考数据，不属于 schema，因此放在迁移之后。

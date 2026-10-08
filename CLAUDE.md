@@ -55,6 +55,8 @@ Key layers:
 
 All DDL lives in `backend/migrations/` as timestamped `.cjs` files using `pgm.sql()`; that directory must contain nothing else, because the runner tries to load every file in it. `initializeDatabase()` runs `runMigrations()` and then seeds the built-in word books — it must never contain DDL again. Migrations run in a single transaction with a `wait` advisory lock, so overlapping PM2 restarts are safe; a failing migration deliberately prevents the server from starting. `node-pg-migrate` v9 is ESM-only, so it is imported dynamically from the CommonJS backend. See `docs/database-migrations.md`.
 
+`MIGRATE_ON_STARTUP` gates startup migrations: default on, only an explicit `false` disables them, and the server must never set it. Local development reaches the production database through an SSH tunnel (`npm run dev:db-tunnel`, local port 5433) and sets `MIGRATE_ON_STARTUP=false` in `backend/.env.dev.local` so undeployed migrations cannot reach production.
+
 Tables include: `users`, `access_keys`, `user_sessions`, `user_learning_settings`, `user_ai_api_keys`, `words` (with Anki SM-2 SRS fields), `word_books`, `word_book_items`, `system_word_books`, `system_word_book_items`, `system_word_card_previews`, `system_word_cards`, `dictionary_entries`, `reading_articles`, `reading_assistant_chats`, `reading_assistant_messages`.
 
 ### Frontend (Vue 3 + TypeScript, ESM modules)

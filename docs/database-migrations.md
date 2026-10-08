@@ -8,6 +8,15 @@ schema 的唯一来源是这个目录，`backend/src/config/database.ts` 只负�
 
 后端启动时自动执行未应用的迁移（`initializeDatabase()` → `runMigrations()`），所以正常部署不需要额外命令。
 
+### MIGRATE_ON_STARTUP
+
+启动迁移由 `MIGRATE_ON_STARTUP` 控制，**默认开启，只有显式写成 `false` 才关闭**。
+
+- 线上不要配这个变量：默认值就是自动迁移，配成 `false` 会让线上静默地永远不再执行迁移。
+- 只有一种情况要设 `false`：本地开发通过 SSH 隧道连线上库（见 README）。否则启动时会把本地还没发布的迁移直接应用到线上。
+
+判断逻辑在 `readMigrateOnStartup()`，有单元测试钉住「默认开启、只有显式 false 才关闭」。
+
 手动排查或回滚：
 
 ```bash

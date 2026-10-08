@@ -121,6 +121,25 @@ npm --prefix backend run migrate:up       # apply pending migrations
 npm --prefix backend run migrate:down     # roll back the last migration
 ```
 
+## Developing Against the Production Database
+
+Production PostgreSQL only listens on `127.0.0.1` and is not reachable from the internet. Reach it through an SSH tunnel instead of exposing the port:
+
+```bash
+npm run dev:db-tunnel   # 127.0.0.1:5433 -> production 127.0.0.1:5432
+```
+
+Keep that terminal open, then point `backend/.env.dev.local` at the tunnel:
+
+```env
+DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5433/scenelex_db
+MIGRATE_ON_STARTUP=false
+```
+
+`MIGRATE_ON_STARTUP=false` is mandatory here: the backend applies migrations on startup, and with a tunnel that means any migration you have not deployed yet gets applied straight to production.
+
+> Your local server writes to real data. Logging in creates sessions, generating cards writes `system_word_cards`, and the startup word-book seed upserts reference data. Use a separate database if you need to test destructive changes.
+
 ## AI Provider Setup
 
 Use Ollama:

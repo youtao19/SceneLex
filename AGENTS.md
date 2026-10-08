@@ -22,6 +22,8 @@ Build outputs go to `frontend/dist` and `backend/dist`. Do not commit generated 
 ## Database Migrations
 Schema changes go in `backend/migrations/` as timestamped `.cjs` migrations. The backend applies them on startup; `database.ts` only runs migrations and seeds reference data. Never add DDL to `database.ts`, and never put anything else in `migrations/` — the runner tries to load every file it finds there. See `docs/database-migrations.md` before writing one.
 
+Startup migrations are controlled by `MIGRATE_ON_STARTUP`, which defaults to on and is only disabled by an explicit `false`. Never set it on the server. It exists so local development can connect to the production database through an SSH tunnel (`npm run dev:db-tunnel`) without pushing undeployed migrations to production.
+
 ## Coding Style & Naming Conventions
 TypeScript is `strict` in both apps; keep types explicit at API boundaries and avoid `any` and `unknown`. Match the style of the file you edit: the frontend currently favors semicolons, while much of the backend omits them. Do not reformat unrelated files.
 
