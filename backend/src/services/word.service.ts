@@ -429,8 +429,9 @@ function growAnkiInterval(currentInterval: number, nextInterval: number) {
 
 /**
  * SceneLex 目前只有天级 next_review，所以这里采用 Anki/SM-2 的日粒度版本。
+ * 导出是为了让排期规则可以被单元测试直接钉住 —— 这是最容易被改错又最难发现的逻辑。
  */
-function getNextAnkiSchedule(word: StoredWord, rating: ReviewRating): AnkiSchedule {
+export function getNextAnkiSchedule(word: StoredWord, rating: ReviewRating): AnkiSchedule {
   const currentInterval = Math.max(1, word.interval);
   const currentEase = word.ease > 0 ? word.ease : DEFAULT_ANKI_EASE;
 
