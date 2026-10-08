@@ -2,6 +2,8 @@
 
 schema 的唯一来源是这个目录，`backend/src/config/database.ts` 只负责调用迁移和播种参考数据。
 
+> `backend/migrations/` 里**只能**放迁移文件。node-pg-migrate 会把目录下每个文件都当迁移加载，放个 README 进来就会让后端启动直接失败（报 `Cannot determine numeric prefix`），所以这份文档放在 `docs/` 而不是代码旁边。
+
 ## 运行方式
 
 后端启动时自动执行未应用的迁移（`initializeDatabase()` → `runMigrations()`），所以正常部署不需要额外命令。
@@ -22,7 +24,7 @@ DATABASE_URL=postgresql://user@localhost:5432/other_db npm --prefix backend run 
 
 ## 新增迁移
 
-文件放在本目录，命名为 `<时间戳>_<描述>.cjs`，时间戳必须大于已有文件（毫秒级 epoch，保证字典序等于执行序）：
+文件放在 `backend/migrations/`，命名为 `<时间戳>_<描述>.cjs`，时间戳必须大于已有文件（毫秒级 epoch，保证字典序等于执行序）：
 
 ```
 1791443876517_baseline.cjs

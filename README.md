@@ -113,7 +113,7 @@ npm run health:check:prod    # https://scenlex.cn
 
 ## Database Migrations
 
-The schema lives in `backend/migrations/` as versioned migrations and is applied automatically on backend startup. See [backend/migrations/README.md](backend/migrations/README.md) for how to add one.
+The schema lives in `backend/migrations/` as versioned migrations and is applied automatically on backend startup. See [docs/database-migrations.md](docs/database-migrations.md) for how to add one.
 
 ```bash
 npm --prefix backend run migrate:status   # what has been applied
