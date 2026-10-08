@@ -148,6 +148,20 @@ There is no server-side fallback key. Each user configures their own endpoints i
 
 An endpoint is a base URL, an API key, and a model name; the vision model is a separate field on the same endpoint (leave it empty if that endpoint should not do OCR). Users can keep several endpoints and pick one as the default. Settings ships presets for DeepSeek, Kimi, and a local Ollama — a preset just fills the form, it is not a whitelist.
 
+### System endpoint and VIP
+
+An admin can configure one **system endpoint** in `/admin`. It is the shared, admin-funded fallback, so a user who cannot or will not configure their own endpoint can still generate cards and run OCR — they just need to be marked **VIP**.
+
+Resolution order for every model call:
+
+1. the user's own default endpoint, if they have one (their own quota, no shared cost)
+2. the system endpoint, if the user is an admin or VIP
+3. otherwise the request fails with a message telling them to add an endpoint or ask the admin
+
+OCR follows the same order, looking for a vision model on the user's own endpoints first and falling back to the system endpoint.
+
+Because the system endpoint belongs to the admin, it is allowed to point at private addresses over plain `http` — pointing it at an internal vLLM is normal operations. User-entered endpoints do not get that exemption.
+
 Why `/v1/chat/completions` and not `/v1/responses`: the point of letting users paste a URL is breadth of compatibility, and chat/completions is what essentially every provider and local runtime implements. The Responses API's real advantage is server-side conversation state, and Ollama explicitly only supports the stateless flavour.
 
 Useful environment variables:
@@ -166,6 +180,8 @@ R2_AVATAR_PUBLIC_BASE_URL=https://avatars.scenlex.cn
 R2_AVATAR_UPLOAD_URL=https://avatar-upload.scenlex.cn
 R2_AVATAR_UPLOAD_TOKEN=
 ```
+
+VIP is a single flag (`users.is_vip`) whose only meaning is *may use the system endpoint*. It does not affect login, account expiry, rate limits, or anything else.
 
 Set `USER_API_KEY_SECRET` before users save endpoints. Do not change it casually afterwards, because existing encrypted keys will no longer decrypt.
 

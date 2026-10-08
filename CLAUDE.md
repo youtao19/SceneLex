@@ -66,6 +66,8 @@ Routes: `/` (landing), `/dashboard`, `/reading` (OCR + AI assistant), `/review` 
 
 Every model call goes to an OpenAI-compatible `/v1/chat/completions` on an endpoint the user configured (`user_ai_endpoints`: base URL, encrypted key, model, optional vision model). There is no server-side fallback key and no global provider switch — `aiConfig` and the `AI_PROVIDER` env var are gone.
 
+Endpoint resolution (`endpointService.resolveEndpointForUser`) prefers the user's own default endpoint, then falls back to the admin-configured `system_ai_endpoint` (single-row table) for admins and VIP users; `users.is_vip` means exactly that and nothing else. The system endpoint is admin-owned, so it may point at private addresses over `http`; user endpoints may not.
+
 `llm-client.ts` is the only outbound client and always fetches through `safeFetch` from `utils/ssrf-guard.ts`, which resolves DNS before validating the resolved IPs and re-validates every redirect hop. `llm.service.ts` is a thin layer over it with four functions: word-card JSON, plain text, streaming plain text, and vision. Vision sends base64 data URLs because Ollama's chat/completions accepts base64 but not image URLs.
 
 ### OCR Pipeline

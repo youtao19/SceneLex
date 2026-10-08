@@ -165,6 +165,13 @@ curl https://scenlex.cn/health
 - `USER_API_KEY_SECRET` **必须保持不变**：迁移是把旧的密钥密文原样搬到端点表，换密钥会让已存的端点全部解不开。
 - 迁移会把每个用户旧的 kimi / deepseek 密钥转成端点（DeepSeek 优先作为默认）。**没有存过密钥的用户迁移后一个端点都没有**，他们需要自己在设置页配一个才能用生成和 OCR —— 因为服务器兜底 Key 已经去掉了。
 - 词卡预热脚本不再能借用服务端 Key，需要在环境里给 `PREWARM_BASE_URL` / `PREWARM_API_KEY` / `PREWARM_MODEL`（或沿用 `DEEPSEEK_*`）。
+- **VIP 名单会丢**：迁移 1791443876521 删过 `users.is_vip`，1791443876522 又加回来（默认 false），中间的值没了。线上原来 VIP 是 `<email-removed>`（user 4），**部署后要手动补**：
+
+  ```sql
+  UPDATE users SET is_vip = TRUE WHERE id = 4;
+  ```
+
+- 部署后还要在管理页配一次**系统端点**，否则 VIP 用户仍然没有端点可用。系统端点允许指向内网和 http，因为是你自己的服务器。
 
 ## 如果修改了环境变量
 
