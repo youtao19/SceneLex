@@ -14,6 +14,24 @@
 
     <p v-if="loadErrorMessage" class="settings-notice is-error">{{ loadErrorMessage }}</p>
 
+    <!--
+      说清「实际会用哪个端点」。用户看不出这件事的话，会以为系统端点失效了
+      或者以为自己在花自己的额度。
+    -->
+    <p v-if="isLoading" class="settings-notice">正在读取端点...</p>
+    <p v-else-if="hasOwnEndpoint" class="settings-notice">
+      生成和 OCR 会优先用你自己配的默认端点，不占系统额度。
+    </p>
+    <p v-else-if="system.canUse && system.available" class="settings-notice is-info">
+      你自己还没配端点，当前会使用<strong>系统端点：{{ system.label }}</strong>（{{ system.model }}）。
+    </p>
+    <p v-else-if="system.canUse" class="settings-notice is-error">
+      你还没有配端点，而且管理员还没配置系统端点，所以现在不能生成词卡和做 OCR。
+    </p>
+    <p v-else class="settings-notice">
+      你还没有配端点。可以自己添加一个，或联系管理员开通系统端点。
+    </p>
+
     <div class="settings-block">
       <div class="settings-block-head">
         <p class="settings-block-title">我的端点</p>
@@ -25,7 +43,7 @@
       <p v-if="isLoading" class="settings-notice">正在读取端点...</p>
 
       <p v-else-if="endpoints.length === 0" class="settings-empty">
-        还没有配置端点。现在没有服务器兜底，配一个才能使用词卡生成和 OCR。
+        还没有配置端点。
       </p>
 
       <article
@@ -201,13 +219,19 @@ import {
   updateEndpoint,
   updateLearningSettings,
 } from '../services/settings.service';
-import type { AiEndpoint, EndpointPreset } from '../types/settings';
+import type { AiEndpoint, EndpointPreset, SystemEndpointStatus } from '../types/settings';
 
 const REVIEW_LIMIT_MIN = 1;
 const REVIEW_LIMIT_MAX = 200;
 
 const endpoints = ref<AiEndpoint[]>([]);
 const presets = ref<EndpointPreset[]>([]);
+const system = ref<SystemEndpointStatus>({
+  canUse: false,
+  available: false,
+  label: null,
+  model: null,
+});
 const isLoading = ref(true);
 const loadErrorMessage = ref('');
 const reviewErrorMessage = ref('');
@@ -241,6 +265,7 @@ const canSave = computed(
     Boolean(draft.label && draft.baseUrl && draft.model) &&
     (Boolean(editingId.value) || Boolean(draft.apiKey)),
 );
+const hasOwnEndpoint = computed(() => endpoints.value.some((item) => item.isDefault));
 
 function statusOf(id: number) {
   return statuses[id] ?? { tone: 'idle', text: '未测试' };
@@ -260,6 +285,7 @@ async function loadEndpoints() {
 
   endpoints.value = response.data.endpoints;
   presets.value = response.data.presets;
+  system.value = response.data.system;
 }
 
 async function loadReview() {
@@ -509,6 +535,10 @@ function saveReview() {
 
 .settings-notice.is-error {
   color: var(--rose);
+}
+
+.settings-notice.is-info {
+  color: var(--green);
 }
 
 .settings-empty {

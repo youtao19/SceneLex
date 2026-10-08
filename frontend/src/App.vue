@@ -186,9 +186,16 @@ const accessText = computed(() => {
 
   return '账号信息'
 })
-const membershipText = computed(() => (userStore.user?.role === 'admin' ? '管理员' : '普通用户'))
+const membershipText = computed(() => {
+  if (userStore.user?.role === 'admin') {
+    return '管理员'
+  }
+
+  return userStore.user?.isVip ? 'VIP' : '普通用户'
+})
 const membershipClass = computed(() => ({
   'is-admin': userStore.user?.role === 'admin',
+  'is-vip': userStore.user?.isVip === true,
 }))
 
 interface NavItem {

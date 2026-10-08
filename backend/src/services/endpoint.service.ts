@@ -194,6 +194,11 @@ export const endpointService = {
       return { ok: false, message: error instanceof Error ? error.message : '参数不正确' }
     }
 
+    // 管理员改模型名或地址时不该被迫重新粘贴一次 Key，所以留空就沿用已保存的那份。
+    if (trusted && !apiKey) {
+      apiKey = (await findSystemEndpoint())?.apiKey ?? ''
+    }
+
     return runConnectionTest({
       id: 0,
       label: 'test',

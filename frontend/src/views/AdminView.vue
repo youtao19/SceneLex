@@ -76,6 +76,72 @@
       </div>
     </section>
 
+    <section class="admin-workbench is-tall" aria-labelledby="system-endpoint-title">
+      <div class="workbench-copy">
+        <p class="eyebrow">SYSTEM ENDPOINT</p>
+        <h3 id="system-endpoint-title">系统端点</h3>
+        <p>
+          没有自己配端点的 VIP 用户会直接用这一组配置，所以他们不需要会填 URL 和 Key。
+          这里的地址允许指向内网、允许 http，因为是你自己的服务器。
+        </p>
+      </div>
+
+      <div class="endpoint-form">
+        <label class="field-block">
+          <span>名称</span>
+          <input v-model.trim="systemDraft.label" type="text" placeholder="例如：系统 DeepSeek" />
+        </label>
+        <label class="field-block is-wide">
+          <span>接口地址</span>
+          <input
+            v-model.trim="systemDraft.baseUrl"
+            type="text"
+            spellcheck="false"
+            placeholder="https://api.deepseek.com/v1"
+          />
+        </label>
+        <label class="field-block">
+          <span>模型名</span>
+          <input v-model.trim="systemDraft.model" type="text" spellcheck="false" />
+        </label>
+        <label class="field-block">
+          <span>视觉模型（留空则不做 OCR）</span>
+          <input v-model.trim="systemDraft.visionModel" type="text" spellcheck="false" />
+        </label>
+        <label class="field-block is-wide">
+          <span>API Key{{ systemEndpoint ? '（留空保持不变）' : '' }}</span>
+          <input v-model.trim="systemDraft.apiKey" type="password" autocomplete="off" />
+        </label>
+
+        <div class="endpoint-actions">
+          <button class="control-button" type="button" :disabled="isBusy" @click="testSystemEndpointDraft">
+            测试连接
+          </button>
+          <button class="primary-button" type="button" :disabled="isBusy" @click="saveSystemEndpointDraft">
+            保存系统端点
+          </button>
+          <button
+            v-if="systemEndpoint"
+            class="control-button is-danger"
+            type="button"
+            :disabled="isBusy"
+            @click="removeSystemEndpointDraft"
+          >
+            删除
+          </button>
+        </div>
+
+        <p v-if="systemTestMessage" class="notice-box is-compact">{{ systemTestMessage }}</p>
+        <p v-if="systemEndpoint" class="system-endpoint-state">
+          当前生效：{{ systemEndpoint.label }} · {{ systemEndpoint.baseUrl }} · {{ systemEndpoint.model }} ·
+          Key {{ systemEndpoint.keyPreview }}
+        </p>
+        <p v-else class="system-endpoint-state is-empty">
+          还没有配置。VIP 用户如果没有自己的端点，现在不能生成词卡和做 OCR。
+        </p>
+      </div>
+    </section>
+
     <section class="ledger-panel" aria-labelledby="users-title">
       <div class="panel-head">
         <div>
@@ -121,6 +187,16 @@
             >
               修改角色
             </button>
+            <button
+              v-if="user.role !== 'admin'"
+              class="text-action"
+              type="button"
+              :disabled="isBusy"
+              @click="toggleVip(user)"
+            >
+              {{ user.isVip ? '取消 VIP' : '设为 VIP' }}
+            </button>
+            <span v-else class="muted-text">系统端点</span>
           </span>
 
           <span class="expiry-cell" role="cell">
@@ -265,14 +341,20 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   createAdminAccessKey,
+  deleteSystemEndpoint,
   fetchAdminAccessKeys,
   fetchAdminUsers,
+  fetchSystemEndpoint,
+  saveSystemEndpoint,
+  testSystemEndpoint,
   updateAdminAccessKey,
   updateAdminUserAccess,
   updateAdminUserRole,
+  updateAdminUserVip,
 } from '../services/admin.service'
 import { useUserStore } from '../stores/user'
 import type { AdminAccessKey, AdminUser } from '../types/admin'
+import type { AiEndpoint } from '../types/settings'
 
 const userStore = useUserStore()
 const users = ref<AdminUser[]>([])
@@ -286,6 +368,9 @@ const keyNote = ref('')
 const createdAccessKey = ref('')
 const quickRenewDays = [7, 30, 90]
 const renewDaysByUser = ref<Record<number, number>>({})
+const systemEndpoint = ref<AiEndpoint | null>(null)
+const systemTestMessage = ref('')
+const systemDraft = ref({ label: '', baseUrl: '', model: '', visionModel: '', apiKey: '' })
 const roleChangeTarget = ref<{
   user: AdminUser
   nextRole: 'user' | 'admin'
@@ -449,12 +534,14 @@ async function loadAdminData() {
   errorMessage.value = ''
 
   try {
-    const [usersResponse, keysResponse] = await Promise.all([
+    const [usersResponse, keysResponse, endpointResponse] = await Promise.all([
       fetchAdminUsers(),
       fetchAdminAccessKeys(),
+      fetchSystemEndpoint(),
     ])
     users.value = usersResponse.data
     accessKeys.value = keysResponse.data
+    applySystemEndpoint(endpointResponse.data)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '读取管理数据失败'
   } finally {
@@ -544,6 +631,72 @@ async function confirmRoleChange() {
     successMessage.value = '用户角色已更新'
   })
   closeRoleDialog()
+}
+
+/**
+ * 管理员天然可以用系统端点，VIP 文案单独说明能减少和角色混淆。
+ */
+function vipStatusText(user: AdminUser) {
+  if (user.role === 'admin') {
+    return '管理员'
+  }
+
+  return user.isVip ? 'VIP' : '非 VIP'
+}
+
+/**
+ * VIP 只决定能不能用系统端点，不影响登录有效期和管理员权限。
+ */
+async function toggleVip(user: AdminUser) {
+  await runAdminAction(async () => {
+    await updateAdminUserVip(user.id, !user.isVip)
+    successMessage.value = user.isVip ? '已取消 VIP' : '已设为 VIP'
+  })
+}
+
+/**
+ * 把已保存的配置灌进表单；密钥不回显，所以留空。
+ */
+function applySystemEndpoint(endpoint: AiEndpoint | null) {
+  systemEndpoint.value = endpoint
+  systemDraft.value = {
+    label: endpoint?.label ?? '',
+    baseUrl: endpoint?.baseUrl ?? '',
+    model: endpoint?.model ?? '',
+    visionModel: endpoint?.visionModel ?? '',
+    apiKey: '',
+  }
+}
+
+async function testSystemEndpointDraft() {
+  await runAdminAction(async () => {
+    const response = await testSystemEndpoint({
+      baseUrl: systemDraft.value.baseUrl,
+      model: systemDraft.value.model,
+      // 留空时后端会沿用已保存的 Key，改模型名不用重新粘贴。
+      apiKey: systemDraft.value.apiKey,
+    })
+    systemTestMessage.value = response.data.ok
+      ? `连接成功：${response.data.message}`
+      : `连接失败：${response.data.message}`
+  })
+}
+
+async function saveSystemEndpointDraft() {
+  await runAdminAction(async () => {
+    const response = await saveSystemEndpoint(systemDraft.value)
+    applySystemEndpoint(response.data)
+    systemTestMessage.value = ''
+    successMessage.value = '系统端点已保存'
+  })
+}
+
+async function removeSystemEndpointDraft() {
+  await runAdminAction(async () => {
+    await deleteSystemEndpoint()
+    applySystemEndpoint(null)
+    successMessage.value = '系统端点已删除'
+  })
 }
 
 /**
@@ -744,6 +897,11 @@ onMounted(loadAdminData)
   grid-template-columns: minmax(260px, 0.8fr) minmax(520px, 1.4fr);
   gap: 18px;
   align-items: end;
+}
+
+/* 系统端点的表单比创建密钥高得多，再按底部对齐会把左侧标题顶到很下面。 */
+.admin-workbench.is-tall {
+  align-items: start;
 }
 
 .workbench-copy {

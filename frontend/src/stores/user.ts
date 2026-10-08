@@ -20,6 +20,8 @@ export const useUserStore = defineStore('user', {
   getters: {
     isAuthenticated: (state) => Boolean(state.user),
     isAdmin: (state) => state.user?.role === 'admin',
+    /** 系统端点是管理员出钱的共享算力，只放给管理员和 VIP。 */
+    canUseSystemEndpoint: (state) => state.user?.role === 'admin' || state.user?.isVip === true,
     nickname: (state) => state.user?.nickname ?? 'Guest',
   },
   actions: {

@@ -44,6 +44,10 @@
             <dd>{{ accessText }}</dd>
           </div>
           <div>
+            <dt>模型端点权限</dt>
+            <dd>{{ endpointAccessText }}</dd>
+          </div>
+          <div>
             <dt>访问有效期</dt>
             <dd>{{ formatDateTime(userStore.user?.accessExpiresAt) }}</dd>
           </div>
@@ -179,10 +183,24 @@ const accessClass = computed(() => {
 
   return ''
 })
-const membershipText = computed(() => (userStore.user?.role === 'admin' ? '管理员' : '普通用户'))
+const membershipText = computed(() => {
+  if (userStore.user?.role === 'admin') {
+    return '管理员'
+  }
+
+  return userStore.user?.isVip ? 'VIP' : '普通用户'
+})
 const membershipClass = computed(() => ({
   'is-admin': userStore.user?.role === 'admin',
+  'is-vip': userStore.user?.isVip === true,
 }))
+const endpointAccessText = computed(() => {
+  if (userStore.canUseSystemEndpoint) {
+    return '可使用系统端点'
+  }
+
+  return '需要自己配置端点'
+})
 
 watch(
   () => userStore.nickname,

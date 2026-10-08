@@ -20,7 +20,7 @@ router.patch('/users/:userId/access', updateUserAccess);
 router.patch('/users/:userId/role', updateUserRole);
 router.patch('/users/:userId/vip', updateUserVip);
 router.get('/system-endpoint', getSystemEndpoint);
-router.put('/system-endpoint', saveSystemEndpoint);
+router.patch('/system-endpoint', saveSystemEndpoint);
 router.delete('/system-endpoint', deleteSystemEndpoint);
 router.post('/system-endpoint/test', testSystemEndpoint);
 router.get('/access-keys', listAccessKeys);

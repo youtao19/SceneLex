@@ -26,9 +26,22 @@ export interface EndpointPreset {
   trusted: boolean;
 }
 
+/**
+ * 系统端点的可见信息。后端只回传名字和模型，不回传地址和密钥。
+ */
+export interface SystemEndpointStatus {
+  /** 这个用户有没有资格用系统端点（管理员或 VIP）。 */
+  canUse: boolean;
+  /** 管理员到底配没配。canUse 为 true 但没配时，界面要提示管理员去配。 */
+  available: boolean;
+  label: string | null;
+  model: string | null;
+}
+
 export interface EndpointListData {
   endpoints: AiEndpoint[];
   presets: EndpointPreset[];
+  system: SystemEndpointStatus;
 }
 
 export interface EndpointPayload {
