@@ -44,14 +44,6 @@
             <dd>{{ accessText }}</dd>
           </div>
           <div>
-            <dt>会员状态</dt>
-            <dd>{{ membershipText }}</dd>
-          </div>
-          <div>
-            <dt>系统 API 权限</dt>
-            <dd>{{ systemApiText }}</dd>
-          </div>
-          <div>
             <dt>访问有效期</dt>
             <dd>{{ formatDateTime(userStore.user?.accessExpiresAt) }}</dd>
           </div>
@@ -187,28 +179,10 @@ const accessClass = computed(() => {
 
   return ''
 })
-const membershipText = computed(() => {
-  if (userStore.user?.role === 'admin') {
-    return '管理员'
-  }
-
-  if (userStore.user?.isVip) {
-    return 'VIP'
-  }
-
-  return '普通用户'
-})
+const membershipText = computed(() => (userStore.user?.role === 'admin' ? '管理员' : '普通用户'))
 const membershipClass = computed(() => ({
   'is-admin': userStore.user?.role === 'admin',
-  'is-vip': userStore.user?.isVip === true,
 }))
-const systemApiText = computed(() => {
-  if (userStore.canUseSystemApi) {
-    return '可使用系统 API'
-  }
-
-  return '仅使用个人 API'
-})
 
 watch(
   () => userStore.nickname,
@@ -392,7 +366,6 @@ async function handleSubmit() {
   background: rgba(245, 238, 225, 0.82);
 }
 
-.membership-chip.is-vip,
 .membership-chip.is-admin {
   color: #7c2d12;
   background: rgba(255, 237, 213, 0.9);

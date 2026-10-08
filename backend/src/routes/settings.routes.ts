@@ -10,6 +10,7 @@ import {
   listEndpoints,
   setDefaultEndpoint,
   testEndpointConnection,
+  testSavedEndpoint,
   updateEndpoint,
 } from '../controllers/endpoint.controller'
 import { getLearningSettings, updateLearningSettings } from '../controllers/settings.controller'
@@ -29,6 +30,7 @@ router.post('/endpoints/test', testEndpointConnection)
 router.post('/endpoints', createEndpoint)
 router.patch('/endpoints/:endpointId', updateEndpoint)
 router.delete('/endpoints/:endpointId', deleteEndpoint)
+router.post('/endpoints/:endpointId/test', testSavedEndpoint)
 router.post('/endpoints/:endpointId/default', setDefaultEndpoint)
 
 /**

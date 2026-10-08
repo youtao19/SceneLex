@@ -6,7 +6,6 @@ export interface AuthUser {
   nickname: string;
   avatarUrl?: string | null;
   role: UserRole;
-  isVip: boolean;
   accessStatus: AccessStatus;
   accessExpiresAt: string;
   createdAt: string;

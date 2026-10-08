@@ -20,7 +20,6 @@ export const useUserStore = defineStore('user', {
   getters: {
     isAuthenticated: (state) => Boolean(state.user),
     isAdmin: (state) => state.user?.role === 'admin',
-    canUseSystemApi: (state) => state.user?.role === 'admin' || state.user?.isVip === true,
     nickname: (state) => state.user?.nickname ?? 'Guest',
   },
   actions: {

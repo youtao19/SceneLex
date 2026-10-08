@@ -110,3 +110,24 @@ export async function testEndpointConnection(req: Request, res: Response, next: 
     next(error)
   }
 }
+
+/**
+ * 测试已保存的端点：卡片上的「测试」按钮拿不到密钥明文，所以必须走后端解密。
+ */
+export async function testSavedEndpoint(
+  req: Request<{ endpointId: string }>,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req)
+    const result = await endpointService.testSavedEndpoint(
+      authUser.id,
+      readEndpointId(req.params.endpointId),
+    )
+
+    return res.json(ok(result, 'Endpoint connection tested'))
+  } catch (error) {
+    next(error)
+  }
+}

@@ -1,7 +1,7 @@
 import { readTrustedEndpointUrls } from '../config/endpoint-presets'
 import { HttpError } from '../utils/http-error'
 import { assertSafeEndpointUrl, UnsafeEndpointUrlError } from '../utils/ssrf-guard'
-import { chatCompletion, LlmRequestError } from './llm-client'
+import { chatCompletion, LlmRequestError, type ChatMessage } from './llm-client'
 import {
   deleteEndpointRow,
   findDefaultEndpointRow,
@@ -91,6 +91,32 @@ function normalizeInput(input: EndpointInput, options: { requireApiKey: boolean 
   }
 }
 
+const TEST_MESSAGES: ChatMessage[] = [
+  { role: 'system', content: 'You are a connectivity test. Reply with OK only.' },
+  { role: 'user', content: 'OK' },
+]
+
+/**
+ * 用一个极短的 chat completion 测连通性：它同时验证了地址、密钥和模型名，
+ * 而 /models 有些兼容层并不实现。
+ */
+async function runConnectionTest(endpoint: AiEndpoint): Promise<EndpointTestResult> {
+  try {
+    await chatCompletion(endpoint, TEST_MESSAGES, {
+      maxTokens: 8,
+      temperature: 0,
+      timeoutMs: 20_000,
+    })
+
+    return { ok: true, message: '连接成功' }
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof LlmRequestError ? error.message : '连接失败',
+    }
+  }
+}
+
 /** 密钥只回传掩码，明文不出后端。 */
 function buildKeyPreview(apiKey: string) {
   if (!apiKey) {
@@ -126,8 +152,7 @@ export const endpointService = {
   },
 
   /**
-   * 测试连接用一个极短的 chat completion：它同时验证了地址、密钥和模型名，
-   * 而 /models 有些兼容层并不实现。
+   * 测试一份还没保存的配置。
    */
   async testConnection(input: EndpointInput): Promise<EndpointTestResult> {
     let baseUrl: string
@@ -142,23 +167,21 @@ export const endpointService = {
       return { ok: false, message: error instanceof Error ? error.message : '参数不正确' }
     }
 
-    try {
-      await chatCompletion(
-        { id: 0, label: 'test', baseUrl, apiKey, model, visionModel: '' },
-        [
-          { role: 'system', content: 'You are a connectivity test. Reply with OK only.' },
-          { role: 'user', content: 'OK' },
-        ],
-        { maxTokens: 8, temperature: 0, timeoutMs: 20_000 },
-      )
+    return runConnectionTest({ id: 0, label: 'test', baseUrl, apiKey, model, visionModel: '' })
+  },
 
-      return { ok: true, message: '连接成功' }
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof LlmRequestError ? error.message : '连接失败',
-      }
+  /**
+   * 测试已保存的端点。密钥只在后端解密，所以卡片上的「测试」按钮
+   * 不能复用未保存那条路径。
+   */
+  async testSavedEndpoint(userId: number, id: number): Promise<EndpointTestResult> {
+    const row = await findEndpointRow(userId, id)
+
+    if (!row) {
+      throw new HttpError(404, '端点不存在')
     }
+
+    return runConnectionTest(mapEndpointRow(row))
   },
 
   async createEndpoint(userId: number, input: EndpointInput): Promise<AiEndpointView> {

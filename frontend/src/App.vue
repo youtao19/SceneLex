@@ -186,20 +186,9 @@ const accessText = computed(() => {
 
   return '账号信息'
 })
-const membershipText = computed(() => {
-  if (userStore.user?.role === 'admin') {
-    return '管理员'
-  }
-
-  if (userStore.user?.isVip) {
-    return 'VIP'
-  }
-
-  return '普通用户'
-})
+const membershipText = computed(() => (userStore.user?.role === 'admin' ? '管理员' : '普通用户'))
 const membershipClass = computed(() => ({
   'is-admin': userStore.user?.role === 'admin',
-  'is-vip': userStore.user?.isVip === true,
 }))
 
 interface NavItem {
@@ -670,8 +659,7 @@ onBeforeUnmount(() => {
   background: rgba(245, 238, 225, 0.82);
 }
 
-.profile-badges .membership-badge.is-vip,
-.profile-badges .membership-badge.is-admin {
+.profile-badges .profile-badges .membership-badge.is-admin {
   color: #7c2d12;
   background: rgba(255, 237, 213, 0.9);
 }

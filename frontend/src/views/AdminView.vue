@@ -112,9 +112,6 @@
 
           <span class="permission-cell" role="cell">
             <span class="role-label">{{ user.role === 'admin' ? '管理员' : '普通用户' }}</span>
-            <span class="vip-chip" :class="{ 'is-vip': user.isVip || user.role === 'admin' }">
-              {{ vipStatusText(user) }}
-            </span>
             <button
               v-if="user.id !== userStore.user?.id"
               class="text-action"
@@ -124,16 +121,6 @@
             >
               修改角色
             </button>
-            <button
-              v-if="user.role !== 'admin'"
-              class="text-action"
-              type="button"
-              :disabled="isBusy"
-              @click="toggleVip(user)"
-            >
-              {{ user.isVip ? '取消 VIP' : '设为 VIP' }}
-            </button>
-            <span v-else class="muted-text">系统 API</span>
           </span>
 
           <span class="expiry-cell" role="cell">
@@ -283,7 +270,6 @@ import {
   updateAdminAccessKey,
   updateAdminUserAccess,
   updateAdminUserRole,
-  updateAdminUserVip,
 } from '../services/admin.service'
 import { useUserStore } from '../stores/user'
 import type { AdminAccessKey, AdminUser } from '../types/admin'
@@ -391,17 +377,6 @@ function remainingDaysText(value: string | null) {
   }
 
   return `已过期 ${Math.abs(days)} 天`
-}
-
-/**
- * 管理员天然可用系统 API，VIP 文案单独说明能减少和角色混淆。
- */
-function vipStatusText(user: AdminUser) {
-  if (user.role === 'admin') {
-    return '管理员'
-  }
-
-  return user.isVip ? 'VIP' : '非 VIP'
 }
 
 /**
@@ -569,16 +544,6 @@ async function confirmRoleChange() {
     successMessage.value = '用户角色已更新'
   })
   closeRoleDialog()
-}
-
-/**
- * VIP 只控制系统 API 使用权，不影响登录有效期和管理员权限。
- */
-async function toggleVip(user: AdminUser) {
-  await runAdminAction(async () => {
-    await updateAdminUserVip(user.id, !user.isVip)
-    successMessage.value = user.isVip ? '已取消 VIP' : '已设为 VIP'
-  })
 }
 
 /**
@@ -989,7 +954,6 @@ onMounted(loadAdminData)
   font-weight: 900;
 }
 
-.vip-chip,
 .status-chip {
   min-height: 27px;
   padding: 0 10px;
@@ -1000,16 +964,6 @@ onMounted(loadAdminData)
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
-}
-
-.vip-chip {
-  color: #6b5c46;
-  background: rgba(245, 238, 225, 0.88);
-}
-
-.vip-chip.is-vip {
-  color: #c2410c;
-  background: rgba(255, 237, 213, 0.92);
 }
 
 .status-chip.is-active {

@@ -1,40 +1,50 @@
-import { get, patch } from './http';
+import { del, get, patch, post } from './http';
 import type { ApiResponse } from '../types/api';
 import type {
-  AiSettings,
+  AiEndpoint,
+  EndpointListData,
+  EndpointPayload,
+  EndpointTestPayload,
+  EndpointTestResult,
   LearningSettings,
-  UpdateAiSettingsPayload,
   UpdateLearningSettingsPayload,
-  UpdateUserApiKeyPayload,
-  UserApiKeySettings,
 } from '../types/settings';
 
 /**
- * 更多页面需要后端运行态，避免前端和真实模型配置各说各的。
+ * 端点列表和预设一起返回，设置页首屏只需要一次请求。
  */
-export function fetchAiSettings() {
-  return get<ApiResponse<AiSettings>>('/settings/ai');
+export function fetchEndpoints() {
+  return get<ApiResponse<EndpointListData>>('/settings/endpoints');
+}
+
+export function createEndpoint(payload: EndpointPayload) {
+  return post<ApiResponse<AiEndpoint>>('/settings/endpoints', payload);
+}
+
+export function updateEndpoint(endpointId: number, payload: EndpointPayload) {
+  return patch<ApiResponse<AiEndpoint>>(`/settings/endpoints/${endpointId}`, payload);
+}
+
+export function deleteEndpoint(endpointId: number) {
+  return del<ApiResponse<null>>(`/settings/endpoints/${endpointId}`);
+}
+
+export function setDefaultEndpoint(endpointId: number) {
+  return post<ApiResponse<AiEndpoint[]>>(`/settings/endpoints/${endpointId}/default`, {});
 }
 
 /**
- * 只提交用户能安全操作的 provider 和 model。
+ * 保存前先测一次连通性，避免把无效配置写进去。
  */
-export function updateAiSettings(payload: UpdateAiSettingsPayload) {
-  return patch<ApiResponse<AiSettings>>('/settings/ai', payload);
+export function testEndpointConnection(payload: EndpointTestPayload) {
+  return post<ApiResponse<EndpointTestResult>>('/settings/endpoints/test', payload);
 }
 
 /**
- * 只读取用户密钥状态，后端不会返回密钥明文。
+ * 测试已保存的端点：前端拿不到密钥明文，只能让后端用它自己解密出来的那份。
  */
-export function fetchUserApiKeySettings() {
-  return get<ApiResponse<UserApiKeySettings>>('/settings/api-keys');
-}
-
-/**
- * 空 apiKey 表示清除当前用户的该 provider 密钥。
- */
-export function updateUserApiKeySettings(payload: UpdateUserApiKeyPayload) {
-  return patch<ApiResponse<UserApiKeySettings>>('/settings/api-keys', payload);
+export function testSavedEndpoint(endpointId: number) {
+  return post<ApiResponse<EndpointTestResult>>(`/settings/endpoints/${endpointId}/test`, {});
 }
 
 /**
