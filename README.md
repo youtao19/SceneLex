@@ -12,16 +12,16 @@ The app is built for personal or small-group learning. It combines dictionary lo
 - Spaced-repetition review using persisted scheduling fields such as ease, interval, review count, and next review time.
 - Reading workspace with article storage, word lookup in context, sentence translation, OCR import, and AI assistant chats.
 - User accounts with invite/access keys, session cookies, access expiry, and admin management.
-- User-provided Kimi or DeepSeek API keys, stored encrypted in PostgreSQL.
-- Model-provider switching between Ollama, Kimi, and DeepSeek.
+- User-provided model endpoints (any OpenAI-compatible base URL, API key, and model name), stored encrypted in PostgreSQL.
+- Multiple endpoints per user with one default; presets for DeepSeek, Kimi, and a local Ollama.
 - Backend-hosted frontend build for one-port deployment or ngrok sharing.
 
 ## Tech Stack
 
 - Frontend: Vue 3, Vite, TypeScript, Pinia, Vue Router.
 - Backend: Express, TypeScript, PostgreSQL, raw SQL through `pg`.
-- AI providers: Ollama native API, Kimi OpenAI-compatible API, DeepSeek OpenAI-compatible API.
-- OCR: local OCR service through `uv` plus optional vision-model OCR.
+- AI: any OpenAI-compatible `/v1/chat/completions` endpoint. Presets ship for DeepSeek, Kimi, and a local Ollama.
+- OCR: Tesseract, a local OCR microservice through `uv`, or a vision model on one of your endpoints.
 
 ## Project Structure
 
@@ -48,7 +48,7 @@ views, components, stores, services, types, utils
 
 - Node.js 22 or newer is recommended.
 - PostgreSQL with a writable database.
-- Ollama, Kimi, or DeepSeek for AI features.
+- An OpenAI-compatible model endpoint (DeepSeek, Kimi, a local Ollama, or anything else). There is no server-side fallback key, so each user must configure one before generation or OCR works.
 - `uv` if you want to run the Python OCR service.
 
 ## Quick Start
@@ -69,7 +69,7 @@ Edit `backend/.env.dev.local` and set at least:
 
 ```env
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
-AI_PROVIDER=ollama
+USER_API_KEY_SECRET=any-long-random-string
 ```
 
 Start the app:
@@ -142,42 +142,24 @@ Because of this, `npm run dev` **on its own will fail** while the tunnel is clos
 
 > Your local server writes to real data. Logging in creates sessions, generating cards writes `system_word_cards`, and the startup word-book seed upserts reference data. Use a separate database if you need to test destructive changes.
 
-## AI Provider Setup
+## Model Endpoints
 
-Use Ollama:
+There is no server-side fallback key. Each user configures their own endpoints in Settings, and every call goes to an OpenAI-compatible `/v1/chat/completions`.
 
-```bash
-npm run dev:ollama
-```
+An endpoint is a base URL, an API key, and a model name; the vision model is a separate field on the same endpoint (leave it empty if that endpoint should not do OCR). Users can keep several endpoints and pick one as the default. Settings ships presets for DeepSeek, Kimi, and a local Ollama — a preset just fills the form, it is not a whitelist.
 
-Use Kimi:
-
-```bash
-npm run dev:kimi
-```
-
-Use DeepSeek:
-
-```bash
-npm run dev:deepseek
-```
+Why `/v1/chat/completions` and not `/v1/responses`: the point of letting users paste a URL is breadth of compatibility, and chat/completions is what essentially every provider and local runtime implements. The Responses API's real advantage is server-side conversation state, and Ollama explicitly only supports the stateless flavour.
 
 Useful environment variables:
 
 ```env
-AI_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434/api
-OLLAMA_MODEL=qwen3.5:4b
-
-KIMI_BASE_URL=https://api.moonshot.cn/v1
-KIMI_MODEL=kimi-k2.6
-KIMI_API_KEY=
-
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_API_KEY=
-
 USER_API_KEY_SECRET=
+
+# Optional: only used by the prewarm script and the Ollama preset
+OLLAMA_OPENAI_BASE_URL=http://localhost:11434/v1
+PREWARM_BASE_URL=
+PREWARM_API_KEY=
+PREWARM_MODEL=
 
 # Optional Cloudflare R2 avatar storage
 R2_AVATAR_PUBLIC_BASE_URL=https://avatars.scenlex.cn
@@ -185,9 +167,13 @@ R2_AVATAR_UPLOAD_URL=https://avatar-upload.scenlex.cn
 R2_AVATAR_UPLOAD_TOKEN=
 ```
 
-For shared deployments, ordinary users should save their own Kimi or DeepSeek API keys in the settings page. Server-level API keys should be treated as admin/system fallback credentials.
+Set `USER_API_KEY_SECRET` before users save endpoints. Do not change it casually afterwards, because existing encrypted keys will no longer decrypt.
 
-Set `USER_API_KEY_SECRET` before using encrypted user API keys in production. Do not change it casually after users have saved keys, because existing encrypted keys will no longer decrypt.
+### User-supplied URLs are untrusted
+
+Endpoint base URLs come from users, and the backend is what fetches them. Every outbound request therefore goes through an SSRF guard (`backend/src/utils/ssrf-guard.ts`) that resolves DNS first and then validates the resolved IPs, so a hostname pointing at `127.0.0.1` cannot slip through. Loopback, private, link-local (including the cloud metadata address `169.254.169.254`), CGNAT, multicast, and reserved ranges are blocked, IPv4-mapped and NAT64 encodings included, and redirects are re-validated on every hop.
+
+Admin-maintained presets are the only exception: trust is decided by comparing the URL against the preset list, never by a flag the client sends. User-entered endpoints must use `https`. A local Ollama on a LAN address has to be added as a preset.
 
 ## OCR
 
@@ -203,12 +189,9 @@ Default OCR service URL:
 OCR_SERVICE_URL=http://127.0.0.1:8001/ocr
 ```
 
-Vision OCR can be routed through Ollama or Kimi with:
+Vision OCR runs on the user's own endpoint: give one of your endpoints a vision model, and pick `vision` as the OCR method in the reading page. Images are sent as base64 data URLs, because Ollama's chat/completions accepts base64 but not image URLs.
 
-```env
-OCR_VISION_PROVIDER=ollama
-OCR_MODEL=gemma4:e4b
-```
+`OCR_TIMEOUT` controls the vision request timeout; Tesseract and PaddleOCR have their own (`TESSERACT_OCR_TIMEOUT`, `PADDLE_OCR_TIMEOUT`).
 
 ## Production Build
 

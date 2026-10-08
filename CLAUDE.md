@@ -9,9 +9,6 @@ npm run install:all          # Install dependencies (root workspaces cover both 
 npm run dev                  # Start both Vite dev server (port 9003) and Express API (port 3003)
 npm run dev:frontend         # Vite dev server only
 npm run dev:backend          # Express API with ts-node-dev only
-npm run dev:ollama           # Both apps with AI_PROVIDER=ollama
-npm run dev:kimi             # Both apps with AI_PROVIDER=kimi
-npm run dev:deepseek         # Both apps with AI_PROVIDER=deepseek
 npm run dev:ocr              # Start PaddleOCR Python microservice (port 8001)
 npm run typecheck            # vue-tsc (frontend) + tsc (backend)
 npm test                     # vitest, both apps
@@ -49,7 +46,7 @@ Key layers:
 - **`services/`** — All business logic. This is where AI calls, validation, and cross-cutting concerns live.
 - **`repositories/`** — All PostgreSQL queries using `config/database.ts` (`query()`, `withTransaction()`). No ORM — raw parameterized SQL.
 - **`middlewares/`** — Auth (session-based, HttpOnly cookie), access control (active users), rate limiting, model concurrency limiting, admin guard.
-- **`config/`** — `env.ts` loads `.env.dev.local` (dev) or `.env` (prod). `ai.ts` defines Ollama/Kimi/DeepSeek provider configs. `database.ts` owns the pg Pool, `query()`/`withTransaction()` helpers, and `initializeDatabase()`. `migrations.ts` wraps the `node-pg-migrate` runner.
+- **`config/`** — `env.ts` loads `.env.dev.local` (dev) or `.env` (prod). `endpoint-presets.ts` holds the DeepSeek/Kimi/Ollama presets and the trusted-URL list used by the SSRF guard. `database.ts` owns the pg Pool, `query()`/`withTransaction()` helpers, and `initializeDatabase()`. `migrations.ts` wraps the `node-pg-migrate` runner.
 
 ### Database migrations
 
@@ -65,17 +62,15 @@ Standard directory layout: `views/`, `components/`, `stores/` (Pinia), `services
 
 Routes: `/` (landing), `/dashboard`, `/reading` (OCR + AI assistant), `/review` (SRS), `/study-books` (CET-4/6, TEM-4/8), `/history`, `/word-books`, `/profile`, `/settings` (AI provider/keys/learning settings), `/admin`.
 
-### AI Provider Abstraction (`backend/src/services/llm.service.ts`)
+### Model Endpoints (`backend/src/services/llm-client.ts`)
 
-Unified dispatch via `aiConfig.provider` (Ollama | Kimi | DeepSeek). Two output modes:
-- **Word card generation** (`generateWithLocalModel`): JSON output with `word`, `phonetic`, `meanings` — uses response_format JSON where supported, extracts JSON objects from raw output as fallback.
-- **Plain text** (`generatePlainWithLocalModel`, `streamPlainWithLocalModel`): Free-text for reading assistant — lower temperature, shorter max_tokens.
+Every model call goes to an OpenAI-compatible `/v1/chat/completions` on an endpoint the user configured (`user_ai_endpoints`: base URL, encrypted key, model, optional vision model). There is no server-side fallback key and no global provider switch — `aiConfig` and the `AI_PROVIDER` env var are gone.
 
-Kimi and DeepSeek use OpenAI-compatible `/chat/completions`; Ollama uses native `/api/generate`. Users can provide their own API keys stored encrypted in `user_ai_api_keys`; server-level keys are only used as fallback for admin/system tasks (controlled by `allowServerApiKey` flag).
+`llm-client.ts` is the only outbound client and always fetches through `safeFetch` from `utils/ssrf-guard.ts`, which resolves DNS before validating the resolved IPs and re-validates every redirect hop. `llm.service.ts` is a thin layer over it with four functions: word-card JSON, plain text, streaming plain text, and vision. Vision sends base64 data URLs because Ollama's chat/completions accepts base64 but not image URLs.
 
 ### OCR Pipeline
 
-Three strategies: Tesseract (local CLI), PaddleOCR (Python microservice at port 8001 via `uv`), and vision models (Ollama multimodal or Kimi vision API, controlled by `OCR_VISION_PROVIDER`).
+Three strategies: Tesseract (local CLI), PaddleOCR (Python microservice at port 8001 via `uv`), and a vision model on one of the user's own endpoints.
 
 ### Auth Flow
 
@@ -92,4 +87,4 @@ Session-based with HttpOnly cookies — `user_sessions` table stores token hashe
 
 ## Environment
 
-Config lives in `backend/.env` (template) and `backend/.env.dev.local` (actual dev values, gitignored). Key variables: `PORT`, `AI_PROVIDER`, `DATABASE_URL`, `OLLAMA_BASE_URL`/`OLLAMA_MODEL`, `KIMI_API_KEY`/`KIMI_MODEL`, `DEEPSEEK_API_KEY`/`DEEPSEEK_MODEL`, `OCR_VISION_PROVIDER`, `OCR_MODEL`, `MODEL_GLOBAL_CONCURRENCY`, `MODEL_USER_CONCURRENCY`, `MODEL_RATE_LIMIT_MAX`, `MODEL_QUEUE_TIMEOUT_MS`.
+Config lives in `backend/.env` (template) and `backend/.env.dev.local` (actual dev values, gitignored). Key variables: `PORT`, `DATABASE_URL`, `USER_API_KEY_SECRET`, `MIGRATE_ON_STARTUP`, `OLLAMA_OPENAI_BASE_URL`, `PREWARM_BASE_URL`/`PREWARM_API_KEY`/`PREWARM_MODEL`, `OCR_TIMEOUT`, `MODEL_GLOBAL_CONCURRENCY`, `MODEL_USER_CONCURRENCY`, `MODEL_RATE_LIMIT_MAX`, `MODEL_QUEUE_TIMEOUT_MS`.
