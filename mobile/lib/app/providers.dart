@@ -7,6 +7,8 @@ import '../core/platform/tts_service.dart';
 import '../core/storage/device_prefs.dart';
 import '../features/auth/data/auth_api.dart';
 import '../features/learning/data/learning_api.dart';
+import '../features/ocr/data/ocr_api.dart';
+import '../features/ocr/data/ocr_draft_storage.dart';
 import '../features/reading/data/reading_api.dart';
 import '../features/settings/data/settings_api.dart';
 import '../features/words/data/words_api.dart';
@@ -43,6 +45,14 @@ final wordsApiProvider = Provider<WordsApi>(
 
 final readingApiProvider = Provider<ReadingApi>(
   (ref) => HttpReadingApi(ref.watch(apiClientProvider)),
+);
+
+final ocrApiProvider = Provider<OcrApi>(
+  (ref) => HttpOcrApi(ref.watch(apiClientProvider)),
+);
+
+final ocrDraftStorageProvider = Provider<OcrDraftStorage>(
+  (ref) => FileOcrDraftStorage(),
 );
 
 final devicePrefsProvider = Provider<DevicePrefs>(

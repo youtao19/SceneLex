@@ -75,7 +75,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
   async function newBatch() {
     const batch = await ocrBatchService.createBatch(ownerId, `batch-${suffix}-${Math.random()}`);
 
-    createdBatches.push({ userId: ownerId, batchId: batch.id });
+    createdBatches.push({ userId: ownerId, batchId: batch.batchId });
 
     return batch;
   }
@@ -85,15 +85,15 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const first = await ocrBatchService.createBatch(ownerId, operationId);
     const second = await ocrBatchService.createBatch(ownerId, operationId);
 
-    createdBatches.push({ userId: ownerId, batchId: first.id });
+    createdBatches.push({ userId: ownerId, batchId: first.batchId });
 
-    expect(second.id).toBe(first.id);
+    expect(second.batchId).toBe(first.batchId);
   });
 
   it('别人的批次读不到，当作不存在', async () => {
     const batch = await newBatch();
 
-    await expect(ocrBatchService.getBatch(otherId, batch.id)).rejects.toMatchObject({
+    await expect(ocrBatchService.getBatch(otherId, batch.batchId)).rejects.toMatchObject({
       statusCode: 404,
     });
   });
@@ -102,7 +102,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const batch = await newBatch();
 
     await expect(
-      ocrBatchService.recognizePage(ownerId, batch.id, 0, undefined, null),
+      ocrBatchService.recognizePage(ownerId, batch.batchId, 0, undefined, null),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
@@ -111,7 +111,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const file = await writeFakeUpload(PNG_HEADER);
 
     await expect(
-      ocrBatchService.recognizePage(ownerId, batch.id, OCR_LIMITS.maxPages, file, null),
+      ocrBatchService.recognizePage(ownerId, batch.batchId, OCR_LIMITS.maxPages, file, null),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
@@ -120,10 +120,10 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const file = await writeFakeUpload(GIF_HEADER);
 
     await expect(
-      ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null),
+      ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null),
     ).rejects.toMatchObject({ statusCode: 400 });
 
-    const stored = await ocrBatchService.getBatch(ownerId, batch.id);
+    const stored = await ocrBatchService.getBatch(ownerId, batch.batchId);
 
     expect(stored.pageCount).toBe(0);
   });
@@ -131,12 +131,12 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
   it('没有可用视觉端点时记成失败页，让用户只重试这一页', async () => {
     const batch = await newBatch();
     const file = await writeFakeUpload(PNG_HEADER);
-    const result = await ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null);
+    const result = await ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null);
 
     expect(result.status).toBe('failed');
     expect(result.error).toContain('端点');
 
-    const stored = await ocrBatchService.getBatch(ownerId, batch.id);
+    const stored = await ocrBatchService.getBatch(ownerId, batch.batchId);
 
     expect(stored.pages[0]).toMatchObject({ pageIndex: 0, status: 'failed', hasImage: true });
   });
@@ -145,12 +145,12 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const batch = await newBatch();
     const file = await writeFakeUpload(PNG_HEADER);
 
-    await ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null);
+    await ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null);
 
-    const retried = await ocrBatchService.retryPage(ownerId, batch.id, 0, null);
+    const retried = await ocrBatchService.retryPage(ownerId, batch.batchId, 0, null);
     expect(retried.status).toBe('failed');
 
-    const skipped = await ocrBatchService.skipPage(ownerId, batch.id, 0);
+    const skipped = await ocrBatchService.skipPage(ownerId, batch.batchId, 0);
     expect(skipped.status).toBe('skipped');
   });
 
@@ -160,7 +160,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     await withTransaction(async (client) => {
       await upsertPage(client, {
         userId: ownerId,
-        batchId: batch.id,
+        batchId: batch.batchId,
         pageIndex: 0,
         status: 'success',
         text: 'already done',
@@ -171,7 +171,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     });
 
     await expect(
-      ocrBatchService.retryPage(ownerId, batch.id, 0, null),
+      ocrBatchService.retryPage(ownerId, batch.batchId, 0, null),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -180,8 +180,8 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const file = await writeFakeUpload(PNG_HEADER);
 
     // 先真上传一页，确保批次目录里确实有原图。
-    await ocrBatchService.recognizePage(ownerId, batch.id, 2, file, null);
-    const batchDir = getBatchDirPath(ownerId, batch.id);
+    await ocrBatchService.recognizePage(ownerId, batch.batchId, 2, file, null);
+    const batchDir = getBatchDirPath(ownerId, batch.batchId);
 
     expect(await pathExists(batchDir)).toBe(true);
 
@@ -189,7 +189,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     await withTransaction(async (client) => {
       await upsertPage(client, {
         userId: ownerId,
-        batchId: batch.id,
+        batchId: batch.batchId,
         pageIndex: 1,
         status: 'success',
         text: 'second paragraph',
@@ -199,7 +199,7 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
       });
       await upsertPage(client, {
         userId: ownerId,
-        batchId: batch.id,
+        batchId: batch.batchId,
         pageIndex: 0,
         status: 'success',
         text: 'first paragraph',
@@ -209,14 +209,14 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
       });
     });
 
-    const saved = await ocrBatchService.saveArticle(ownerId, batch.id, '');
-    const savedAgain = await ocrBatchService.saveArticle(ownerId, batch.id, '');
+    const saved = await ocrBatchService.saveArticle(ownerId, batch.batchId, '');
+    const savedAgain = await ocrBatchService.saveArticle(ownerId, batch.batchId, '');
 
     expect(saved.text).toBe('first paragraph\n\nsecond paragraph');
     expect(savedAgain.articleId).toBe(saved.articleId);
     expect(await pathExists(batchDir)).toBe(false);
 
-    const stored = await ocrBatchService.getBatch(ownerId, batch.id);
+    const stored = await ocrBatchService.getBatch(ownerId, batch.batchId);
 
     expect(stored.status).toBe('completed');
     expect(stored.pages.every((page) => !page.hasImage)).toBe(true);
@@ -226,10 +226,10 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const batch = await newBatch();
     const file = await writeFakeUpload(PNG_HEADER);
 
-    await ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null);
+    await ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null);
 
     await expect(
-      ocrBatchService.saveArticle(ownerId, batch.id, ''),
+      ocrBatchService.saveArticle(ownerId, batch.batchId, ''),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
@@ -237,12 +237,12 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const batch = await newBatch();
     const file = await writeFakeUpload(PNG_HEADER);
 
-    await ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null);
-    await ocrBatchService.cancelBatch(ownerId, batch.id);
+    await ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null);
+    await ocrBatchService.cancelBatch(ownerId, batch.batchId);
 
-    expect(await pathExists(getBatchDirPath(ownerId, batch.id))).toBe(false);
+    expect(await pathExists(getBatchDirPath(ownerId, batch.batchId))).toBe(false);
 
-    const stored = await ocrBatchService.getBatch(ownerId, batch.id);
+    const stored = await ocrBatchService.getBatch(ownerId, batch.batchId);
 
     expect(stored.status).toBe('cancelled');
   });
@@ -251,31 +251,31 @@ describe.skipIf(!runDbTests)('多页 OCR 批次（隔离测试库）', () => {
     const batch = await newBatch();
     const file = await writeFakeUpload(PNG_HEADER);
 
-    await ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null);
+    await ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null);
     await query(`UPDATE ocr_batches SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1`, [
-      batch.id,
+      batch.batchId,
     ]);
 
     const removed = await cleanupExpiredOcrBatches();
 
     expect(removed).toBeGreaterThanOrEqual(1);
-    await expect(ocrBatchService.getBatch(ownerId, batch.id)).rejects.toMatchObject({
+    await expect(ocrBatchService.getBatch(ownerId, batch.batchId)).rejects.toMatchObject({
       statusCode: 404,
     });
-    expect(await pathExists(getBatchDirPath(ownerId, batch.id))).toBe(false);
+    expect(await pathExists(getBatchDirPath(ownerId, batch.batchId))).toBe(false);
   });
 
   it('过期批次不允许再上传或保存', async () => {
     const batch = await newBatch();
 
     await query(`UPDATE ocr_batches SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1`, [
-      batch.id,
+      batch.batchId,
     ]);
 
     const file = await writeFakeUpload(PNG_HEADER);
 
     await expect(
-      ocrBatchService.recognizePage(ownerId, batch.id, 0, file, null),
+      ocrBatchService.recognizePage(ownerId, batch.batchId, 0, file, null),
     ).rejects.toMatchObject({ statusCode: 410 });
   });
 });

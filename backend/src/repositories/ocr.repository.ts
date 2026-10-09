@@ -37,7 +37,7 @@ function mapPageRow(row: PageRow): OcrPage {
 export async function createBatch(
   userId: number,
   operationId: string,
-): Promise<{ id: number; expiresAt: string }> {
+): Promise<{ batchId: number; expiresAt: string }> {
   const result = await query<BatchRow>(
     `
       INSERT INTO ocr_batches (user_id, operation_id, expires_at)
@@ -49,8 +49,9 @@ export async function createBatch(
     [userId, operationId, String(OCR_LIMITS.ttlHours)],
   );
 
+  // 对外统一叫 batchId：接口契约类型 OcrBatchCreated 也是这个名字。
   return {
-    id: Number(result.rows[0].id),
+    batchId: Number(result.rows[0].id),
     expiresAt: new Date(result.rows[0].expires_at).toISOString(),
   };
 }

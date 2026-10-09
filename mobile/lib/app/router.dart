@@ -12,6 +12,7 @@ import '../features/learning/presentation/lookup_page.dart';
 import '../features/learning/presentation/study_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/shell/presentation/home_shell.dart';
+import '../features/ocr/presentation/ocr_capture_page.dart';
 import '../features/reading/presentation/articles_page.dart';
 import '../features/reading/presentation/assistant_pages.dart';
 import '../features/reading/presentation/reader_page.dart';
@@ -102,6 +103,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               chatId: int.parse(state.pathParameters['chatId']!),
               initialQuestion: state.uri.queryParameters['ask'],
             ),
+          ),
+          GoRoute(
+            path: '/ocr',
+            builder: (context, state) => const OcrCapturePage(),
           ),
           GoRoute(
             path: '/reading/article/:articleId',

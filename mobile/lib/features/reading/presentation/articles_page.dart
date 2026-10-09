@@ -25,6 +25,11 @@ class ArticlesPage extends ConsumerWidget {
             tooltip: '阅读助手',
           ),
           IconButton(
+            onPressed: () => context.push('/ocr'),
+            icon: const Icon(Icons.photo_camera_outlined),
+            tooltip: '拍照导入',
+          ),
+          IconButton(
             onPressed: () => _import(context, ref),
             icon: const Icon(Icons.add),
             tooltip: '导入文章',
