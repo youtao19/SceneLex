@@ -5,12 +5,32 @@ import { settingsService } from './settings.service';
 import { buildPrimaryMeaning } from '../utils/word-meaning';
 import type { AiEndpoint } from '../types/endpoint';
 import {
-  findWordById,
+  applyReviewSchedule,
+  countDueWords,
+  countNewWordCompletions,
+  findWordByIdForUpdate,
+  findWordByTextForUpdate,
+  listNewWords as listNewWordItems,
   listTodayWords,
   restoreReviewSchedule,
   saveWordCard,
-  updateReviewSchedule,
+  toReviewSnapshot,
+  upsertWordCard,
 } from '../repositories/word.repository';
+import { withTransaction } from '../config/database';
+import {
+  findStudyOperation,
+  insertStudyOperation,
+} from '../repositories/study-operation.repository';
+import { addWordToBooks, ensureDefaultWordBook } from '../repositories/word-book.repository';
+import { findSystemWordBookSummary } from '../repositories/system-word-book.repository';
+import { getLearningDay } from '../utils/learning-day';
+import {
+  applyDailyReviewLimit,
+  assertExpectedVersion,
+  buildOperationFingerprint,
+  normalizeOperationId,
+} from '../utils/study-rules';
 import {
   findSystemWordCardByWord,
   findSystemWordCardPreview,
@@ -19,10 +39,14 @@ import {
 } from '../repositories/system-word-card-preview.repository';
 import { HttpError } from '../utils/http-error';
 import type {
+  CompleteNewWordPayload,
+  NewWordQueue,
   ReviewRating,
   ReviewRollbackPayload,
+  ReviewWordPayload,
   SaveWordResult,
   StoredWord,
+  StudyOverview,
   WordGenerateResult,
   WordLookupResult,
   WordMeaningItem,
@@ -365,41 +389,17 @@ function readPositiveInteger(value: unknown) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
-function normalizeReviewRollback(input: ReviewRollbackPayload): ReviewRollbackPayload {
-  const wordId = Number(input.wordId);
-  const ease = Number(input.ease);
-  const interval = Number(input.interval);
-  const reviewCount = Number(input.reviewCount);
-  const date = new Date(input.nextReview);
-  const nextReview = Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+/**
+ * 评分档位只有这四档，非法值直接拒，不让排期算法拿到意外输入。
+ */
+function normalizeRating(value: unknown): ReviewRating {
+  const allowedRatings: ReviewRating[] = ['again', 'hard', 'good', 'easy'];
 
-  if (!Number.isInteger(wordId) || wordId <= 0) {
-    throw new HttpError(400, 'wordId 非法');
+  if (!allowedRatings.includes(value as ReviewRating)) {
+    throw new HttpError(400, 'rating 非法');
   }
 
-  if (!Number.isFinite(ease) || ease <= 0) {
-    throw new HttpError(400, 'ease 非法');
-  }
-
-  if (!Number.isInteger(interval) || interval <= 0) {
-    throw new HttpError(400, 'interval 非法');
-  }
-
-  if (!Number.isInteger(reviewCount) || reviewCount < 0) {
-    throw new HttpError(400, 'reviewCount 非法');
-  }
-
-  if (!nextReview) {
-    throw new HttpError(400, 'nextReview 非法');
-  }
-
-  return {
-    wordId,
-    ease,
-    interval,
-    reviewCount,
-    nextReview,
-  };
+  return value as ReviewRating;
 }
 
 const MIN_ANKI_EASE = 1.3;
@@ -625,60 +625,302 @@ export const wordService = {
   },
 
   /**
-   * 评分只更新最简 SRS 字段，不动教学内容。
+   * 学习概览：学习日、新词目标与完成数、当前词书、到期总数和受限队列一起返回。
+   * 前端不用自己拼，也不会因为分页把“还有到期词”判成空。
    */
-  async reviewWord(
+  async getStudyOverview(userId: number): Promise<StudyOverview> {
+    const settings = await settingsService.getLearningSettings(userId)
+    const [dueTotal, newWordCompleted, book] = await Promise.all([
+      countDueWords(userId),
+      countNewWordCompletions(userId),
+      settings.currentSystemBookId === null
+        ? Promise.resolve(null)
+        : findSystemWordBookSummary(settings.currentSystemBookId),
+    ])
+
+    return {
+      learningDay: getLearningDay(new Date()),
+      newWordTarget: settings.dailyNewWordTarget,
+      newWordCompleted,
+      currentSystemBookId: book?.id ?? null,
+      currentSystemBookName: book?.name ?? null,
+      dueTotal,
+      queueCount: applyDailyReviewLimit(
+        dueTotal,
+        settings.dailyReviewLimitEnabled,
+        settings.dailyReviewLimit,
+      ),
+      dailyReviewLimitEnabled: settings.dailyReviewLimitEnabled,
+      dailyReviewLimit: settings.dailyReviewLimit,
+    }
+  },
+
+  /**
+   * 顺序新词队列：只取当前词书里没学过的词，按词书顺序。
+   * 不传 limit 时给“今日剩余目标”，目标已完成就返回空；想继续学要显式要更多。
+   */
+  async listNewWords(userId: number, limitInput: unknown): Promise<NewWordQueue> {
+    const settings = await settingsService.getLearningSettings(userId)
+    const newWordCompleted = await countNewWordCompletions(userId)
+    const remainingTarget = Math.max(0, settings.dailyNewWordTarget - newWordCompleted)
+    const limit = readPositiveInteger(limitInput) ?? remainingTarget
+    const learningDay = getLearningDay(new Date())
+    const bookId = settings.currentSystemBookId
+
+    if (bookId === null) {
+      return {
+        bookId: null,
+        bookName: null,
+        learningDay,
+        newWordTarget: settings.dailyNewWordTarget,
+        newWordCompleted,
+        remainingTarget,
+        words: [],
+      }
+    }
+
+    const book = await findSystemWordBookSummary(bookId)
+
+    return {
+      bookId: book?.id ?? null,
+      bookName: book?.name ?? null,
+      learningDay,
+      newWordTarget: settings.dailyNewWordTarget,
+      newWordCompleted,
+      remainingTarget,
+      words: book ? await listNewWordItems(userId, bookId, limit) : [],
+    }
+  },
+
+  /**
+   * 完成新词：保存词卡、首次评分和当日计数在同一个事务里完成，只生成预览不算完成。
+   * 已经完成过的词再来一次只更新内容，不重复评分也不重复计数。
+   */
+  async completeNewWord(
     userId: number,
-    wordId: number,
-    rating: ReviewRating,
+    payload: CompleteNewWordPayload,
   ): Promise<StoredWord> {
+    const cleanWord = normalizeWord(payload.word ?? '')
+
+    if (!cleanWord) {
+      throw new HttpError(400, 'word 不能为空')
+    }
+
+    const rating = normalizeRating(payload.rating)
+    const meanings = normalizeIncomingMeanings(payload.meanings)
+    const phonetic = normalizePhonetic(payload.phonetic)
+    const primaryMeaning = buildPrimaryMeaning(meanings)
+    const bookIds = normalizeBookIds(payload.bookIds)
+    const operationId = normalizeOperationId(payload.operationId)
+    const fingerprint = buildOperationFingerprint('complete_new', {
+      word: cleanWord,
+      rating,
+      phonetic,
+      meanings,
+    })
+    const replayed = await findReplayOperation(userId, operationId, fingerprint)
+
+    if (replayed) {
+      return replayed
+    }
+
+    return withTransaction(async (client) => {
+      await ensureDefaultWordBook(client, userId)
+      const existing = await findWordByTextForUpdate(client, userId, cleanWord)
+      const card = await upsertWordCard(
+        client,
+        userId,
+        cleanWord,
+        phonetic,
+        primaryMeaning,
+        meanings,
+        true,
+      )
+      const linkedCount = await addWordToBooks(client, userId, card.id, bookIds)
+
+      if (bookIds.length > 0 && linkedCount !== bookIds.length) {
+        throw new HttpError(404, '单词本不存在')
+      }
+
+      const isFirstCompletion = existing === null || existing.firstLearnedAt === null
+      const finalCard = isFirstCompletion
+        ? await applyReviewSchedule(
+            client,
+            userId,
+            card.id,
+            getNextAnkiSchedule(card, rating),
+          )
+        : card
+
+      if (operationId) {
+        await insertStudyOperation(client, {
+          userId,
+          operationId,
+          kind: 'complete_new',
+          wordId: finalCard.id,
+          requestFingerprint: fingerprint,
+          /**
+           * 撤销首次完成要回到“词卡已存在但未完成”的状态：
+           * 用刚 upsert 完的排期（upsert 不改排期字段）再把首次完成时间抹掉，
+           * 不能写 null，否则回滚时没有可恢复的排期。
+           */
+          beforeState: { ...toReviewSnapshot(card), firstLearnedAt: null },
+          result: finalCard,
+          studyVersion: finalCard.studyVersion,
+        })
+      }
+
+      return finalCard
+    })
+  },
+
+  /**
+   * 评分只更新最简 SRS 字段，不动教学内容。
+   * 带 operationId 时重试返回原结果，不会重复推进排期。
+   */
+  async reviewWord(userId: number, payload: ReviewWordPayload): Promise<StoredWord> {
+    const wordId = Number(payload.wordId)
+
     if (!Number.isInteger(wordId) || wordId <= 0) {
-      throw new HttpError(400, 'wordId 非法');
+      throw new HttpError(400, 'wordId 非法')
     }
 
-    const allowedRatings: ReviewRating[] = ['again', 'hard', 'good', 'easy'];
+    const rating = normalizeRating(payload.rating)
+    const operationId = normalizeOperationId(payload.operationId)
+    const fingerprint = buildOperationFingerprint('review', { wordId, rating })
+    const replayed = await findReplayOperation(userId, operationId, fingerprint)
 
-    if (!allowedRatings.includes(rating)) {
-      throw new HttpError(400, 'rating 非法');
+    if (replayed) {
+      return replayed
     }
 
-    const current = await findWordById(userId, wordId);
+    return withTransaction(async (client) => {
+      const current = await findWordByIdForUpdate(client, userId, wordId)
 
-    if (!current) {
-      throw new HttpError(404, '单词不存在');
-    }
+      if (!current) {
+        throw new HttpError(404, '单词不存在')
+      }
 
-    const nextSchedule = getNextAnkiSchedule(current, rating);
+      assertExpectedVersion(current.studyVersion, payload.expectedVersion)
 
-    return updateReviewSchedule(
-      userId,
-      wordId,
-      nextSchedule.interval,
-      nextSchedule.ease,
-    );
+      const card = await applyReviewSchedule(
+        client,
+        userId,
+        wordId,
+        getNextAnkiSchedule(current, rating),
+      )
+
+      if (operationId) {
+        await insertStudyOperation(client, {
+          userId,
+          operationId,
+          kind: 'review',
+          wordId,
+          requestFingerprint: fingerprint,
+          beforeState: toReviewSnapshot(current),
+          result: card,
+          studyVersion: card.studyVersion,
+        })
+      }
+
+      return card
+    })
   },
 
   /**
    * 撤销只恢复复习排期字段，教学内容和词书归属不参与回滚。
+   * 依据是服务端记录的评分操作，且它必须仍是这条记录的最新一次改动。
    */
   async rollbackReviewWord(
     userId: number,
     payload: ReviewRollbackPayload,
   ): Promise<StoredWord> {
-    const rollback = normalizeReviewRollback(payload);
-    const current = await findWordById(userId, rollback.wordId);
+    const wordId = Number(payload.wordId)
 
-    if (!current) {
-      throw new HttpError(404, '单词不存在');
+    if (!Number.isInteger(wordId) || wordId <= 0) {
+      throw new HttpError(400, 'wordId 非法')
     }
 
-    return restoreReviewSchedule(
-      userId,
-      rollback.wordId,
-      rollback.interval,
-      rollback.ease,
-      rollback.nextReview,
-      rollback.reviewCount,
-    );
+    const targetOperationId = normalizeOperationId(payload.targetOperationId)
+    const operationId = normalizeOperationId(payload.operationId)
+
+    if (!targetOperationId) {
+      throw new HttpError(409, '撤销需要服务端记录的操作引用，请刷新后重试')
+    }
+
+    const fingerprint = buildOperationFingerprint('rollback', {
+      wordId,
+      targetOperationId,
+    })
+    const replayed = await findReplayOperation(userId, operationId, fingerprint)
+
+    if (replayed) {
+      return replayed
+    }
+
+    return withTransaction(async (client) => {
+      const current = await findWordByIdForUpdate(client, userId, wordId)
+
+      if (!current) {
+        throw new HttpError(404, '单词不存在')
+      }
+
+      const target = await findStudyOperation(userId, targetOperationId)
+
+      if (!target || target.wordId !== wordId) {
+        throw new HttpError(404, '找不到要撤销的评分记录')
+      }
+
+      if (target.studyVersion !== current.studyVersion) {
+        throw new HttpError(409, '这条记录之后已被其他操作更新，不能再撤销')
+      }
+
+      if (target.beforeState === null) {
+        throw new HttpError(409, '这次操作没有可恢复的排期')
+      }
+
+      const card = await restoreReviewSchedule(client, userId, wordId, target.beforeState)
+
+      if (operationId) {
+        await insertStudyOperation(client, {
+          userId,
+          operationId,
+          kind: 'rollback',
+          wordId,
+          requestFingerprint: fingerprint,
+          beforeState: toReviewSnapshot(current),
+          result: card,
+          studyVersion: card.studyVersion,
+        })
+      }
+
+      return card
+    })
   },
 };
+
+/**
+ * 重试去重：同一个操作 ID 再来一次返回原结果；
+ * 同 ID 不同内容说明客户端复用了 ID，直接拒比执行两次安全。
+ */
+async function findReplayOperation(
+  userId: number,
+  operationId: string | null,
+  fingerprint: string,
+): Promise<StoredWord | null> {
+  if (!operationId) {
+    return null
+  }
+
+  const existing = await findStudyOperation(userId, operationId)
+
+  if (!existing) {
+    return null
+  }
+
+  if (existing.requestFingerprint !== fingerprint) {
+    throw new HttpError(409, '同一个操作 ID 提交了不同内容')
+  }
+
+  return existing.result
+}

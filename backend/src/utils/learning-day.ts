@@ -8,7 +8,15 @@
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 const LEARNING_DAY_START_HOUR = 4;
 
-export const LEARNING_DAY_SQL = `((NOW() AT TIME ZONE 'Asia/Shanghai') - INTERVAL '${LEARNING_DAY_START_HOUR} hours')::date`;
+/**
+ * 把某个时间戳列换算成学习日，用于“某天完成了多少”这类统计。
+ * NOW() 和列走同一套偏移，否则统计和判断会差一天。
+ */
+export function learningDayOfSql(column: string) {
+  return `((${column} AT TIME ZONE 'Asia/Shanghai') - INTERVAL '${LEARNING_DAY_START_HOUR} hours')::date`;
+}
+
+export const LEARNING_DAY_SQL = learningDayOfSql('NOW()');
 
 /**
  * 只用 UTC 取值：先把时刻偏移到学习日边界，再取日期，

@@ -22,7 +22,8 @@ export async function getLearningSettings(
 }
 
 /**
- * 保存后立即影响下一次读取今日复习队列。
+ * 保存后立即影响下一次读取今日复习队列和新词队列。
+ * 没提交的字段保持原值，老网页只发复习限制也不会把新词目标清零。
  */
 export async function updateLearningSettings(
   req: Request,
@@ -31,14 +32,14 @@ export async function updateLearningSettings(
 ) {
   try {
     const authUser = readAuthUser(req)
-    const { dailyReviewLimitEnabled, dailyReviewLimit } = req.body as {
-      dailyReviewLimitEnabled?: unknown
-      dailyReviewLimit?: unknown
-    }
     const result = await settingsService.updateLearningSettings(
       authUser.id,
-      dailyReviewLimitEnabled,
-      dailyReviewLimit
+      req.body as {
+        dailyReviewLimitEnabled?: unknown
+        dailyReviewLimit?: unknown
+        dailyNewWordTarget?: unknown
+        currentSystemBookId?: unknown
+      }
     )
 
     return res.json(ok(result, 'Learning settings updated'))

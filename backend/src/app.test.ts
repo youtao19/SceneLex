@@ -16,15 +16,28 @@ describe('GET /health', () => {
 });
 
 describe('受保护路由', () => {
-  it.each(['/api/words', '/api/history', '/api/word-books', '/api/settings', '/api/admin'])(
-    '%s 没有会话时返回 401',
-    async (path) => {
-      const response = await request(app).get(path);
+  it.each([
+    '/api/words',
+    '/api/history',
+    '/api/word-books',
+    '/api/settings',
+    '/api/admin',
+    '/api/word/overview',
+    '/api/word/new',
+  ])('%s 没有会话时返回 401', async (path) => {
+    const response = await request(app).get(path);
 
-      expect(response.status).toBe(401);
-      expect(response.body).toEqual({ code: 401, message: '请先登录', data: null });
-    },
-  );
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ code: 401, message: '请先登录', data: null });
+  });
+
+  it('完成新词没有会话时返回 401', async () => {
+    const response = await request(app)
+      .post('/api/word/complete-new')
+      .send({ word: 'curious', rating: 'good' });
+
+    expect(response.status).toBe(401);
+  });
 
   it('未知 API 路径返回 404，不会被 SPA fallback 吞掉', async () => {
     const response = await request(app).get('/api/definitely-not-a-route');

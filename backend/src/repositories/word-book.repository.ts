@@ -23,6 +23,8 @@ interface WordRow {
   interval: number;
   next_review: string | Date;
   review_count: number;
+  study_version: number;
+  first_learned_at: string | Date | null;
   created_at: string | Date;
   updated_at: string | Date;
 }
@@ -61,6 +63,9 @@ function mapWordRow(row: WordRow): StoredWord {
     interval: Number(row.interval),
     nextReview: toDateString(row.next_review),
     reviewCount: Number(row.review_count),
+    studyVersion: Number(row.study_version),
+    firstLearnedAt:
+      row.first_learned_at === null ? null : new Date(row.first_learned_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -214,6 +219,8 @@ export async function getWordBookDetail(
           w.interval,
           w.next_review,
           w.review_count,
+          w.study_version,
+          w.first_learned_at,
           w.created_at,
           w.updated_at
         FROM word_book_items item

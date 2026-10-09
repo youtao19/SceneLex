@@ -14,6 +14,8 @@ function buildWord(overrides: Partial<StoredWord> = {}): StoredWord {
     interval: 1,
     nextReview: '2026-01-01',
     reviewCount: 0,
+    studyVersion: 0,
+    firstLearnedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,

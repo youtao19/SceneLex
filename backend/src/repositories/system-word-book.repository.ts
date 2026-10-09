@@ -166,3 +166,21 @@ export async function getSystemWordBookDetail(
     nextWords: nextWordsResult.rows.map(mapItemRow),
   };
 }
+
+/**
+ * 设置页只关心词书存不存在和叫什么，不需要带统计，避免为了校验拉全量。
+ */
+export async function findSystemWordBookSummary(
+  bookId: number,
+): Promise<{ id: number; name: string } | null> {
+  const result = await query<{ id: string; name: string }>(
+    `SELECT id, name FROM system_word_books WHERE id = $1`,
+    [bookId],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return { id: Number(result.rows[0].id), name: result.rows[0].name };
+}

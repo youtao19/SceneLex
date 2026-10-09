@@ -1,5 +1,6 @@
 import { query } from '../config/database';
 import { buildPrimaryMeaning } from '../utils/word-meaning';
+import { LEARNING_DAY_SQL, getLearningDay } from '../utils/learning-day';
 import type { HistoryArchive, HistorySummary } from '../models/history.model';
 import type { StoredWord, WordMeaningItem } from '../types/word';
 
@@ -13,6 +14,8 @@ interface WordRow {
   interval: number;
   next_review: string;
   review_count: number;
+  study_version: number;
+  first_learned_at: string | Date | null;
   created_at: string | Date;
   updated_at: string | Date;
 }
@@ -54,6 +57,9 @@ function mapWordRow(row: WordRow): StoredWord {
     interval: Number(row.interval),
     nextReview,
     reviewCount: Number(row.review_count),
+    studyVersion: Number(row.study_version),
+    firstLearnedAt:
+      row.first_learned_at === null ? null : new Date(row.first_learned_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -78,7 +84,7 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
     `
       SELECT
         COUNT(*)::text AS total_words,
-        COUNT(*) FILTER (WHERE next_review <= CURRENT_DATE)::text AS due_today,
+        COUNT(*) FILTER (WHERE next_review <= ${LEARNING_DAY_SQL})::text AS due_today,
         COUNT(*) FILTER (WHERE review_count > 0)::text AS reviewed_words
       FROM words
       WHERE user_id = $1
@@ -98,6 +104,8 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
         interval,
         next_review,
         review_count,
+        study_version,
+        first_learned_at,
         created_at,
         updated_at
       FROM words
@@ -122,10 +130,8 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
 
 /**
  * 归档页只需要按日期判断是否到期，不能让本地时分秒影响今天的结果。
+ * 到期口径和复习队列保持一致：北京时间 04:00 开始的新学习日。
  */
 function isDueToday(nextReview: string) {
-  const today = new Date().toISOString().slice(0, 10);
-  const reviewDate = new Date(nextReview).toISOString().slice(0, 10);
-
-  return reviewDate <= today;
+  return nextReview <= getLearningDay(new Date());
 }
