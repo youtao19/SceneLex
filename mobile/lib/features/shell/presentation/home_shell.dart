@@ -9,17 +9,32 @@ class HomeShell extends StatelessWidget {
 
   static const _tabPaths = ['/study', '/words', '/reading', '/me'];
 
+  /// 子页也算在所属的那一栏里（例如词书详情仍高亮“词库”），
+  /// 否则高亮会跳到“学习”，用户会以为自己走错了地方。
+  int _indexFor(String location) {
+    if (location.startsWith('/words')) {
+      return 1;
+    }
+
+    if (location.startsWith('/reading')) {
+      return 2;
+    }
+
+    if (location.startsWith('/me') || location.startsWith('/settings')) {
+      return 3;
+    }
+
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.path;
-    // 设置页属于“我的”这一栏，不能让它把高亮留在“学习”。
-    final tabLocation = location == '/settings' ? '/me' : location;
-    final index = _tabPaths.indexOf(tabLocation);
+    final index = _indexFor(GoRouterState.of(context).uri.path);
 
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: index < 0 ? 0 : index,
+        selectedIndex: index,
         onDestinationSelected: (value) => context.go(_tabPaths[value]),
         destinations: const [
           NavigationDestination(

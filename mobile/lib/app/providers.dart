@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/network/api_client.dart';
 import '../core/network/session_cookie.dart';
 import '../core/storage/secret_storage.dart';
+import '../core/platform/tts_service.dart';
+import '../core/storage/device_prefs.dart';
 import '../features/auth/data/auth_api.dart';
+import '../features/learning/data/learning_api.dart';
 import '../features/settings/data/settings_api.dart';
+import '../features/words/data/words_api.dart';
 
 /// 依赖都在这里组装，功能模块只依赖自己需要的那一个。
 /// 测试可以覆盖这些 provider，换成内存存储或假客户端。
@@ -27,3 +31,18 @@ final authApiProvider = Provider<AuthApi>(
 final settingsApiProvider = Provider<SettingsApi>(
   (ref) => SettingsApi(ref.watch(apiClientProvider)),
 );
+
+final learningApiProvider = Provider<LearningApi>(
+  (ref) => HttpLearningApi(ref.watch(apiClientProvider)),
+);
+
+final wordsApiProvider = Provider<WordsApi>(
+  (ref) => HttpWordsApi(ref.watch(apiClientProvider)),
+);
+
+final devicePrefsProvider = Provider<DevicePrefs>(
+  (ref) => DevicePrefs(SharedPrefsStore()),
+);
+
+/// 发音服务全局一份：引擎状态和选中的语音要复用，不每次重建。
+final ttsServiceProvider = Provider<TtsService>((ref) => TtsService());
