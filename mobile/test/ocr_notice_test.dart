@@ -34,8 +34,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // AsyncNotifier 的 build 是异步的：先把登录状态解析出来，页面才拿得到 userId。
+    await _settleAuth(tester);
 
-    // 有草稿页时按钮可用，点一下应该先弹说明。
+    // 先确认覆盖生效：页面应该显示“共 1 张”而不是空状态。
+    expect(find.textContaining('共 1 张'), findsOneWidget);
+    expect(find.text('开始识别'), findsOneWidget);
+
     await tester.tap(find.widgetWithText(FilledButton, '开始识别'));
     await tester.pumpAndSettle();
 
@@ -80,6 +85,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await _settleAuth(tester);
 
     await tester.tap(find.widgetWithText(FilledButton, '开始识别'));
     await tester.pumpAndSettle();
@@ -87,6 +93,15 @@ void main() {
     expect(find.text('图片会发送给模型服务商'), findsNothing);
     expect(api.uploadedPages, [0]);
   });
+}
+
+Future<void> _settleAuth(WidgetTester tester) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(OcrCapturePage)),
+  );
+
+  await container.read(authControllerProvider.future);
+  await tester.pumpAndSettle();
 }
 
 /// 已登录用户：说明与提醒都按这个 id 存。
