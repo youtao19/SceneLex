@@ -30,6 +30,13 @@ class RequestFailure extends ApiFailure {
   final int statusCode;
 }
 
+/// 流式回复断流：连接正常结束但没收到完成事件，绝不能当成完整回答。
+class StreamIncompleteFailure extends ApiFailure {
+  const StreamIncompleteFailure([
+    super.message = '回复中断了，请重新提问。已收到的内容不代表完整答案。',
+  ]);
+}
+
 /// 界面统一用它把异常变成一句话；非预期异常给兜底文案，不把堆栈丢给用户。
 String describeFailure(Object? error) {
   if (error is ApiFailure) {

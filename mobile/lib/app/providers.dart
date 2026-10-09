@@ -7,6 +7,7 @@ import '../core/platform/tts_service.dart';
 import '../core/storage/device_prefs.dart';
 import '../features/auth/data/auth_api.dart';
 import '../features/learning/data/learning_api.dart';
+import '../features/reading/data/reading_api.dart';
 import '../features/settings/data/settings_api.dart';
 import '../features/words/data/words_api.dart';
 
@@ -38,6 +39,10 @@ final learningApiProvider = Provider<LearningApi>(
 
 final wordsApiProvider = Provider<WordsApi>(
   (ref) => HttpWordsApi(ref.watch(apiClientProvider)),
+);
+
+final readingApiProvider = Provider<ReadingApi>(
+  (ref) => HttpReadingApi(ref.watch(apiClientProvider)),
 );
 
 final devicePrefsProvider = Provider<DevicePrefs>(

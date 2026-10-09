@@ -12,7 +12,9 @@ import '../features/learning/presentation/lookup_page.dart';
 import '../features/learning/presentation/study_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/shell/presentation/home_shell.dart';
-import '../features/shell/presentation/placeholder_tab.dart';
+import '../features/reading/presentation/articles_page.dart';
+import '../features/reading/presentation/assistant_pages.dart';
+import '../features/reading/presentation/reader_page.dart';
 import '../features/shell/presentation/splash_page.dart';
 import '../features/words/presentation/system_book_detail_page.dart';
 import '../features/words/presentation/word_book_detail_page.dart';
@@ -88,9 +90,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/reading',
-            builder: (context, state) => const PlaceholderTab(
-              title: '阅读',
-              note: '文章、拍照识别和阅读助手还在开发中。',
+            builder: (context, state) => const ArticlesPage(),
+          ),
+          GoRoute(
+            path: '/reading/assistant',
+            builder: (context, state) => const AssistantChatsPage(),
+          ),
+          GoRoute(
+            path: '/reading/chat/:chatId',
+            builder: (context, state) => AssistantChatPage(
+              chatId: int.parse(state.pathParameters['chatId']!),
+              initialQuestion: state.uri.queryParameters['ask'],
+            ),
+          ),
+          GoRoute(
+            path: '/reading/article/:articleId',
+            builder: (context, state) => ReaderPage(
+              articleId: int.parse(state.pathParameters['articleId']!),
             ),
           ),
           GoRoute(path: '/me', builder: (context, state) => const ProfilePage()),

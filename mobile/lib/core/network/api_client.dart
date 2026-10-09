@@ -41,6 +41,25 @@ class ApiClient {
     await _send<Object?>(() => _dio.delete<dynamic>(path));
   }
 
+  /// SSE 这类长连接要自己消费字节流，所以直接把响应流交给调用方。
+  /// 助手回复可能跑很久，所以这里单独放宽接收超时。
+  Future<ResponseBody> postStream(String path, {Object? body}) async {
+    try {
+      final response = await _dio.post<ResponseBody>(
+        path,
+        data: body,
+        options: Options(
+          responseType: ResponseType.stream,
+          receiveTimeout: const Duration(minutes: 5),
+        ),
+      );
+
+      return response.data!;
+    } on DioException catch (error) {
+      throw mapDioFailure(error);
+    }
+  }
+
   /// 后端返回 `data: null` 的写入接口（例如登出）用它，不去解析响应体。
   Future<void> postNoContent(String path, {Object? body}) async {
     await _send<Object?>(() => _dio.post<dynamic>(path, data: body));
