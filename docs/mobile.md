@@ -95,9 +95,24 @@ node backend/scripts/fake-model-server.cjs     # 127.0.0.1:3010，OpenAI-compati
    记录是否准时、延迟多久；vivo 省电可能延迟或阻止，这属于已知风险。
 3. **安装与覆盖升级**：用固定签名的 APK 安装一次，再装一次新版本号，确认能覆盖安装且登录状态保留。
 
+## 验证用探针的注意事项
+
+- 探针用 `integration_test/` 下的独立入口，**用 debug 构建**跑（`--target=integration_test/xxx_test.dart`），
+  这台 vivo 上 `flutter test -d` 的宿主连接会挂死，所以按“测试自己写证据文件 + 宿主机 adb 读”的方式跑。
+- release 构建的包不可调试：`run-as` 读不到应用私有目录，探针要把证据写到
+  `getExternalStorageDirectory()`（`/sdcard/Android/data/cn.scenlex.app/files/`）才能读。
+- release 模式下的 UI 自动化不可靠（点击会落到别的控件上），探针一律用 debug 构建；
+  release 只用来验证“能装、能起、能覆盖升级”。
+
 ## 发布注意
 
 - 应用 ID 固定 `cn.scenlex.app`；`minSdk` 由插件决定为 24（Android 7.0），`targetSdk` 36。
+- 已交付的包（2026-10-09）：`mobile/build/app/outputs/flutter-apk/app-release.apk`，
+  versionName 1.0.0 / versionCode 1 / minSdk 24 / targetSdk 36，默认指向 `https://scenlex.cn/api`。
+  签名证书主体含开发者真实姓名与城市，不记录在仓库里；
+  SHA-256 `78db97cc5a46f8f9436469b0c6f75c7428cd5e033c7e054742eb7b1048b8d4e4`；
+  APK SHA-256 `0db2a3553a4afb0bf9075ffa557b3031d24aed5a22526a03b6d665f2a8f1ffad`。
+  真机已验证：该签名包能安装、能启动；同一签名把 versionCode 1 升到 2 覆盖安装成功且应用数据保留。
 - 发布签名：`android/app/build.gradle.kts` 会读本机 `android/key.properties`；
   文件不存在时退回 debug 签名（本地/CI 仍能构建验证）。密钥与口令不入库
   （`android/.gitignore` 已忽略 `key.properties`、`*.jks`、`*.keystore`）。
