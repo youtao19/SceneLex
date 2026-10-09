@@ -198,7 +198,10 @@
 - 已用 `fvm flutter create` 创建 `mobile/` 工程，应用 ID `cn.scenlex.app`，Android 与 iOS 工程均已生成。
 - 已运行 `fvm flutter analyze`（无问题）和 `fvm flutter test`（3 个通过）。这只覆盖纯逻辑和占位页，不代表设备能力已验证。
 - 首次 Android 构建卡在下载 Android NDK，安装 NDK r28c（`28.2.13676358`，Flutter 默认版本）后构建通过：`app-debug.apk` 151 MB、`app-release.apk` 43.1 MB（release 目前还是模板的 debug 签名，不能用于分发）；之后增量构建约 10 秒。
-- 真机 TTS 探针已在 vivo V2362A 上跑通（`integration_test/tts_probe_test.dart`），只枚举能力不自动朗读；`audibleOfflineVerified` 仍为 false，飞行模式下能否真正离线发音尚待用户点击确认。
+- 真机 TTS 探针已在 vivo V2362A 上跑通（`integration_test/tts_probe_test.dart`），只枚举能力不自动朗读。
+- 2026-10-09 用户决定：主验收设备没有 `en-US` 离线语音，**允许在缺失时退回不带地区的 `en`**
+  （显式别的地区如 `en-GB` 仍不选）。真机复测（`integration_test/tts_voice_test.dart`）：
+  选中 `en`、状态 ready、`speak` 调用成功；**是否有声音仍需人工听一次**。
 - Xcode 安装不完整、CocoaPods 未安装：iOS 构建尚不具备条件，不影响首版仅 Android 真机验收的范围；不擅自修改系统 Xcode 配置。
 - 最低系统版本、图标、签名保管及发布版本待技术验证与用户确认。
 - 已运行现有 web/backend 基线 `npm run verify`，退出码 0：双端类型检查通过，前端 10 个测试、后端 75 个测试通过，双端生产构建通过。这不代表新增移动能力已通过验收。

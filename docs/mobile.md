@@ -79,8 +79,9 @@ node backend/scripts/fake-model-server.cjs     # 127.0.0.1:3010，OpenAI-compati
 
 - **vivo 定时通知送达未证实**：inexact 定时通知在预定时间后 2 分钟内没出现，不宣称准时；
   每日提醒的排期与开关行为已验证，到点是否弹出需在用户日常使用状态下复测。
-- **飞行模式离线发音未验证**：主验收设备默认引擎没有 `en-US` 语音，缺语音时的引导已验证，
-  实际听感需人工在飞行模式下确认。
+- **离线发音已按用户决定放宽**：主验收设备默认引擎只有不带地区的 `en` 离线语音，
+  用户确认“en 也行”，所以现在会在没有 `en-US` 时退回 `en`（显式别的地区如 `en-GB` 仍然不选）。
+  真机已验证能选中该语音并成功调用发音；**是否有声音需人工听一次**。
 - 断流的设备级复现未成功（解析层分支由单测覆盖）。
 - 拍照/选图的系统选择器需要人工操作，自动用例覆盖的是上传与合并链路。
 - 与 PC 网页“同时登录同一账号”未在真机验证。
@@ -88,9 +89,8 @@ node backend/scripts/fake-model-server.cjs     # 127.0.0.1:3010，OpenAI-compati
 
 ## 真机验收待你配合的三步
 
-1. **飞行模式发音**：打开任意词卡 → 打开飞行模式 → 点发音按钮。
-   - 有声音且是美式：记下系统里选中的语音名，作为离线发音通过证据。
-   - 没有声音或提示缺语音：按引导到「设置 → 语言与输入 → 文字转语音」装英语（美国）语音包后重试。
+1. **飞行模式发音**：打开任意词卡 → 打开飞行模式 → 点发音按钮，确认**能听到声音**
+   （口音已按你的决定放宽到接受设备上的 `en`）。
 2. **通知到达**：在设置页确认提醒已开启 → 等到提醒时间（或把时间改到 2 分钟后）→ 看是否弹出。
    记录是否准时、延迟多久；vivo 省电可能延迟或阻止，这属于已知风险。
 3. **安装与覆盖升级**：用固定签名的 APK 安装一次，再装一次新版本号，确认能覆盖安装且登录状态保留。
@@ -98,7 +98,27 @@ node backend/scripts/fake-model-server.cjs     # 127.0.0.1:3010，OpenAI-compati
 ## 发布注意
 
 - 应用 ID 固定 `cn.scenlex.app`；`minSdk` 由插件决定为 24（Android 7.0），`targetSdk` 36。
-- release 构建目前用模板的 debug 签名，**不能对外分发**；正式签名密钥的保管位置需要用户确认后配置，
-  密钥文件不入库（`android/.gitignore` 已忽略 `key.properties`、`*.jks`、`*.keystore`）。
+- 发布签名：`android/app/build.gradle.kts` 会读本机 `android/key.properties`；
+  文件不存在时退回 debug 签名（本地/CI 仍能构建验证）。密钥与口令不入库
+  （`android/.gitignore` 已忽略 `key.properties`、`*.jks`、`*.keystore`）。
+- 已用一次性密钥验证过签名配置生效（`apksigner verify --print-certs` 能看到自定义证书），
+  正式密钥按用户决定由本人生成：
+
+  ```bash
+  keytool -genkeypair -v -keystore ~/keystores/scenlex-release.jks \
+    -alias scenlex -keyalg RSA -keysize 2048 -validity 10000
+  ```
+
+  然后写 `mobile/android/key.properties`（口令存密码管理器，别提交）：
+
+  ```
+  storePassword=<口令>
+  keyPassword=<口令>
+  keyAlias=scenlex
+  storeFile=~/keystores/scenlex-release.jks
+  ```
+
+  配好后再跑 `fvm flutter build apk --release` 即为正式签名包；换签名后必须**卸载重装一次**，
+  之后同一签名的更高版本号可以覆盖安装（覆盖安装保留登录状态已用 debug 签名实测）。
 - 版本号在 `mobile/pubspec.yaml` 的 `version` 字段递增。
 - vivo 安装外部来源 APK 会弹「安全守护提示」，需要手动勾选风险提示再点“继续安装”。
