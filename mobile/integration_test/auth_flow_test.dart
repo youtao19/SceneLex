@@ -21,7 +21,7 @@ import 'package:path_provider/path_provider.dart';
 ///   adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ///   adb shell am start -n cn.scenlex.app/.MainActivity
 ///   adb shell run-as cn.scenlex.app cat app_flutter/auth_flow_evidence.json
-/// 访问密钥来自隔离测试库的 SLX-TEST-TEST-TEST-TEST，绝不指向生产库。
+/// 访问密钥来自隔离测试库的 SLX-LEARN-TEST-0001，绝不指向生产库。
 /// 账号到期用单独一轮验证：把测试库里某个账号改成过期，再用它登录。
 /// 需要 --dart-define=EXPIRED_EMAIL=... --dart-define=EXPIRED_PASSWORD=...
 const _expiredEmail = String.fromEnvironment('EXPIRED_EMAIL');
@@ -119,7 +119,7 @@ void main() {
       await tester.enterText(find.widgetWithText(TextField, '密码'), 'Passw0rd!23');
       await tester.enterText(
         find.widgetWithText(TextField, '访问密钥'),
-        'SLX-TEST-TEST-TEST-TEST',
+        'SLX-LEARN-TEST-0001',
       );
       await tester.tap(find.widgetWithText(FilledButton, '注册并登录'));
 
