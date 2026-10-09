@@ -92,8 +92,11 @@ Future<void> _pumpUntilFound(
   throw StateError('等待超时，没有出现：$finder');
 }
 
+/// release 包不可调试（run-as 读不到私有目录），所以优先写到外部文件目录，
+/// 宿主机可以直接 `adb shell cat /sdcard/Android/data/cn.scenlex.app/files/...` 读。
 Future<void> _writeEvidence(Map<String, Object?> evidence) async {
-  final dir = await getApplicationDocumentsDirectory();
+  final external = await getExternalStorageDirectory();
+  final dir = external ?? await getApplicationDocumentsDirectory();
   final file = File('${dir.path}/session_persistence_evidence.json');
   await file.writeAsString(jsonEncode(evidence));
 }
