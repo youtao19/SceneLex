@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:app/core/platform/offline_voice.dart';
-import 'package:app/main.dart';
+import 'package:app/app/app.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:integration_test/integration_test.dart';
@@ -11,7 +12,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('记录真实 Android 引擎和离线 en-US 语音能力', (tester) async {
-    await tester.pumpWidget(const SceneLexApp());
+    await tester.pumpWidget(const ProviderScope(child: SceneLexApp()));
     final tts = FlutterTts();
     final raw = await tts.getVoices.timeout(const Duration(seconds: 20));
     final voices = (raw as List).map((item) {

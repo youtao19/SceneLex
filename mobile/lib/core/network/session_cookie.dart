@@ -1,23 +1,23 @@
 import 'dart:io';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/secret_storage.dart';
 
 /// 会话 Cookie 是登录态的唯一凭据（HttpOnly，脚本读不到），只能放系统安全存储；
 /// 不写日志、不放普通偏好，也不在 App 里另发一套 token。
 class SessionCookieStore {
-  SessionCookieStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+  SessionCookieStore({SecretStorage? storage})
+    : _storage = storage ?? SecureSecretStorage();
 
   /// 必须和后端 `backend/src/utils/session-cookie.ts` 里的名字一致，改名要两端同时改。
   static const cookieName = 'sl_session';
 
   static const _storageKey = 'session_cookie';
 
-  final FlutterSecureStorage _storage;
+  final SecretStorage _storage;
 
   /// 过期的 Cookie 等于没登录，直接删掉，避免拿旧会话去请求再被拒。
   Future<Cookie?> readCookie() async {
-    final raw = await _storage.read(key: _storageKey);
+    final raw = await _storage.read(_storageKey);
 
     if (raw == null || raw.isEmpty) {
       return null;
@@ -43,10 +43,10 @@ class SessionCookieStore {
       return;
     }
 
-    await _storage.write(key: _storageKey, value: setCookieHeader);
+    await _storage.write(_storageKey, setCookieHeader);
   }
 
-  Future<void> clear() => _storage.delete(key: _storageKey);
+  Future<void> clear() => _storage.delete(_storageKey);
 
   /// 请求头只回传 name=value；HttpOnly 等属性是给客户端看的，不应原样发回。
   Future<Map<String, String>> authHeaders() async {

@@ -1,23 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 正式功能尚在开发，不把脚手架误呈现为可用学习入口。
-void main() => runApp(const SceneLexApp());
+import 'app/app.dart';
 
-class SceneLexApp extends StatelessWidget {
-  const SceneLexApp({super.key});
-
-  /// 设备探针使用独立入口，避免发布入口自动发音或请求设备权限。
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SceneLex',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff4f46e5)),
-        brightness: Brightness.light,
-      ),
-      home: const Scaffold(
-        body: SafeArea(child: Center(child: Text('SceneLex 移动客户端开发中'))),
-      ),
-    );
-  }
-}
+/// 正式功能仍在开发中：这里只组装真实入口，不把未实现的功能装成可用。
+/// 设备探针用独立入口（integration_test/），避免发布入口自动发音或申请权限。
+void main() => runApp(const ProviderScope(child: SceneLexApp()));
