@@ -37,6 +37,7 @@ dependencies:
   flutter_tts: ^4.2.5
   flutter_secure_storage: ^11.2.0
   path_provider: ^2.1.6
+  dio: ^5.11.1
 
 dev_dependencies:
   flutter_test:
