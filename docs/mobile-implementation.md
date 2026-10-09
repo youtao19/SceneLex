@@ -74,4 +74,15 @@
 - 已运行现有 web/backend 基线 `npm run verify`，退出码 0：双端类型检查通过，前端 10 个测试、后端 75 个测试通过，双端生产构建通过。这不代表新增移动能力已通过验收。
 - 未执行生产操作；账号、学习、阅读等业务功能尚未开始实现。
 
+### 2026-10-09 会话凭据与联网权限真机验证
+
+- 新增依赖 `flutter_secure_storage` 11.2.0（Android RSA-OAEP + AES-GCM）和 `path_provider`；插件要求 `minSdk 24`，与 Flutter 默认值一致，最低 Android 版本暂定 API 24（Android 7.0），待用户最终确认。
+- `lib/core/network/session_cookie.dart` 只存后端 `sl_session`（与 `backend/src/utils/session-cookie.ts` 同名），过期就删，只向请求回传 `name=value`。
+- vivo V2362A 实测（`integration_test/session_probe_test.dart` + 设备回环服务器，不碰生产账号）：
+  - 首次安装后运行：`previousRunCookiePresent=false`、`savedAndReadBack=true`、`serverSawCookie=true`。
+  - `am force-stop` 后重启 App（不重装）连续两次：`previousRunCookiePresent=true`，说明会话能跨进程重启保留。
+  - 磁盘上 `shared_prefs/FlutterSecureStorage.xml` 是密文，看不到 Cookie 明文。
+- 坑：`fvm flutter test integration_test/... -d <设备>` 跑完会卸载测试 APK，应用数据一起清空，所以无法用它验证“跨启动保留”；且 standalone 启动时 `print` 不进 logcat。跨启动验证要用 `flutter build apk --debug --target=integration_test/...` + `adb install` + 两次 `am start`，证据写进应用私有目录再用 `run-as cat` 读。
+- 修复：release 包原本只继承了模板的 debug 权限，没有 `INTERNET`；已加到主 manifest，并用 `aapt2 dump permissions` 确认 `app-release.apk` 里存在。
+
 验收完成前不归档 `SPEC.md`，不将本文替代当前运行说明 `docs/mobile.md`。
