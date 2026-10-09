@@ -19,6 +19,18 @@ Build outputs go to `frontend/dist` and `backend/dist`. Do not commit generated 
 - `npm run health:check` / `npm run health:check:prod`: assert `/health` and the served HTML.
 - `npm --prefix frontend run preview`: preview the built frontend locally.
 
+## Mobile Development (Flutter / FVM)
+`mobile/` is the planned Flutter Android/iOS client; it shares `backend/` with the PC app. Before mobile implementation, changes to shared learning/API behavior, or mobile acceptance work, read `SPEC.md` (after archival, use `docs/specs/mobile-v1.md` for the historical baseline and `docs/mobile.md` for current behavior).
+
+The root `.fvmrc` is the SDK version source of truth. Use `fvm flutter ...` and `fvm dart ...` for all project commands; the machine's global Flutter is an older SDK used by other projects. Keep the pin an exact stable release, use its bundled Dart, and leave global SDK/PATH settings unchanged.
+
+- From the repository root, run `fvm install`, then `fvm use --force --skip-pub-get` to link the pinned SDK before the Flutter project exists. Check `fvm flutter --version` and `fvm flutter doctor -v`.
+- Once `mobile/` exists, run `fvm flutter pub get`, `fvm flutter analyze`, `fvm flutter test`, and `fvm flutter build apk --release` from `mobile/`. FVM inherits the root configuration; keep one root pin rather than adding another inside `mobile/`.
+- Point the IDE at the root `.fvm/flutter_sdk` (from a `mobile/` workspace: `../.fvm/flutter_sdk`). Commit `.fvmrc` and the app's `pubspec.lock`; keep `.fvm/`, Flutter build/cache outputs, local SDK paths, and signing secrets out of Git.
+- SDK upgrades are explicit changes: update the pin, verify dependencies, run Flutter checks and Android device smoke tests, then update setup documentation. `npm run verify` checks the web/backend only, not Flutter.
+
+During development, keep `SPEC.md` decisions and acceptance evidence current. After acceptance, mark its release/date and remaining exclusions, move it to `docs/specs/mobile-v1.md`, extract current setup/behavior into `docs/mobile.md`, and update links. An archived spec is a historical baseline, not an active task list; subsequent changes get separate specs.
+
 ## Database Migrations
 Schema changes go in `backend/migrations/` as timestamped `.cjs` migrations. The backend applies them on startup; `database.ts` only runs migrations and seeds reference data. Never add DDL to `database.ts`, and never put anything else in `migrations/` — the runner tries to load every file it finds there. See `docs/database-migrations.md` before writing one.
 
