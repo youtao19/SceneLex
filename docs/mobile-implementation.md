@@ -20,7 +20,7 @@
 | 阅读查词与翻译 | `/reading/word`、`/reading/sentence` | 底部释义、选句操作、加入词本、手动 TTS |
 | 助手会话与历史 | `/reading/assistant-chats`、`/:chatId/messages`、`/messages/stream` | POST SSE、文章/句子模式、阅读位置、操作结果核实、断流不能判成功 |
 | 图片识别 | `POST /ocr`，单个 `image` | 原图批次、逐页结果/重试、排序合并、私有存储、授权及 TTL |
-| 本地设备能力 | 无 Flutter 工程 | 离线 en-US TTS、拍照/相册、提醒/完成通知、临时文件清理 |
+| 本地设备能力 | `mobile/` Flutter 脚手架（仅离线语音筛选与真机探针） | 离线 en-US TTS、拍照/相册、提醒/完成通知、临时文件清理 |
 
 ## 已验证的代码差距
 
@@ -63,11 +63,12 @@
 - 已运行 `fvm install`、`fvm use --force --skip-pub-get` 和 `fvm flutter --version`：Flutter 3.47.7 stable / Dart 3.13.5，根目录 SDK 链接完成；未修改全局 SDK/PATH。插件兼容性尚未验证。
 - 用户已确认应用 ID 为 `cn.scenlex.app`。
 - 已通过 ADB 和 Flutter 识别 vivo V2362A（PD2362）：Android 16 / API 36，构建号 `PD2362B_A_16.2.12.0.W10`，`ro.vivo.os.version=16.0`。
-- 系统默认 TTS 为 `com.vivo.aiservice`；发现 VivoTextToSpeechService 和腾讯视频内的 AndroidTTSService。发现服务不等于支持离线 en-US，实际语音枚举与飞行模式发音仍待验证。
+- 系统默认 TTS 为 `com.vivo.aiservice`；2026-10-09 真机探针结果：设备上 TTS 引擎只有 `com.vivo.aiservice` 和 `com.tencent.qqlive`（腾讯视频附带），引擎声称 `isLanguageAvailable('en-US') = true`、`setLanguage('en-US')` 返回 1，但语音列表里英文只有不带地区的 `en`，没有 `en-US`；按当前“必须有明确 en-US 离线语音”的筛选结果为 null，只靠元数据无法确认美式口音，飞行模式听感也未实测。
 - `fvm flutter doctor -v`：Android SDK 36.1.0、Android Studio JDK 21 可用；Android SDK 许可已全部接受。
 - 已用 `fvm flutter create` 创建 `mobile/` 工程，应用 ID `cn.scenlex.app`，Android 与 iOS 工程均已生成。
 - 已运行 `fvm flutter analyze`（无问题）和 `fvm flutter test`（3 个通过）。这只覆盖纯逻辑和占位页，不代表设备能力已验证。
-- 首次 Android 构建两次在 Gradle 阶段超时，最近一次停在下载 Android NDK，尚未产出 APK，也未运行真机 TTS 探针；离线 en-US 发音仍未实测。
+- 首次 Android 构建卡在下载 Android NDK，安装 NDK r28c（`28.2.13676358`，Flutter 默认版本）后构建通过：`app-debug.apk` 151 MB、`app-release.apk` 43.1 MB（release 目前还是模板的 debug 签名，不能用于分发）；之后增量构建约 10 秒。
+- 真机 TTS 探针已在 vivo V2362A 上跑通（`integration_test/tts_probe_test.dart`），只枚举能力不自动朗读；`audibleOfflineVerified` 仍为 false，飞行模式下能否真正离线发音尚待用户点击确认。
 - Xcode 安装不完整、CocoaPods 未安装：iOS 构建尚不具备条件，不影响首版仅 Android 真机验收的范围；不擅自修改系统 Xcode 配置。
 - 最低系统版本、图标、签名保管及发布版本待技术验证与用户确认。
 - 已运行现有 web/backend 基线 `npm run verify`，退出码 0：双端类型检查通过，前端 10 个测试、后端 75 个测试通过，双端生产构建通过。这不代表新增移动能力已通过验收。
