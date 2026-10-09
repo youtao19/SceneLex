@@ -95,6 +95,15 @@ node backend/scripts/fake-model-server.cjs     # 127.0.0.1:3010，OpenAI-compati
    记录是否准时、延迟多久；vivo 省电可能延迟或阻止，这属于已知风险。
 3. **安装与覆盖升级**：用固定签名的 APK 安装一次，再装一次新版本号，确认能覆盖安装且登录状态保留。
 
+## 真机验收时踩到的设备侧坑
+
+- **微信输入法在 App 里“点了没键盘”**：排查结果是设备侧+排查方法的问题，不是应用缺陷。
+  这台机器的微信输入法注册的服务名是 `com.tencent.wetype/.plugin.hld.WxHldService`（`plugin.hld` 只是它内部的模块名），
+  用正确坐标点输入框时键盘正常出现；系统状态 `mInputShown=true`、输入连接已建立。
+  用 adb 点屏幕时**必须按当前截图里的真实坐标**点，否则会点到空白处，看起来像“键盘不弹”。
+- 排查输入法问题的顺序：`settings get secure default_input_method` → `ime list -a` 看服务是否注册 →
+  点框后看 `dumpsys input_method` 的 `mInputShown` / `mServedInputConnection` → 截图确认框是否真的获得焦点。
+
 ## 验证用探针的注意事项
 
 - 探针用 `integration_test/` 下的独立入口，**用 debug 构建**跑（`--target=integration_test/xxx_test.dart`），
