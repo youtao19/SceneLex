@@ -1,5 +1,7 @@
 gradle-wrapper.jar
 /.gradle
+# Gradle 构建产物（android/build、app/build 都算），别把报告和中间产物提交进来。
+/build/
 /captures/
 /gradlew
 /gradlew.bat
