@@ -204,6 +204,27 @@ void main() {
     expect(called, isFalse);
   });
 
+  test('后端返回非 JSON（例如旧版本 404 的 HTML）时提示版本不匹配', () async {
+    final adapter = _FakeAdapter(
+      (_) async => ResponseBody.fromString(
+        '<html><body>Cannot GET /api/word/overview</body></html>',
+        404,
+        headers: {
+          Headers.contentTypeHeader: ['text/html'],
+        },
+      ),
+    );
+
+    await expectLater(
+      _buildClient(adapter).get<Map<String, dynamic>>('/word/overview'),
+      throwsA(
+        isA<RequestFailure>()
+            .having((failure) => failure.statusCode, 'statusCode', 404)
+            .having((failure) => failure.message, 'message', contains('非预期响应')),
+      ),
+    );
+  });
+
   test('连不上网络时报 NetworkFailure，不能伪装成空数据', () async {
     final adapter = _FakeAdapter(
       (options) async => throw DioException(

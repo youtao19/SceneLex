@@ -153,7 +153,16 @@ ApiFailure mapDioFailure(DioException error) {
     return AccessDeniedFailure(message ?? '账号已到期或被停用，请联系管理员');
   }
 
-  return RequestFailure(response.statusCode ?? 500, message ?? '请求失败，请稍后重试');
+  if (message == null) {
+    // 后端没按约定返回 JSON（例如旧版本的 404 返回 HTML 页）：
+    // 说清是“响应格式不对”，否则排查时看不出是前后端版本不匹配。
+    return RequestFailure(
+      response.statusCode ?? 500,
+      '服务器返回了非预期响应（HTTP ${response.statusCode ?? 500}），可能是前后端版本不匹配',
+    );
+  }
+
+  return RequestFailure(response.statusCode ?? 500, message);
 }
 
 /// 后端错误体是 `{ code, message, data }`；拿不到就返回 null 让调用方用默认文案。
