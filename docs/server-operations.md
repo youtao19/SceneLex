@@ -331,6 +331,25 @@ sudo -u postgres psql -Atc "select datname from pg_database where datistemplate=
 sudo -u postgres psql -d scenelex_db -Atc "select tablename from pg_tables where schemaname='public' order by tablename;"
 ```
 
+## 给用户开通模型端点之前先看这里
+
+模型端点的可用性由**两件事**共同决定，缺一不可：
+
+1. **账号没过期** —— `access_expires_at` 是过去时间就会被访问中间件挡住，返回 `403 账号已过期，请联系管理员续期`，**在任何模型调用之前就拒绝了**。管理页每个用户后面有「续期」按钮。
+2. **有端点可用** —— 自己配了默认端点，或者被标为 VIP（可以用管理员配的系统端点）。管理员天然可用。
+
+只点「设为 VIP」而不续期，用户看到的仍然是过期报错，很容易误判成系统端点没配好。
+
+2026-10-08 部署时的实际状态（`access_status` 都还是 active，但按到期时间判都是过期）：
+
+| 用户 | 邮箱 | 到期日 | 有效 |
+|---|---|---|---|
+| 2 | <email-removed>（管理员） | 2026-06-12 | 过期，但靠管理员豁免照常能用 |
+| 3 | <email-removed> | 2026-06-04 | 否 |
+| 4 | <email-removed>（VIP） | 2026-06-04 | 否 |
+| 5 | <email-removed> | 2026-05-08 | 否 |
+| 6 | <email-removed> | 2026-10-10 | 是（线上唯一有效） |
+
 ## 管理员账号过期策略
 
 管理员账号不再因为 `access_expires_at` 到期而失去登录和后台访问权限。若需要禁用管理员，请使用 `npm run user:suspend -- --email <邮箱>` 或直接把 `access_status` 设置为 `suspended`。

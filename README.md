@@ -183,6 +183,8 @@ R2_AVATAR_UPLOAD_TOKEN=
 
 VIP is a single flag (`users.is_vip`) whose only meaning is *may use the system endpoint*. It does not affect login, account expiry, rate limits, or anything else.
 
+> **VIP does not extend the account.** A user whose `access_expires_at` has passed is rejected by the access middleware with `403 账号已过期，请联系管理员续期` before any model call runs. Giving someone access means **renewing their account and marking them VIP** — doing only the second one leaves them looking at an expiry error.
+
 Set `USER_API_KEY_SECRET` before users save endpoints. Do not change it casually afterwards, because existing encrypted keys will no longer decrypt.
 
 ### User-supplied URLs are untrusted
