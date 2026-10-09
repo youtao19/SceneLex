@@ -114,7 +114,10 @@ async function extractWithTesseract(file: Express.Multer.File) {
  * 多模态识别走用户自己的端点，图片用 base64 发送。
  * 以前这里按 OCR_VISION_PROVIDER 分 ollama / kimi 两条路，现在只剩一条。
  */
-async function extractWithVisionEndpoint(file: Express.Multer.File, endpoint: AiEndpoint | null) {
+async function extractWithVisionEndpoint(
+  file: { buffer: Buffer; mimetype: string },
+  endpoint: AiEndpoint | null,
+) {
   if (!endpoint) {
     throw new HttpError(400, '没有可用于 OCR 的端点，请给某个端点填写视觉模型')
   }
@@ -201,4 +204,16 @@ export async function extractArticleTextFromImage(
   }
 
   return extractWithTesseract(file)
+}
+
+/**
+ * 多页拍照流程只走多模态模型：SPEC 明确不做移动端的 Tesseract/Paddle 回退，
+ * 所以这里不复用网页那条按 method 分派的路。
+ */
+export async function extractTextWithVision(
+  buffer: Buffer,
+  mimetype: string,
+  endpoint: AiEndpoint | null,
+) {
+  return extractWithVisionEndpoint({ buffer, mimetype }, endpoint)
 }

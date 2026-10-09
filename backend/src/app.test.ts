@@ -39,6 +39,20 @@ describe('受保护路由', () => {
     expect(response.status).toBe(401);
   });
 
+  it.each([
+    ['post', '/api/ocr/batches'],
+    ['get', '/api/ocr/batches/1'],
+    ['delete', '/api/ocr/batches/1'],
+    ['post', '/api/ocr/batches/1/pages/0'],
+    ['post', '/api/ocr/batches/1/pages/0/retry'],
+    ['post', '/api/ocr/batches/1/pages/0/skip'],
+    ['post', '/api/ocr/batches/1/article'],
+  ] as const)('%s %s 没有会话时返回 401', async (method, path) => {
+    const response = await request(app)[method](path);
+
+    expect(response.status).toBe(401);
+  });
+
   it('未知 API 路径返回 404，不会被 SPA fallback 吞掉', async () => {
     const response = await request(app).get('/api/definitely-not-a-route');
 

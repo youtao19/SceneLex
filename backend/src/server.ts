@@ -7,9 +7,19 @@ import app from './app'
 import { env } from './config/env'
 import { initializeDatabase } from './config/database'
 import { dictionaryService } from './services/dictionary.service'
+import { cleanupExpiredOcrBatches } from './services/ocr-batch.service'
+import { ensureOcrTempDirs } from './services/ocr-storage.service'
 
 async function startServer() {
   await initializeDatabase()
+  // 过期原图只在启动时清一次：SPEC 明确不做后台常驻任务，也不保证关机后继续执行。
+  await ensureOcrTempDirs()
+  const removedBatches = await cleanupExpiredOcrBatches()
+
+  if (removedBatches > 0) {
+    console.log(`cleaned ${removedBatches} expired OCR batches`)
+  }
+
   const dictionary = dictionaryService.warmup()
 
   app.listen(env.port, () => {
