@@ -207,6 +207,18 @@
 - 已运行现有 web/backend 基线 `npm run verify`，退出码 0：双端类型检查通过，前端 10 个测试、后端 75 个测试通过，双端生产构建通过。这不代表新增移动能力已通过验收。
 - 未执行生产操作；账号、学习、阅读等业务功能尚未开始实现。
 
+### 2026-10-09 生产部署（移动端依赖的新后端）
+
+- 首次把 APK 交给用户时线上还是旧后端，学习页的 `GET /word/overview` 命中 Express 的 404 HTML 页，
+  App 只能给兜底文案「请求失败，请稍后重试」——上线顺序反了（SPEC 第 13 节要求后端/迁移先上）。
+  已把这类非 JSON 响应的文案改成「服务器返回了非预期响应（HTTP xxx），可能是前后端版本不匹配」。
+- 部署记录：生产提交 `0641555`；部署前备份 `/root/backups/scenelex_db-2026-10-09-1732.sql.gz`（24.5 MB，
+  gzip 校验通过，18 张表）；服务器 `npm run verify` 退出码 0；`pm2 restart scenelex` 后自动执行
+  `…_learning_day_and_study_operations` 与 `…_ocr_batches` 两个迁移。
+- 部署后核对：`/health` 正常；构建产物里有新路由（`word-study.routes.js` 含 overview/complete-new、
+  `ocr.routes.js` 含 batches）；生产库 `words` 已有 `study_version`/`first_learned_at`，
+  `study_operations`/`ocr_batches` 已建，`user_learning_settings` 已有新词目标与当前词书两列；网页正常返回。
+
 ### 2026-10-09 通知交付（`notifications`）
 
 - 每日提醒：默认北京时间 20:00，可改时间、可关闭；今天新词完成且没有到期复习词时跳过今天，
