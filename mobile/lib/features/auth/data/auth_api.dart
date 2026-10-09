@@ -35,10 +35,11 @@ class AuthApi {
   }
 
   /// 启动和恢复时用它校验会话，不靠本地状态自称已登录。
+  /// 注意：只有注册/登录把用户包在 `user` 里，/auth/me 直接返回用户对象。
   Future<AuthUser> fetchMe() async {
     final data = await _client.get<Map<String, dynamic>>('/auth/me');
 
-    return AuthUser.fromJson(data['user'] as Map<String, dynamic>);
+    return AuthUser.fromJson(data);
   }
 
   Future<AuthUser> updateProfile({required String nickname}) async {
@@ -47,7 +48,7 @@ class AuthApi {
       body: {'nickname': nickname},
     );
 
-    return AuthUser.fromJson(data['user'] as Map<String, dynamic>);
+    return AuthUser.fromJson(data);
   }
 
   Future<AuthUser> uploadAvatar({
@@ -61,7 +62,7 @@ class AuthApi {
       fileName: fileName,
     );
 
-    return AuthUser.fromJson(data['user'] as Map<String, dynamic>);
+    return AuthUser.fromJson(data);
   }
 
   /// 服务端失败也要让本地能退出，所以调用方要吞掉这里的异常。

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:app/core/network/api_client.dart';
@@ -157,6 +158,50 @@ void main() {
             ),
       ),
     );
+  });
+
+  test('上传图片按文件名给出 image/png，而不是默认的 octet-stream', () async {
+    final file = File('${Directory.systemTemp.path}/upload-probe.png')
+      ..writeAsBytesSync([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    final adapter = _FakeAdapter(
+      (_) async => _jsonBody({
+        'code': 200,
+        'message': 'ok',
+        'data': {'user': {'id': 1}},
+      }),
+    );
+
+    await _buildClient(adapter).upload<Map<String, dynamic>>(
+      '/auth/me/avatar',
+      field: 'avatar',
+      filePath: file.path,
+      fileName: 'avatar.png',
+    );
+
+    // 请求整体是 multipart/form-data，真正的图片类型在表单分片里。
+    final form = adapter.lastRequest?.data as FormData;
+
+    expect(form.files.single.value.contentType?.mimeType, 'image/png');
+  });
+
+  test('不支持的扩展名直接拒绝，不发请求', () async {
+    var called = false;
+    final adapter = _FakeAdapter((_) async {
+      called = true;
+
+      return _jsonBody({'code': 200, 'message': 'ok', 'data': null});
+    });
+
+    await expectLater(
+      _buildClient(adapter).upload<Map<String, dynamic>>(
+        '/auth/me/avatar',
+        field: 'avatar',
+        filePath: '/tmp/whatever.gif',
+        fileName: 'avatar.gif',
+      ),
+      throwsA(isA<RequestFailure>()),
+    );
+    expect(called, isFalse);
   });
 
   test('连不上网络时报 NetworkFailure，不能伪装成空数据', () async {

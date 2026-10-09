@@ -147,7 +147,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               leading: const Icon(Icons.tune_outlined),
               title: const Text('学习设置与模型端点'),
               enabled: !_busy,
-              onTap: () => context.push('/settings'),
+              onTap: () => context.go('/settings'),
             ),
             const Divider(),
             ListTile(

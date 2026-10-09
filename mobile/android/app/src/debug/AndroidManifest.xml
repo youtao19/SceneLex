@@ -4,4 +4,6 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- debug 才允许明文访问本机后端，release 保持 HTTPS。 -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
 </manifest>

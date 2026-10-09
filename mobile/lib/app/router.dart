@@ -9,6 +9,7 @@ import '../features/auth/presentation/register_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/shell/presentation/home_shell.dart';
 import '../features/shell/presentation/placeholder_tab.dart';
+import '../features/shell/presentation/splash_page.dart';
 
 /// 路由守卫只做一件事：没登录去登录页，已登录别停在登录页。
 /// 会话还在校验时不跳转，避免冷启动闪一下登录页。
@@ -22,29 +23,27 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
+      final location = state.matchedLocation;
 
+      // 会话还没校验完就先去 splash：未登录绝不能先看到学习入口。
       if (auth.isLoading) {
-        return null;
+        return location == '/splash' ? null : '/splash';
       }
 
-      final isGuestRoute =
-          state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final isGuestRoute = location == '/login' || location == '/register';
       final signedIn = auth.value != null;
 
-      if (!signedIn && !isGuestRoute) {
-        return '/login';
+      if (!signedIn) {
+        // 校验失败（例如冷启动断网）也回登录页，由页面把原因说清楚。
+        return isGuestRoute ? null : '/login';
       }
 
-      if (signedIn && isGuestRoute) {
-        return '/study';
-      }
-
-      return null;
+      return isGuestRoute || location == '/splash' ? '/study' : null;
     },
     routes: [
+      GoRoute(path: '/splash', builder: (context, state) => const SplashPage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
-      GoRoute(path: '/settings', builder: (context, state) => const SettingsPage()),
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
@@ -70,6 +69,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(path: '/me', builder: (context, state) => const ProfilePage()),
+          // 设置页留在四栏壳里：手机返回键先退子页，底部导航也一直在。
+          GoRoute(path: '/settings', builder: (context, state) => const SettingsPage()),
         ],
       ),
     ],

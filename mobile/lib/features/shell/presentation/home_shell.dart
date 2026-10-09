@@ -12,7 +12,9 @@ class HomeShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
-    final index = _tabPaths.indexOf(location);
+    // 设置页属于“我的”这一栏，不能让它把高亮留在“学习”。
+    final tabLocation = location == '/settings' ? '/me' : location;
+    final index = _tabPaths.indexOf(tabLocation);
 
     return Scaffold(
       body: child,

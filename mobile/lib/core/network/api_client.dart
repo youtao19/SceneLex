@@ -47,17 +47,24 @@ class ApiClient {
   }
 
   /// 头像这类小文件走 multipart；OCR 原图按页上传，不经过这里。
+  /// 必须显式指定 content type：Dio 默认发 application/octet-stream，后端按 MIME 白名单会直接拒。
   Future<T> upload<T>(
     String path, {
     required String field,
     required String filePath,
     required String fileName,
     Map<String, Object?>? fields,
-  }) {
+  }) async {
+    final mediaType = mediaTypeForFileName(fileName);
+
     return _send<T>(() async {
       final form = FormData.fromMap({
         ...?fields,
-        field: await MultipartFile.fromFile(filePath, filename: fileName),
+        field: await MultipartFile.fromFile(
+          filePath,
+          filename: fileName,
+          contentType: mediaType,
+        ),
       });
 
       return _dio.post<dynamic>(path, data: form);
@@ -88,6 +95,25 @@ class ApiClient {
 
     return data;
   }
+}
+
+/// 上传图片的 content type 只能从文件名推导，后端按 MIME 白名单校验。
+DioMediaType mediaTypeForFileName(String fileName) {
+  final lower = fileName.toLowerCase();
+
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+    return DioMediaType('image', 'jpeg');
+  }
+
+  if (lower.endsWith('.png')) {
+    return DioMediaType('image', 'png');
+  }
+
+  if (lower.endsWith('.webp')) {
+    return DioMediaType('image', 'webp');
+  }
+
+  throw const RequestFailure(400, '只支持 JPG、PNG、WEBP 图片');
 }
 
 /// HTTP/Dio 错误 → 界面能直接用的失败类型。

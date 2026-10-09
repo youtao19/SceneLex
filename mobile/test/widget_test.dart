@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/in_memory_secret_storage.dart';
+import 'support/pump_until_found.dart';
 
 /// 没有会话时要停在登录页：脚手架不能把未实现的功能装成可用入口。
 /// 空的内存存储让启动校验不需要任何网络请求。
@@ -19,7 +20,8 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    // splash 上有个转圈动画，pumpAndSettle 会一直等不到静止，所以按条件轮询。
+    await pumpUntilFound(tester, find.widgetWithText(FilledButton, '登录'));
 
     expect(find.text('SceneLex'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
