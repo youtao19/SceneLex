@@ -92,4 +92,11 @@
 - 同一次探针验证断流：服务端只发一段 `delta` 就关闭、没有 `done`，客户端能识别为“异常结束”而不是完整回复（对应 SPEC 第 9.1/11 节要求）。
 - 未验证：本次走的是回环 HTTP。生产环境 HTTPS + 反向代理（nginx）是否缓冲流式响应尚未验证，需在真实部署上补一次。
 
+### 2026-10-09 通知探针（尚未在设备上跑完）
+
+- 新增依赖 `flutter_local_notifications` 22.3.1 和 `timezone`；该插件依赖 `java.time`，`app/build.gradle.kts` 必须开 `isCoreLibraryDesugaringEnabled` 并加 `desugar_jdk_libs:2.1.4`，否则 `:app:checkDebugAarMetadata` 直接失败。
+- `integration_test/notification_probe_test.dart` 记录：通知权限、`areNotificationsEnabled`、`canScheduleExactNotifications`、立即通知是否真的出现、每日定时（`inexactAllowWhileIdle`，不申请精确闹钟权限）的实际延迟、取消后待发数。
+- 该探针**尚未取得设备结果**：构建已通过、APK 已安装并预授权 `POST_NOTIFICATIONS`，但运行期间设备从 USB 断开（`adb devices` 为空），证据文件未生成。设备接回后需重跑，重跑前不要把这部分当作已支持。
+- 预期需要观察的现象：vivo 省电策略可能延迟或吞掉 inexact 定时通知；探针最多等 6 分钟，超时即记为“实际不可用”，但这不等于系统永久禁止。
+
 验收完成前不归档 `SPEC.md`，不将本文替代当前运行说明 `docs/mobile.md`。
