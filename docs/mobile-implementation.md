@@ -68,6 +68,8 @@
 - 未开始：客户端上传/多页排序/失败页替换的 Flutter 实现，以及真实多模态模型对 20 MB 原图、
   方向、格式的兼容性（需真实端点与真机）。
 
+### 2026-10-09 学习规则后端交付（`learning-backend`）
+
 - 迁移 `1791443876523_learning_day_and_study_operations.cjs`：学习设置加 `daily_new_word_target`（0–200）与 `current_system_book_id`；
   `words` 加 `study_version`、`first_learned_at`（老数据回填为 `created_at`）；新建 `study_operations`（操作回执 + 评分前排期）。
   已在本地临时 PostgreSQL 17 验证 up → down → up 可重复，201 被 check 拒、不存在的词书被外键拒、删词书置空。
