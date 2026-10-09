@@ -130,9 +130,12 @@ const TEST_MESSAGES: ChatMessage[] = [
 async function runConnectionTest(endpoint: AiEndpoint): Promise<EndpointTestResult> {
   try {
     await chatCompletion(endpoint, TEST_MESSAGES, {
-      maxTokens: 8,
+      // 推理模型会先把额度花在 reasoning 上，8 个 token 会得到空 content，
+      // 所以这里给够额度，并且只要请求成功就算连通。
+      maxTokens: 64,
       temperature: 0,
       timeoutMs: 20_000,
+      allowEmptyContent: true,
     })
 
     return { ok: true, message: '连接成功' }

@@ -13,7 +13,7 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     baseUrl: 'https://api.deepseek.com/v1',
     models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
     visionModels: [],
-    hint: '便宜稳定，不支持图片',
+    hint: '便宜稳定，实测支持图片',
     trusted: false
   },
   {

@@ -37,6 +37,12 @@ export interface ChatCompletionOptions {
   maxTokens?: number
   temperature?: number
   timeoutMs?: number
+  /**
+   * 允许 content 为空。
+   * 推理模型会把 max_tokens 先花在 reasoning_content 上，额度小的时候 content 就是空的 ——
+   * 但请求本身成功了，说明地址、密钥、模型名都对。连通性测试要用这个。
+   */
+  allowEmptyContent?: boolean
 }
 
 export interface ChatCompletionResult {
@@ -196,12 +202,12 @@ export async function chatCompletion(
   const choice = data.choices?.[0]
   const content = choice?.message?.content
 
-  if (!content || !content.trim()) {
+  if ((!content || !content.trim()) && !options.allowEmptyContent) {
     throw new LlmRequestError('模型没有返回内容')
   }
 
   return {
-    content: content.trim(),
+    content: (content ?? '').trim(),
     finishReason: choice?.finish_reason ?? '',
   }
 }
