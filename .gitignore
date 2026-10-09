@@ -9,6 +9,10 @@ __pycache__
 coverage
 *.log
 frontend/.vite
+# FVM SDK links and cache are local; commit .fvmrc instead.
+.fvm/
+# 本机 agent 运行状态（含会话与 goal 快照），不属于工程内容。
+.pi/
 backend/dist
 backend/.tmp
 backend/data/*.csv
