@@ -56,6 +56,29 @@ class StudyPosition {
   };
 }
 
+/// 提醒设置：开关和时间都按用户保存，换账号不会带着上一个账号的偏好。
+class ReminderSettings {
+  const ReminderSettings({required this.enabled, required this.hour, required this.minute});
+
+  factory ReminderSettings.fromJson(Map<String, dynamic> json) {
+    return ReminderSettings(
+      enabled: json['enabled'] != false,
+      hour: (json['hour'] as num? ?? 20).toInt(),
+      minute: (json['minute'] as num? ?? 0).toInt(),
+    );
+  }
+
+  final bool enabled;
+  final int hour;
+  final int minute;
+
+  Map<String, Object?> toJson() => {
+    'enabled': enabled,
+    'hour': hour,
+    'minute': minute,
+  };
+}
+
 class DevicePrefs {
   DevicePrefs(this._store);
 
@@ -87,4 +110,24 @@ class DevicePrefs {
 
   Future<void> clearStudyPosition(int userId) =>
       _store.delete(_positionKey(userId));
+
+  String _reminderKey(int userId) => 'reminder_settings_$userId';
+
+  Future<void> saveReminderSettings(int userId, ReminderSettings settings) {
+    return _store.write(_reminderKey(userId), jsonEncode(settings.toJson()));
+  }
+
+  Future<ReminderSettings> readReminderSettings(int userId) async {
+    final raw = await _store.read(_reminderKey(userId));
+
+    if (raw == null || raw.isEmpty) {
+      return const ReminderSettings(enabled: true, hour: 20, minute: 0);
+    }
+
+    try {
+      return ReminderSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } on FormatException {
+      return const ReminderSettings(enabled: true, hour: 20, minute: 0);
+    }
+  }
 }

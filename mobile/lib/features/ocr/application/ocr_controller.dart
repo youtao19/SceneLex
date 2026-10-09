@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/network/operation_id.dart';
+import '../../notifications/application/reminder_controller.dart';
 import '../data/ocr_api.dart';
 import '../data/ocr_draft_storage.dart';
 
@@ -241,6 +242,11 @@ class OcrFlowController extends Notifier<OcrFlowState> {
 
     try {
       final saved = await _api.saveArticle(batchId: batchId);
+
+      // 客户端观察到完成才发通知：不承诺 App 被关掉后还能送达。
+      await ref
+          .read(reminderProvider.notifier)
+          .notifyCompletion(title: '文章识别完成', body: '已合并保存，点开就能开始阅读。');
 
       state = state.copyWith(busy: false, savedArticleId: saved.articleId);
       await clearLocalDrafts();

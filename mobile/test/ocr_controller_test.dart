@@ -2,6 +2,7 @@ import 'package:app/app/providers.dart';
 import 'package:app/core/network/api_failure.dart';
 import 'package:app/features/ocr/application/ocr_controller.dart';
 import 'package:app/features/ocr/data/ocr_api.dart';
+import 'package:app/features/notifications/data/notification_gateway.dart';
 import 'package:app/features/ocr/data/ocr_draft_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -184,8 +185,40 @@ ProviderContainer _buildContainer({_FakeOcrApi? api, _FakeDraftStorage? storage}
     overrides: [
       ocrApiProvider.overrideWithValue(api ?? _FakeOcrApi()),
       ocrDraftStorageProvider.overrideWithValue(storage ?? _FakeDraftStorage()),
+      // 保存成功会发一条完成通知，单测里换成假网关，不碰平台通道。
+      notificationGatewayProvider.overrideWithValue(_FakeGateway()),
     ],
   );
+}
+
+class _FakeGateway implements NotificationGateway {
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<bool> permissionGranted() async => true;
+
+  @override
+  Future<void> scheduleDailyReminder({
+    required dynamic at,
+    required String title,
+    required String body,
+  }) async {}
+
+  @override
+  Future<void> cancelReminder() async {}
+
+  @override
+  Future<void> showCompletion({required String title, required String body}) async {}
+
+  @override
+  Future<void> cancelAll() async {}
+
+  @override
+  void onTapRoute(void Function(String route) handler) {}
 }
 
 class _FakeDraftStorage implements OcrDraftStorage {

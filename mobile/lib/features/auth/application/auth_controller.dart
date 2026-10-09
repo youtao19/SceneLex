@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/network/api_failure.dart';
+import '../../notifications/application/reminder_controller.dart';
 import '../data/auth_user.dart';
 
 /// 当前登录用户。null 表示未登录；抛错表示“还没法确认”（例如冷启动断网），
@@ -78,6 +79,8 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     }
 
     await ref.read(sessionCookieStoreProvider).clear();
+    // 提醒和通知也一起清：换账号不能看到上一个账号的内容。
+    await ref.read(reminderProvider.notifier).clearForLogout();
     state = const AsyncValue.data(null);
   }
 }

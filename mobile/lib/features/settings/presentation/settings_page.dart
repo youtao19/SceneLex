@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/network/api_failure.dart';
+import '../../auth/application/auth_controller.dart';
+import '../../learning/application/study_providers.dart';
+import '../../notifications/application/reminder_controller.dart';
 import '../data/settings_models.dart';
 
 const _newWordTargetMin = 0;
@@ -32,6 +35,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userId = ref.read(authControllerProvider).value?.id;
+
+      if (userId != null) {
+        ref.read(reminderProvider.notifier).loadForUser(userId);
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -245,6 +255,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       children: [
         _buildLearningSection(),
         const SizedBox(height: 24),
+        _buildReminderSection(),
+        const SizedBox(height: 24),
         _buildEndpointSection(),
       ],
     );
@@ -316,6 +328,115 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               : null,
           onChangeEnd: (value) => _saveReviewLimit(limit: value.round()),
         ),
+      ],
+    );
+  }
+
+  /// 每日提醒：时间可改、可关闭；拒绝权限只影响提醒，不影响学习。
+  Widget _buildReminderSection() {
+    final reminder = ref.watch(reminderProvider);
+    final userId = ref.read(authControllerProvider).value?.id;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('每日提醒', style: Theme.of(context).textTheme.titleMedium),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: reminder.enabled,
+          title: Text(reminder.enabled ? '开启每日提醒' : '已关闭每日提醒'),
+          subtitle: const Text('默认北京时间 20:00；今天计划完成会跳过今天，明天照旧'),
+          onChanged: userId == null
+              ? null
+              : (value) async {
+                  await ref
+                      .read(reminderProvider.notifier)
+                      .updateSettings(userId: userId, enabled: value);
+
+                  final overview = ref.read(studyOverviewProvider).value;
+
+                  if (overview != null) {
+                    await ref
+                        .read(reminderProvider.notifier)
+                        .syncWithPlan(
+                          userId: userId,
+                          newWordTarget: overview.newWordTarget,
+                          newWordCompleted: overview.newWordCompleted,
+                          dueTotal: overview.dueTotal,
+                        );
+                  }
+                },
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('提醒时间'),
+          subtitle: Text(
+            '${reminder.hour.toString().padLeft(2, '0')}:${reminder.minute.toString().padLeft(2, '0')}',
+          ),
+          trailing: const Icon(Icons.schedule),
+          enabled: userId != null && reminder.enabled,
+          onTap: userId == null
+              ? null
+              : () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay(
+                      hour: reminder.hour,
+                      minute: reminder.minute,
+                    ),
+                  );
+
+                  if (picked == null) {
+                    return;
+                  }
+
+                  await ref
+                      .read(reminderProvider.notifier)
+                      .updateSettings(
+                        userId: userId,
+                        hour: picked.hour,
+                        minute: picked.minute,
+                      );
+
+                  final overview = ref.read(studyOverviewProvider).value;
+
+                  if (overview != null) {
+                    await ref
+                        .read(reminderProvider.notifier)
+                        .syncWithPlan(
+                          userId: userId,
+                          newWordTarget: overview.newWordTarget,
+                          newWordCompleted: overview.newWordCompleted,
+                          dueTotal: overview.dueTotal,
+                        );
+                  }
+                },
+        ),
+        if (!reminder.permissionGranted)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('系统通知权限还没开，提醒不会出现；学习功能不受影响。'),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () =>
+                      ref.read(reminderProvider.notifier).requestPermission(),
+                  child: const Text('开启通知权限'),
+                ),
+              ],
+            ),
+          ),
+        if (reminder.enabled && reminder.nextAt != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '下一次提醒：${reminder.nextAt!.year}-${reminder.nextAt!.month.toString().padLeft(2, '0')}-${reminder.nextAt!.day.toString().padLeft(2, '0')} '
+              '${reminder.nextAt!.hour.toString().padLeft(2, '0')}:${reminder.nextAt!.minute.toString().padLeft(2, '0')}（北京时间）',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
       ],
     );
   }

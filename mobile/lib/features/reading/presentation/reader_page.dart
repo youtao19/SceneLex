@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/platform/tts_service.dart';
+import '../../notifications/application/reminder_controller.dart';
 import '../application/reading_providers.dart';
 import '../data/reading_api.dart';
 
@@ -354,6 +355,10 @@ class _WordSheetState extends ConsumerState<_WordSheet> {
         phonetic: card.phonetic,
         meanings: card.meanings,
       );
+
+      await ref
+          .read(reminderProvider.notifier)
+          .notifyCompletion(title: '词卡已生成', body: '${widget.word} 已保存到单词本。');
 
       if (mounted) {
         setState(() => _savedMessage = '已保存到单词本。');

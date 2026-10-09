@@ -12,6 +12,7 @@ import '../features/learning/presentation/lookup_page.dart';
 import '../features/learning/presentation/study_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import '../features/shell/presentation/home_shell.dart';
+import 'providers.dart';
 import '../features/ocr/presentation/ocr_capture_page.dart';
 import '../features/reading/presentation/articles_page.dart';
 import '../features/reading/presentation/assistant_pages.dart';
@@ -28,7 +29,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(authControllerProvider, (_, _) => refresh.value += 1);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/study',
     refreshListenable: refresh,
     redirect: (context, state) {
@@ -121,4 +122,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  // 点通知按 payload 跳转：回调只做导航，登录和资源权限仍由路由守卫校验。
+  ref.read(notificationGatewayProvider).onTapRoute((route) {
+    router.go(route);
+  });
+
+  return router;
 });

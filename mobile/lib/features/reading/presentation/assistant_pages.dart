@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_failure.dart';
 import '../application/reading_providers.dart';
+import '../../notifications/application/reminder_controller.dart';
 import '../data/reading_api.dart';
 
 /// 助手会话列表：已有的会话和文章绑定关系都来自服务端。
@@ -165,6 +166,10 @@ class _AssistantChatPageState extends ConsumerState<AssistantChatPage> {
               _messages.add(message);
               _streamingText = '';
             });
+            // 只有服务端确认完成才提示，断流不算完成。
+            await ref
+                .read(reminderProvider.notifier)
+                .notifyCompletion(title: '助手回复完成', body: '回复已经写完，可以继续追问。');
           case ErrorEvent(:final message):
             setState(() {
               _errorMessage = message;

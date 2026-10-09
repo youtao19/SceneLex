@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_failure.dart';
+import '../../auth/application/auth_controller.dart';
+import '../../notifications/application/reminder_controller.dart';
 import '../application/study_providers.dart';
 import '../data/learning_models.dart';
 
@@ -14,6 +16,26 @@ class StudyPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final overview = ref.watch(studyOverviewProvider);
+
+    // 计划一变就重排提醒：今天完成就跳过今天，明天照旧。
+    ref.listen(studyOverviewProvider, (previous, next) {
+      final userId = ref.read(authControllerProvider).value?.id;
+
+      next.whenData((data) {
+        if (userId == null) {
+          return;
+        }
+
+        ref
+            .read(reminderProvider.notifier)
+            .syncWithPlan(
+              userId: userId,
+              newWordTarget: data.newWordTarget,
+              newWordCompleted: data.newWordCompleted,
+              dueTotal: data.dueTotal,
+            );
+      });
+    });
 
     return Scaffold(
       appBar: AppBar(
