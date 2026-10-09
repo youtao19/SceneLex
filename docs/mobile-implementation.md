@@ -85,4 +85,11 @@
 - 坑：`fvm flutter test integration_test/... -d <设备>` 跑完会卸载测试 APK，应用数据一起清空，所以无法用它验证“跨启动保留”；且 standalone 启动时 `print` 不进 logcat。跨启动验证要用 `flutter build apk --debug --target=integration_test/...` + `adb install` + 两次 `am start`，证据写进应用私有目录再用 `run-as cat` 读。
 - 修复：release 包原本只继承了模板的 debug 权限，没有 `INTERNET`；已加到主 manifest，并用 `aapt2 dump permissions` 确认 `app-release.apk` 里存在。
 
+### 2026-10-09 流式回复真机验证
+
+- 新增依赖 `dio`（按 SPEC 建议作为 HTTP 客户端，尚未接入业务）。
+- `integration_test/sse_probe_test.dart` 用设备回环服务器验证 POST + SSE：`chunksReceived=3`、`firstChunkBeforeServerFinished=true`、`sawDone=true`，说明 Dio 配 `ResponseType.stream` 在 Android 上不会把整段响应缓冲成一次。
+- 同一次探针验证断流：服务端只发一段 `delta` 就关闭、没有 `done`，客户端能识别为“异常结束”而不是完整回复（对应 SPEC 第 9.1/11 节要求）。
+- 未验证：本次走的是回环 HTTP。生产环境 HTTPS + 反向代理（nginx）是否缓冲流式响应尚未验证，需在真实部署上补一次。
+
 验收完成前不归档 `SPEC.md`，不将本文替代当前运行说明 `docs/mobile.md`。
