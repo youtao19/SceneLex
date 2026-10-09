@@ -40,16 +40,21 @@ export interface StoredWord {
   interval: number
   nextReview: string
   reviewCount: number
+  /** 每次排期写入 +1；评分时回传，服务端据此发现另一端已经改过。 */
+  studyVersion: number
+  /** 首次完成新词的时间；null 表示还没完成过。 */
+  firstLearnedAt: string | null
   createdAt: string
   updatedAt: string
 }
 
 export type ReviewRating = 'again' | 'hard' | 'good' | 'easy'
 
+/**
+ * 撤销只带服务端记录的操作引用：旧版那套排期快照会覆盖另一端的新进度，已经不用了。
+ */
 export interface ReviewRollbackPayload {
   wordId: number
-  ease: number
-  interval: number
-  nextReview: string
-  reviewCount: number
+  targetOperationId: string
+  operationId?: string
 }

@@ -120,6 +120,39 @@
       <p v-if="reviewErrorMessage" class="settings-notice is-error">{{ reviewErrorMessage }}</p>
     </div>
 
+    <div class="settings-block">
+      <p class="settings-block-title">新词计划</p>
+      <div class="review-row">
+        <div class="review-main">
+          <strong>每天新学 {{ newWordTarget }} 个新词</strong>
+          <small>{{ newWordTarget === 0 ? '0 表示只复习，不安排新词' : '按词书顺序学，完成目标后仍可继续' }}</small>
+        </div>
+      </div>
+      <div class="review-row is-slider">
+        <input
+          v-model.number="newWordTarget"
+          type="range"
+          :min="NEW_WORD_TARGET_MIN"
+          :max="NEW_WORD_TARGET_MAX"
+          @change="saveNewWordTarget"
+        />
+        <span class="review-scale">{{ NEW_WORD_TARGET_MIN }} – {{ NEW_WORD_TARGET_MAX }}</span>
+      </div>
+      <div class="review-row">
+        <div class="review-main">
+          <strong>当前学习词书</strong>
+          <small>新词按这本书的顺序学，切换词书会保留已有进度</small>
+        </div>
+        <select v-model="currentBookId" class="settings-select" @change="saveCurrentBook">
+          <option :value="null">未选择</option>
+          <option v-for="book in books" :key="book.id" :value="book.id">
+            {{ book.name }}
+          </option>
+        </select>
+      </div>
+      <p v-if="newWordErrorMessage" class="settings-notice is-error">{{ newWordErrorMessage }}</p>
+    </div>
+
     <!-- 抽屉：预设是入口，完整表单在这里 -->
     <div v-if="drawerOpen" class="drawer-scrim" @click.self="closeDrawer">
       <aside class="drawer">
@@ -220,9 +253,13 @@ import {
   updateLearningSettings,
 } from '../services/settings.service';
 import type { AiEndpoint, EndpointPreset, SystemEndpointStatus } from '../types/settings';
+import { fetchSystemWordBooks } from '../services/system-word-book.service';
+import type { SystemWordBook } from '../types/system-word-book';
 
 const REVIEW_LIMIT_MIN = 1;
 const REVIEW_LIMIT_MAX = 200;
+const NEW_WORD_TARGET_MIN = 0;
+const NEW_WORD_TARGET_MAX = 200;
 
 const endpoints = ref<AiEndpoint[]>([]);
 const presets = ref<EndpointPreset[]>([]);
@@ -235,10 +272,14 @@ const system = ref<SystemEndpointStatus>({
 const isLoading = ref(true);
 const loadErrorMessage = ref('');
 const reviewErrorMessage = ref('');
+const newWordErrorMessage = ref('');
+const books = ref<SystemWordBook[]>([]);
 const saveErrorMessage = ref('');
 const savedFlash = ref(false);
 const reviewLimitEnabled = ref(false);
 const reviewLimit = ref(20);
+const newWordTarget = ref(20);
+const currentBookId = ref<number | null>(null);
 
 const drawerOpen = ref(false);
 const editingId = ref<number | null>(null);
@@ -293,11 +334,19 @@ async function loadReview() {
 
   reviewLimitEnabled.value = response.data.dailyReviewLimitEnabled;
   reviewLimit.value = response.data.dailyReviewLimit;
+  newWordTarget.value = response.data.dailyNewWordTarget;
+  currentBookId.value = response.data.currentSystemBookId;
+}
+
+async function loadBooks() {
+  const response = await fetchSystemWordBooks();
+
+  books.value = response.data;
 }
 
 onMounted(async () => {
   try {
-    await Promise.all([loadEndpoints(), loadReview()]);
+    await Promise.all([loadEndpoints(), loadReview(), loadBooks()]);
   } catch (error) {
     loadErrorMessage.value = error instanceof Error ? error.message : '读取设置失败';
   } finally {
@@ -454,6 +503,37 @@ function toggleReviewLimit() {
 
 function saveReview() {
   persistReview();
+}
+
+/** 新词目标和当前词书同样是单值改动，改完直接存，不加保存按钮。 */
+async function persistNewWordTarget() {
+  newWordErrorMessage.value = '';
+
+  try {
+    await updateLearningSettings({ dailyNewWordTarget: newWordTarget.value });
+    flashSaved();
+  } catch (error) {
+    newWordErrorMessage.value = error instanceof Error ? error.message : '保存新词目标失败';
+  }
+}
+
+function saveNewWordTarget() {
+  persistNewWordTarget();
+}
+
+async function persistCurrentBook() {
+  newWordErrorMessage.value = '';
+
+  try {
+    await updateLearningSettings({ currentSystemBookId: currentBookId.value });
+    flashSaved();
+  } catch (error) {
+    newWordErrorMessage.value = error instanceof Error ? error.message : '保存当前词书失败';
+  }
+}
+
+function saveCurrentBook() {
+  persistCurrentBook();
 }
 </script>
 
@@ -713,6 +793,17 @@ function saveReview() {
 .review-scale {
   font-size: 12px;
   color: var(--soft);
+}
+
+.settings-select {
+  flex: none;
+  max-width: 55%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 14px;
+  color: inherit;
 }
 
 .review-switch {

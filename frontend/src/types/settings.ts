@@ -68,9 +68,18 @@ export interface EndpointTestResult {
 export interface LearningSettings {
   dailyReviewLimitEnabled: boolean;
   dailyReviewLimit: number;
+  /** 每日新词目标，0 表示只复习；与复习数量限制互不影响。 */
+  dailyNewWordTarget: number;
+  /** 当前学习的系统词书，未选择时为 null。 */
+  currentSystemBookId: number | null;
 }
 
+/**
+ * 只提交要改的字段：没带的字段服务端保持原值，避免页面少传一项就被清零。
+ */
 export interface UpdateLearningSettingsPayload {
-  dailyReviewLimitEnabled: boolean;
-  dailyReviewLimit: number;
+  dailyReviewLimitEnabled?: boolean;
+  dailyReviewLimit?: number;
+  dailyNewWordTarget?: number;
+  currentSystemBookId?: number | null;
 }

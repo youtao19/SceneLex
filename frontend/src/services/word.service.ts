@@ -41,8 +41,22 @@ export async function getTodayWords() {
   return get<ApiResponse<StoredWord[]>>('/word/today')
 }
 
-export async function reviewWord(wordId: number, rating: ReviewRating) {
-  return post<ApiResponse<StoredWord>>('/word/review', { wordId, rating })
+/**
+ * 评分带上操作 ID 和看到的版本：重试不会重复推进排期，
+ * 另一端改过时服务端返回 409，页面刷新而不是覆盖新进度。
+ */
+export async function reviewWord(
+  wordId: number,
+  rating: ReviewRating,
+  operationId: string,
+  expectedVersion?: number
+) {
+  return post<ApiResponse<StoredWord>>('/word/review', {
+    wordId,
+    rating,
+    operationId,
+    expectedVersion,
+  })
 }
 
 export async function rollbackReviewWord(payload: ReviewRollbackPayload) {

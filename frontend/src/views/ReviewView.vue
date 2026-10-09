@@ -182,8 +182,9 @@ import { computed, onMounted, ref } from 'vue'
 import WordDetailModal from '../components/WordDetailModal.vue'
 import { fetchHistoryList } from '../services/history.service'
 import { getTodayWords, reviewWord, rollbackReviewWord } from '../services/word.service'
+import { createOperationId } from '../utils/operation-id'
 import type { HistoryArchive } from '../types/history'
-import type { ReviewRating, ReviewRollbackPayload, StoredWord, WordMeaningItem } from '../types/word'
+import type { ReviewRating, StoredWord, WordMeaningItem } from '../types/word'
 
 const queue = ref<StoredWord[]>([])
 const archive = ref<HistoryArchive | null>(null)
@@ -194,7 +195,10 @@ const revealedWordIds = ref<Set<number>>(new Set())
 const submittingWordIds = ref<Set<number>>(new Set())
 const submittedWordIds = ref<Set<number>>(new Set())
 const reviewResults = ref<Record<number, ReviewRating>>({})
-const rollbackSnapshots = ref<Record<number, ReviewRollbackPayload>>({})
+/** 每个词待撤销的评分操作 ID；服务端只认自己记录的操作，不再用客户端快照。 */
+const rollbackTargets = ref<Record<number, string>>({})
+/** 提交失败时保留操作 ID：同样的评分重试要复用同一个值，服务端才能去重。 */
+const pendingOperations = ref<Record<number, { operationId: string; rating: ReviewRating }>>({})
 const selectedWord = ref<StoredWord | null>(null)
 const totalReviewCount = ref(0)
 const completedReviewCount = ref(0)
@@ -271,7 +275,8 @@ async function loadQueue() {
   submittingWordIds.value = new Set()
   submittedWordIds.value = new Set()
   reviewResults.value = {}
-  rollbackSnapshots.value = {}
+  rollbackTargets.value = {}
+  pendingOperations.value = {}
   selectedWord.value = null
   totalReviewCount.value = queueResponse.data.length
   completedReviewCount.value = 0
@@ -327,6 +332,8 @@ function buildMockReviewWords(): StoredWord[] {
       interval: 1,
       nextReview: today,
       reviewCount: 0,
+      studyVersion: 0,
+      firstLearnedAt: today,
       createdAt: today,
       updatedAt: today,
     },
@@ -353,6 +360,8 @@ function buildMockReviewWords(): StoredWord[] {
       interval: 2,
       nextReview: today,
       reviewCount: 1,
+      studyVersion: 0,
+      firstLearnedAt: today,
       createdAt: today,
       updatedAt: today,
     },
@@ -373,6 +382,8 @@ function buildMockReviewWords(): StoredWord[] {
       interval: 3,
       nextReview: today,
       reviewCount: 2,
+      studyVersion: 0,
+      firstLearnedAt: today,
       createdAt: today,
       updatedAt: today,
     },
@@ -400,7 +411,8 @@ function loadMockReviewData() {
   submittingWordIds.value = new Set()
   submittedWordIds.value = new Set()
   reviewResults.value = {}
-  rollbackSnapshots.value = {}
+  rollbackTargets.value = {}
+  pendingOperations.value = {}
   selectedWord.value = null
   totalReviewCount.value = words.length
   completedReviewCount.value = 0
@@ -488,9 +500,9 @@ function dismissReviewedWord(wordId: number) {
   delete nextReviewResults[wordId]
   reviewResults.value = nextReviewResults
 
-  const nextRollbackSnapshots = { ...rollbackSnapshots.value }
-  delete nextRollbackSnapshots[wordId]
-  rollbackSnapshots.value = nextRollbackSnapshots
+  const nextRollbackTargets = { ...rollbackTargets.value }
+  delete nextRollbackTargets[wordId]
+  rollbackTargets.value = nextRollbackTargets
 
   const nextSubmittedIds = new Set(submittedWordIds.value)
   nextSubmittedIds.delete(wordId)
@@ -512,20 +524,24 @@ async function undoReviewChoice(wordId: number) {
     return
   }
 
-  const rollbackSnapshot = rollbackSnapshots.value[wordId]
+  const targetOperationId = rollbackTargets.value[wordId]
 
-  if (!rollbackSnapshot) return
+  if (!targetOperationId) return
 
   submittingWordIds.value = new Set([...submittingWordIds.value, wordId])
   errorMessage.value = ''
 
   try {
-    const response = await rollbackReviewWord(rollbackSnapshot)
+    const response = await rollbackReviewWord({
+      wordId,
+      targetOperationId,
+      operationId: createOperationId(),
+    })
     updateQueueWord(response.data)
     clearSubmittedReview(wordId)
   } catch (error) {
     console.error(error)
-    errorMessage.value = '撤销失败，请稍后再试或同步复习舱。'
+    errorMessage.value = '撤销失败：这条记录可能已在其他端更新，请同步复习舱后再试。'
   } finally {
     const nextSubmittingIds = new Set(submittingWordIds.value)
     nextSubmittingIds.delete(wordId)
@@ -538,9 +554,9 @@ function clearSubmittedReview(wordId: number) {
   delete nextReviewResults[wordId]
   reviewResults.value = nextReviewResults
 
-  const nextRollbackSnapshots = { ...rollbackSnapshots.value }
-  delete nextRollbackSnapshots[wordId]
-  rollbackSnapshots.value = nextRollbackSnapshots
+  const nextRollbackTargets = { ...rollbackTargets.value }
+  delete nextRollbackTargets[wordId]
+  rollbackTargets.value = nextRollbackTargets
 
   if (isWordSubmitted(wordId)) {
     const nextSubmittedIds = new Set(submittedWordIds.value)
@@ -551,7 +567,7 @@ function clearSubmittedReview(wordId: number) {
 }
 
 /**
- * 评分立即写入后端，同时保留回滚快照，给用户看完答案后撤销或改选的机会。
+ * 评分立即写入后端，并记住本次操作 ID，给用户看完答案后撤销或改选的机会。
  */
 async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
   if (isWordSubmitting(word.id) || hasReviewResult(word.id)) return
@@ -568,16 +584,32 @@ async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
     return
   }
 
-  rollbackSnapshots.value = {
-    ...rollbackSnapshots.value,
-    [word.id]: buildRollbackSnapshot(word),
+  // 上次同样的评分没提交成功时复用同一个操作 ID：服务端可能已经写进去了，
+  // 复用 ID 才能拿到原结果而不是重复推进排期。换评分则用新 ID，由版本校验兜底。
+  const pending = pendingOperations.value[word.id]
+  const operationId = pending && pending.rating === rating
+    ? pending.operationId
+    : createOperationId()
+
+  pendingOperations.value = {
+    ...pendingOperations.value,
+    [word.id]: { operationId, rating },
   }
   submittingWordIds.value = new Set([...submittingWordIds.value, word.id])
   errorMessage.value = ''
 
   try {
-    const response = await reviewWord(word.id, rating)
+    const response = await reviewWord(word.id, rating, operationId, word.studyVersion)
     updateQueueWord(response.data)
+    rollbackTargets.value = {
+      ...rollbackTargets.value,
+      [word.id]: operationId,
+    }
+
+    const nextPending = { ...pendingOperations.value }
+    delete nextPending[word.id]
+    pendingOperations.value = nextPending
+
     submittedWordIds.value = new Set([...submittedWordIds.value, word.id])
     markReviewCompleted()
   } catch (error) {
@@ -588,16 +620,6 @@ async function handleReviewChoice(word: StoredWord, rating: ReviewRating) {
     const nextSubmittingIds = new Set(submittingWordIds.value)
     nextSubmittingIds.delete(word.id)
     submittingWordIds.value = nextSubmittingIds
-  }
-}
-
-function buildRollbackSnapshot(word: StoredWord): ReviewRollbackPayload {
-  return {
-    wordId: word.id,
-    ease: word.ease,
-    interval: word.interval,
-    nextReview: word.nextReview,
-    reviewCount: word.reviewCount,
   }
 }
 
@@ -612,9 +634,9 @@ function clearPendingReviewChoice(wordId: number) {
   delete nextReviewResults[wordId]
   reviewResults.value = nextReviewResults
 
-  const nextRollbackSnapshots = { ...rollbackSnapshots.value }
-  delete nextRollbackSnapshots[wordId]
-  rollbackSnapshots.value = nextRollbackSnapshots
+  const nextRollbackTargets = { ...rollbackTargets.value }
+  delete nextRollbackTargets[wordId]
+  rollbackTargets.value = nextRollbackTargets
 }
 
 function openDetailModal(word: StoredWord) {
