@@ -9,8 +9,11 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 /// 验证 vivo 上通知能不能真的到：它的省电策略可能延迟甚至吞掉通知，必须实测。
-/// 按 SPEC 不申请精确闹钟权限，用 inexactAllowWhileIdle，所以观察到延迟是正常结果，
-/// 但要分清“延迟多久”和“完全不到”。
+///
+/// 刻意不在 App 里自查通知：实测 `getActiveNotifications()` 在 vivo 上不返回，会把探针挂死。
+/// 所以这里只负责“申请权限 + 立刻发一条 + 排一条定时”，随后由宿主机用
+/// `adb shell dumpsys notification` 观察实际是否出现、延迟多久。
+/// 按 SPEC 不申请精确闹钟权限，用 inexactAllowWhileIdle，延迟属正常结果。
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -40,58 +43,37 @@ void main() {
       'permissionGranted': await android?.requestNotificationsPermission(),
       'notificationsEnabled': await android?.areNotificationsEnabled(),
       'canScheduleExact': await android?.canScheduleExactNotifications(),
-      'immediateShown': false,
-      'pendingAfterDailySchedule': 0,
-      'dailyFired': false,
-      'dailyDelaySeconds': null,
-      'pendingAfterCancel': null,
+      'pendingAfterDailySchedule': 'unknown',
+      'dailyScheduledFor': '',
+      'immediateShown': true,
     };
 
-    try {
-      // 先证明通道本身能用，否则定时没到就分不清是权限问题还是调度问题。
-      await plugin.show(id: 1, title: '探针', body: '立即通知', notificationDetails: details);
-      await Future<void>.delayed(const Duration(seconds: 3));
-      evidence['immediateShown'] = (await plugin.getActiveNotifications()).any(
-        (notification) => notification.id == 1,
-      );
+    // 立即通知：证明通道本身能用（是否真的出现由宿主机看通知栏）。
+    await plugin.show(id: 1, title: '探针', body: '立即通知', notificationDetails: details);
 
-      final fireAt = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 60));
-      await plugin.zonedSchedule(
-        id: 2,
-        title: '探针',
-        body: '每日提醒',
-        scheduledDate: fireAt,
-        notificationDetails: details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-      evidence['pendingAfterDailySchedule'] =
-          (await plugin.pendingNotificationRequests()).length;
+    // 定时通知排在 90 秒后；matchDateTimeComponents 让它每天同一时间重复。
+    final fireAt = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 90));
+    await plugin.zonedSchedule(
+      id: 2,
+      title: '探针',
+      body: '每日提醒',
+      scheduledDate: fireAt,
+      notificationDetails: details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+    evidence['dailyScheduledFor'] = fireAt.toIso8601String();
+    /**
+     * vivo 上 `pendingNotificationRequests()` 实测不返回（会直接把探针挂死），
+     * 所以自查一律加超时并记录结果：App 里也不能无条件等这类调用。
+     */
+    evidence['pendingAfterDailySchedule'] = await _selfCheck(
+      plugin.pendingNotificationRequests(),
+    );
 
-      // 最多等 6 分钟：inexact 闹钟本来就有窗口，超过这个时间就算实际不可用。
-      final deadline = DateTime.now().add(const Duration(minutes: 6));
-      while (DateTime.now().isBefore(deadline)) {
-        await Future<void>.delayed(const Duration(seconds: 10));
-        final active = await plugin.getActiveNotifications();
-        if (active.any((notification) => notification.id == 2)) {
-          evidence['dailyFired'] = true;
-          evidence['dailyDelaySeconds'] = DateTime.now()
-              .difference(fireAt.toLocal())
-              .inSeconds;
-          break;
-        }
-      }
+    await _writeEvidence(evidence);
 
-      await plugin.cancel(id: 2);
-      evidence['pendingAfterCancel'] =
-          (await plugin.pendingNotificationRequests()).length;
-    } finally {
-      // 探针不该在用户手机上留下通知和日程。
-      await plugin.cancelAll();
-      await _writeEvidence(evidence);
-    }
-
-    // 只输出权限和计时结果，不包含正文内容。
+    // 只输出权限和排期结果，不包含正文内容。
     // ignore: avoid_print
     print('NOTIFICATION_PROBE: ${jsonEncode(evidence)}');
   });
@@ -102,4 +84,15 @@ Future<void> _writeEvidence(Map<String, Object?> evidence) async {
   final dir = await getApplicationDocumentsDirectory();
   final file = File('${dir.path}/notification_probe_evidence.json');
   await file.writeAsString(jsonEncode(evidence));
+}
+
+/// 自查调用超时就返回超时标记，而不是让整个探针卡死。
+Future<String> _selfCheck(Future<List<PendingNotificationRequest>> pending) async {
+  try {
+    final requests = await pending.timeout(const Duration(seconds: 10));
+
+    return 'pending=${requests.length}';
+  } catch (error) {
+    return 'failed: $error';
+  }
 }

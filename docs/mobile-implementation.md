@@ -150,10 +150,10 @@
 
 | 验收项 | 证据形式 | 状态 |
 | --- | --- | --- |
-| 20:00 提醒可改/可关；今日完成取消但后续仍提醒 | 真机通知记录 + 集成测试 | 未开始（探针代码已就绪，设备结果缺失） |
+| 20:00 提醒可改/可关；今日完成取消但后续仍提醒 | 真机通知记录 + 集成测试 | 部分（权限/开关/排期与立即通知已在 vivo 实测；定时通知在预定时间后 2 分钟内未到，待复测） |
 | 仅网页完成导致旧状态提醒属已接受限制 | 双端操作记录 | 未开始 |
 | 三类完成通知及跳转；拒绝权限后核心功能可用 | 真机操作记录 | 未开始 |
-| vivo 省电/锁屏下实际通知表现，不宣称准时 | 真机记录（含系统版本/构建号） | 未开始 |
+| vivo 省电/锁屏下实际通知表现，不宣称准时 | 真机记录（含系统版本/构建号） | 部分（已记下“定时未到 + 息屏冻结进程”两个现象；待日常使用状态复测） |
 | 签名 APK 安装与覆盖升级、签名文件不入库 | vivo 安装记录 + `git check-ignore` | 未开始（需用户确认签名保管方案） |
 
 ### 工程验证
@@ -199,11 +199,13 @@
 - 同一次探针验证断流：服务端只发一段 `delta` 就关闭、没有 `done`，客户端能识别为“异常结束”而不是完整回复（对应 SPEC 第 9.1/11 节要求）。
 - 未验证：本次走的是回环 HTTP。生产环境 HTTPS + 反向代理（nginx）是否缓冲流式响应尚未验证，需在真实部署上补一次。
 
-### 2026-10-09 通知探针（尚未在设备上跑完）
+### 2026-10-09 通知探针（部分验证，未通过项已标注）
 
 - 新增依赖 `flutter_local_notifications` 22.3.1 和 `timezone`；该插件依赖 `java.time`，`app/build.gradle.kts` 必须开 `isCoreLibraryDesugaringEnabled` 并加 `desugar_jdk_libs:2.1.4`，否则 `:app:checkDebugAarMetadata` 直接失败。
-- `integration_test/notification_probe_test.dart` 记录：通知权限、`areNotificationsEnabled`、`canScheduleExactNotifications`、立即通知是否真的出现、每日定时（`inexactAllowWhileIdle`，不申请精确闹钟权限）的实际延迟、取消后待发数。
-- 该探针**尚未取得设备结果**：构建已通过、APK 已安装并预授权 `POST_NOTIFICATIONS`，但运行期间设备从 USB 断开（`adb devices` 为空），证据文件未生成。设备接回后需重跑，重跑前不要把这部分当作已支持。
-- 预期需要观察的现象：vivo 省电策略可能延迟或吞掉 inexact 定时通知；探针最多等 6 分钟，超时即记为“实际不可用”，但这不等于系统永久禁止。
+- `integration_test/notification_probe_test.dart` 只做三件事：申请权限、立刻发一条、排一条 90 秒后的每日定时；**不在 App 内自查通知**，是否真的出现由宿主机用 `adb shell dumpsys notification` 观察。
+- 已证实（vivo V2362A，Android 16）：`permissionGranted=true`、`notificationsEnabled=true`、`canScheduleExact=false`（按 SPEC 不申请精确闹钟权限）；立即通知真的出现在通知栏（`channel=probe`、`importance=4`），dumpsys 可见。
+- **未证实**：90 秒后的定时通知在预定时间后 ~2 分钟内没有出现（`AlarmManager` 里确实登记了 `RTC_WAKEUP`，`windowLength≈45s`）。可能原因：inexact 窗口 + vivo 待机/省电策略（该应用此前只被 adb 启动过，待机分组很可能被限制），也可能需要用户先关闭省电限制。结论：不能宣称准时，也不能宣称已支持；真机验收时要在“用户日常使用状态”下复测。
+- 插件坑：`getActiveNotifications()` 在 vivo 上**不返回**（首次探针直接挂死 10 分钟），`pendingNotificationRequests()` 也会间歇性不返回。App 内调用这类自查接口必须带超时，不能无条件等待。
+- 另一个实测现象：息屏时 vivo 会冻结应用进程，探针（或任何前台请求）会停住；探针必须在亮屏下跑。
 
 验收完成前不归档 `SPEC.md`，不将本文替代当前运行说明 `docs/mobile.md`。
