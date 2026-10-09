@@ -33,7 +33,11 @@
 | `POST /words/lookup`、`/words/generate` | 查词、生成词卡 | 需要 | 生成结果的关联与查询 |
 | `POST /word/add` | 保存词卡 | 需要 | 与移动端“完成新词”的口径映射 |
 | `GET /word/today` | 今日待学/待复习 | 需要 | 改为共享学习概览（新词目标、当前词书、总到期数） |
+| `GET /word/overview`（新增） | 学习日、新词目标/完成数、当前词书、到期总数、受限队列 | 需要 | 已实现（`learning-backend`） |
+| `GET /word/new`（新增） | 按词书顺序取未学新词，跨书去重 | 需要 | 已实现 |
+| `POST /word/complete-new`（新增） | 原子完成新词（保存词卡 + 首次评分 + 当日计数） | 需要 | 已实现 |
 | `POST /word/review`、`/word/review/rollback` | 评分、撤销 | 需要 | 幂等、版本校验、服务端撤销依据 |
+
 | `GET /history` | 已保存词与概览 | 需要 | 网络失败不能当空数据 |
 | `GET /system-word-books`、`/:bookId` | 系统词书 | 需要 | 有序未学词、跨书去重 |
 | `GET/POST /word-books`、`GET/PATCH/DELETE /word-books/:bookId`、`DELETE /word-books/:bookId/words/:wordId` | 个人单词本 | 需要 | 创建/改名/删除/移除全量迁移 |
@@ -43,20 +47,36 @@
 | `POST /reading/word`、`/reading/sentence`、`/reading/chat` | 阅读查词/翻译/问答 | 需要 | `/reading/chat` 与流式入口的关系需在实施时对齐 |
 | `GET/POST /reading/assistant-chats`、`GET /:chatId/messages`、`POST /:chatId/messages`、`POST /:chatId/messages/stream` | 助手会话与流式回复 | 需要 | 仅 `done` 才算完成；断流可识别（探针已验证） |
 | `POST /ocr`（单图 `image`） | 图片识别 | 需要 | 改为批次/逐页、20 MB/张、200 MB/批、10 张、私有临时图与 TTL |
+### 2026-10-09 学习规则后端交付（`learning-backend`）
+
+- 迁移 `1791443876523_learning_day_and_study_operations.cjs`：学习设置加 `daily_new_word_target`（0–200）与 `current_system_book_id`；
+  `words` 加 `study_version`、`first_learned_at`（老数据回填为 `created_at`）；新建 `study_operations`（操作回执 + 评分前排期）。
+  已在本地临时 PostgreSQL 17 验证 up → down → up 可重复，201 被 check 拒、不存在的词书被外键拒、删词书置空。
+- 学习日统一走 `LEARNING_DAY_SQL`：复习队列、到期计数、归档统计、归档页判断、插入词卡默认到期日；全仓已无 `CURRENT_DATE` 业务用法。
+- 新接口：`GET /word/overview`、`GET /word/new`、`POST /word/complete-new`；
+  `POST /word/review` 接受 `operationId`/`expectedVersion`，`POST /word/review/rollback` 改为只认 `targetOperationId`。
+- 网页已同步适配：评分带操作 ID 与版本、撤销改回传服务端操作引用、设置页加新词目标与当前词书。
+- 口径确认：**PC“保存单词”与移动端“完成新词”都算首次完成**（沿用“保存即已学”），两者都会计入当日新词完成数；
+  重复完成同一个词不再计数、不再评分；撤销首次完成会把计数收回但保留词卡（收藏不丢）。
+- 验证：`npm test` 98 通过 / 15 跳过（数据库用例默认跳过）；隔离临时库 `RUN_DB_TESTS=1` 另跑 15 个事务用例全通过；`npm run verify` 退出码 0。
+- 尚未验证：真机/浏览器上的双端并发与重试（归后续任务）；生产库未执行任何迁移。
 
 - `backend/src/routes/review.routes.ts` 存在但**未被任何地方挂载**（`routes/index.ts` 里没有它），属于死代码；移动端不依赖它，实施时由 `learning-backend` 决定删除还是正式挂载。
 - `GET /word/today` 同时承载“新词”与“复习”入口，移动端概览需要在后端新增能力，不能只靠前端拼凑。
 
 ## 已验证的代码差距
 
-- `backend/src/types/word.ts` 的评分请求只有 `wordId/rating`；撤销请求直接携带排期快照；`StoredWord` 没有学习版本。
-- `word.service.ts` 评分先读取再更新，未将读取与排期写入包在同一事务；撤销仍信任客户端快照。
-- `word.repository.ts` 到期判断和新排期使用 `CURRENT_DATE`；需统一为北京时间减 4 小时的学习日，不整体重排历史日期。
+- `backend/src/types/word.ts` 的评分请求只有 `wordId/rating`；撤销请求直接携带排期快照；`StoredWord` 没有学习版本。→ **已改**：评分带 `operationId/expectedVersion`，撤销只带 `targetOperationId`，`StoredWord` 有 `studyVersion/firstLearnedAt`。
+- `word.service.ts` 评分先读取再更新，未将读取与排期写入包在同一事务；撤销仍信任客户端快照。→ **已改**：行锁 + 单事务，撤销以服务端 `study_operations.before_state` 为依据。
+- `word.repository.ts` 到期判断和新排期使用 `CURRENT_DATE`；需统一为北京时间减 4 小时的学习日，不整体重排历史日期。→ **已改**：复习队列、归档统计、归档页判断和插入默认值都走学习日；历史日期字段未改。
 - `upload.middleware.ts` OCR 使用内存存储、5 MiB 限制、MIME 筛选；不能仅把限制提高到 200 MB，需逐页受限文件上传和实际类型验证。头像继续保持现有限制。
 - `frontend/src/services/reading.service.ts` 支持 `user_message/delta/done/error`，但响应结束未收到 `done` 时仍可正常返回；需显式判定异常结束。
 - `word.service.ts` 模型 JSON 解析失败会记录原始模型输出，后续安全审计需去除可能泄露内容的日志。
 
 ## 待实现的契约原则
+
+> 2026-10-09 状态：第 1、2、3、4、5 条已由 `learning-backend` 实现并有隔离库测试；
+> 第 6–9 条（OCR 限制、临时原图 TTL、AI 回执、SSE 完成判定）仍待 `operation-ocr-backend` 与后续任务。
 
 具体 URL、字段和保留期在对应实施步骤补齐并用 API 测试固定；以下不是已发布接口。
 
@@ -100,10 +120,10 @@
 
 | 验收项 | 证据形式 | 状态 |
 | --- | --- | --- |
-| 03:59:59 / 04:00:00 边界、时区变化不影响学习日 | 后端单元测试（注入时间） | 未开始 |
-| 改目标/跨日保持页面/网页改词书后刷新一致 | 后端测试 + 双端操作 | 未开始 |
-| 双击评分、响应丢失重试不重复计数；版本冲突不覆盖 | 后端契约测试 + 真机重试 | 未开始 |
-| 撤销只影响目标操作、另一端修改后拒绝、旧入口不能绕过 | 后端契约测试 + 网页适配 | 未开始 |
+| 03:59:59 / 04:00:00 边界、时区变化不影响学习日 | 后端单元测试（注入时间） | 部分（`learning-day.test.ts` 5 个用例覆盖边界、跨年、同一时刻不同时区写法；真机改时区未做） |
+| 改目标/跨日保持页面/网页改词书后刷新一致 | 后端测试 + 双端操作 | 部分（设置只更新提交字段、词书校验有隔离库用例；双端同时操作未验） |
+| 双击评分、响应丢失重试不重复计数；版本冲突不覆盖 | 后端契约测试 + 真机重试 | 部分（隔离库覆盖同 ID 重放、同 ID 异内容 409、过期版本 409；真机重试未做） |
+| 撤销只影响目标操作、另一端修改后拒绝、旧入口不能绕过 | 后端契约测试 + 网页适配 | 部分（隔离库覆盖撤销恢复、跨端改动后 409、旧快照 409；网页已在代码层适配但未在浏览器/真机验证） |
 
 ### 网络与设备
 
@@ -142,7 +162,7 @@
 | --- | --- | --- |
 | `npm run verify` 通过；测试不依赖生产数据库 | 命令输出（退出码 0） | 通过（2026-10-09：双端类型检查、前端 10 / 后端 75 测试、双端构建） |
 | `mobile/` 下 analyze / test / `build apk --release` 通过，关键流程有集成测试或真机证据 | 命令输出 + 集成测试 | 部分（analyze 无问题、3 个单测通过、release 43.5 MB；学习/拍照/阅读流程未开始） |
-| 后端覆盖学习日、幂等、撤销冲突、计数、图片限制与清理 | 后端测试 | 未开始 |
+| 后端覆盖学习日、幂等、撤销冲突、计数、图片限制与清理 | 后端测试 | 部分（学习日、幂等、撤销冲突、计数已覆盖；图片限制与清理未开始） |
 | Flutter 覆盖会话、状态恢复、断流、失败页合并、提醒、TTS 缺失 | Flutter 测试 | 部分（会话持久化与断流已在真机验证；其余未开始） |
 
 ## 环境预检与待确认事项
