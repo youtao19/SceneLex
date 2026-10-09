@@ -16,6 +16,7 @@
 const http = require('http');
 
 const port = Number(process.env.PORT || 3010);
+let visionCounter = 0;
 
 function readBody(request) {
   return new Promise((resolve) => {
@@ -44,7 +45,10 @@ function buildText(messages) {
   const text = typeof content === 'string' ? content : '';
 
   if (hasImage(messages)) {
-    return 'Fake OCR article: the quick brown fox jumps over the lazy dog.\n\nSecond paragraph for merging tests.';
+    visionCounter += 1;
+
+    // 每页给不同编号：真机用例靠它验证按页序合并、跳过页不参与。
+    return `Fake OCR article #${visionCounter}: the quick brown fox jumps over the lazy dog.`;
   }
 
   if (text.includes('词卡') || text.toLowerCase().includes('json')) {
