@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 后端 API 走 HTTPS，release 包也要联网；模板只在 debug/profile 里给这个权限。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="SceneLex"
         android:name="${applicationName}"
