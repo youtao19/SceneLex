@@ -20,9 +20,17 @@ void main() {
       );
     }).toList();
     final selected = OfflineVoice.selectAndroid(voices);
+    // 引擎自称支持 en-US 不代表有离线语音，两条信息分开记录才能看出差距。
+    final languageAvailable = {
+      'en-US': await tts.isLanguageAvailable('en-US'),
+      'en': await tts.isLanguageAvailable('en'),
+    };
     // 仅输出语音元数据，不包含设备标识、凭据或用户内容。
     final evidence = {
       'engine': await tts.getDefaultEngine,
+      'engines': await tts.getEngines,
+      'languageAvailable': languageAvailable,
+      'setLanguageEnUS': await tts.setLanguage('en-US'),
       'voices': voices,
       'selectedOfflineUS': selected?.name,
       'audibleOfflineVerified': false,
