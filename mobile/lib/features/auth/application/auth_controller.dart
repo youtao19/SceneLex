@@ -79,8 +79,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     }
 
     await ref.read(sessionCookieStoreProvider).clear();
-    // 提醒和通知也一起清：换账号不能看到上一个账号的内容。
+    // 提醒、通知和 OCR 临时图也一起清：换账号不能看到上一个账号的内容。
     await ref.read(reminderProvider.notifier).clearForLogout();
+    await ref.read(ocrDraftStorageProvider).cleanupStaleDrafts();
     state = const AsyncValue.data(null);
   }
 }

@@ -111,6 +111,17 @@ class DevicePrefs {
   Future<void> clearStudyPosition(int userId) =>
       _store.delete(_positionKey(userId));
 
+  String _ocrNoticeKey(int userId) => 'ocr_notice_seen_$userId';
+
+  /// 首次识别前必须说明图片会传给实际模型服务商，看过就按用户记住。
+  Future<bool> hasSeenOcrNotice(int userId) async {
+    return (await _store.read(_ocrNoticeKey(userId))) == 'true';
+  }
+
+  Future<void> markOcrNoticeSeen(int userId) {
+    return _store.write(_ocrNoticeKey(userId), 'true');
+  }
+
   String _reminderKey(int userId) => 'reminder_settings_$userId';
 
   Future<void> saveReminderSettings(int userId, ReminderSettings settings) {

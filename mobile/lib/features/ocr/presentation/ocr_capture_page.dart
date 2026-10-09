@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../app/providers.dart';
+import '../../auth/application/auth_controller.dart';
 import '../application/ocr_controller.dart';
 import '../data/ocr_api.dart';
 
@@ -17,6 +19,62 @@ class OcrCapturePage extends ConsumerStatefulWidget {
 
 class _OcrCapturePageState extends ConsumerState<OcrCapturePage> {
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 上次异常退出可能留下草稿，进流程时清一次（相册原文件不动）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(ocrDraftStorageProvider).cleanupStaleDrafts();
+    });
+  }
+
+  /// 首次识别前说明图片会传给配置的模型服务商；用户不同意就不上传。
+  Future<bool> _confirmThirdPartyNotice() async {
+    final userId = ref.read(authControllerProvider).value?.id;
+
+    if (userId == null) {
+      return false;
+    }
+
+    final prefs = ref.read(devicePrefsProvider);
+
+    if (await prefs.hasSeenOcrNotice(userId)) {
+      return true;
+    }
+
+    if (!mounted) {
+      return false;
+    }
+
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('图片会发送给模型服务商'),
+        content: const Text(
+          '识别会用你在设置里配置的多模态模型，图片会上传到该模型服务商的接口。'
+          '服务器上的原图在保存文章或取消后会删除，最长保留 24 小时；'
+          '第三方是否留存由服务商决定，我们无法代为删除。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('先不识别'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('知道了，开始识别'),
+          ),
+        ],
+      ),
+    );
+
+    if (agreed == true) {
+      await prefs.markOcrNoticeSeen(userId);
+    }
+
+    return agreed == true;
+  }
 
   Future<void> _pick(ImageSource source) async {
     if (_busy) {
@@ -183,7 +241,13 @@ class _OcrCapturePageState extends ConsumerState<OcrCapturePage> {
                 child: FilledButton(
                   onPressed: state.busy || state.pages.isEmpty
                       ? null
-                      : () => notifier.recognize(),
+                      : () async {
+                          if (!await _confirmThirdPartyNotice()) {
+                            return;
+                          }
+
+                          await notifier.recognize();
+                        },
                   child: Text(
                     state.batchId == null ? '开始识别' : '继续识别未完成的页',
                   ),
