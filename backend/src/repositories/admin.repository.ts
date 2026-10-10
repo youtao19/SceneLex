@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import { resolveEffectiveAccessStatus } from '../utils/access-status';
 import type { AccessStatus, UserRole } from '../types/auth';
 import type { AdminAccessKey, AdminUser } from '../types/admin';
 
@@ -29,8 +30,13 @@ interface AdminAccessKeyRow {
 
 /**
  * 管理页只展示授权需要的信息，避免把密码摘要等敏感字段带到前端。
+ *
+ * effectiveStatus 是算出来的实际可用状态：access_status 只记录人工动作，
+ * 到期不会回写，所以台账上直接显示 access_status 会把过期账号显示成「可用」。
  */
 function mapAdminUserRow(row: AdminUserRow): AdminUser {
+  const accessExpiresAt = new Date(row.access_expires_at).toISOString();
+
   return {
     id: Number(row.id),
     email: row.email,
@@ -38,7 +44,12 @@ function mapAdminUserRow(row: AdminUserRow): AdminUser {
     role: row.role,
     isVip: row.is_vip,
     accessStatus: row.access_status,
-    accessExpiresAt: new Date(row.access_expires_at).toISOString(),
+    effectiveStatus: resolveEffectiveAccessStatus({
+      role: row.role,
+      accessStatus: row.access_status,
+      accessExpiresAt,
+    }),
+    accessExpiresAt,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };

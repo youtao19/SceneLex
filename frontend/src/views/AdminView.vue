@@ -148,6 +148,7 @@
           <p class="eyebrow">USERS</p>
           <h3 id="users-title">用户授权台账</h3>
           <p class="muted-text">{{ usageNote }}</p>
+          <p class="muted-text">「状态」按到期时间实时判定：到期即失效，不需要手动改；管理员不受到期限制。</p>
         </div>
         <span class="state-pill">{{ users.length }} 个账号</span>
       </div>
@@ -173,8 +174,8 @@
           </span>
 
           <span role="cell">
-            <span class="status-chip" :class="`is-${user.accessStatus}`">
-              {{ accessStatusText(user.accessStatus) }}
+            <span class="status-chip" :class="`is-${user.effectiveStatus}`">
+              {{ accessStatusText(user.effectiveStatus) }}
             </span>
           </span>
 
@@ -385,19 +386,21 @@ const roleChangeTarget = ref<{
   nextRole: 'user' | 'admin'
 } | null>(null)
 
-const activeUserCount = computed(() => users.value.filter((user) => user.accessStatus === 'active').length)
+// 统计口径一律用 effectiveStatus：accessStatus 只是人工状态，
+// 拿它算「可用账号」会把早就过期的账号算进去。
+const activeUserCount = computed(() => users.value.filter((user) => user.effectiveStatus === 'active').length)
 
 const expiringSoonCount = computed(() => (
   users.value.filter((user) => {
     const days = readRemainingDays(user.accessExpiresAt)
-    return user.accessStatus === 'active' && days >= 0 && days <= 7
+    return user.effectiveStatus === 'active' && days >= 0 && days <= 7
   }).length
 ))
 
 const revokedKeyCount = computed(() => accessKeys.value.filter((accessKey) => accessKey.status === 'revoked').length)
 
 const averageRemainingDays = computed(() => {
-  const activeUsers = users.value.filter((user) => user.accessStatus === 'active')
+  const activeUsers = users.value.filter((user) => user.effectiveStatus === 'active')
 
   if (activeUsers.length === 0) {
     return 0

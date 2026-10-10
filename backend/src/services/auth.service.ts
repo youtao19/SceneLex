@@ -29,6 +29,7 @@ import type {
   RegisterPayload,
   UpdateProfilePayload,
 } from '../types/auth';
+import { resolveEffectiveAccessStatus } from '../utils/access-status';
 import { HttpError } from '../utils/http-error';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { createSessionToken, hashToken } from '../utils/token';
@@ -116,28 +117,19 @@ function getAccessExpiresAt(days: number) {
 
 /**
  * 账号可用性需要统一判断，避免登录和接口放行逻辑出现分叉。
+ * 判定规则本身在 utils/access-status：管理页显示状态时用的是同一个函数。
  */
 function getAccessIssue(user: AuthUser) {
-  if (user.accessStatus === 'suspended') {
+  const status = resolveEffectiveAccessStatus(user);
+
+  if (status === 'suspended') {
     return {
       status: 'suspended' as const,
       message: '账号已被停用，请联系管理员',
     };
   }
 
-  // 管理员是授权维护入口，不能因为普通访问有效期到期而失去救援能力。
-  if (user.role === 'admin') {
-    return null;
-  }
-
-  if (user.accessStatus === 'expired') {
-    return {
-      status: 'expired' as const,
-      message: '账号已过期，请联系管理员续期',
-    };
-  }
-
-  if (new Date(user.accessExpiresAt).getTime() <= Date.now()) {
+  if (status === 'expired') {
     return {
       status: 'expired' as const,
       message: '账号已过期，请联系管理员续期',

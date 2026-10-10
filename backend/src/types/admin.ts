@@ -6,7 +6,10 @@ export interface AdminUser {
   nickname: string;
   role: UserRole;
   isVip: boolean;
+  /** 库里存的人工状态（停用 / 恢复），到期不会回写这里。 */
   accessStatus: AccessStatus;
+  /** 实际能不能用，由人工状态和到期时间共同算出来 —— 台账显示的是它。 */
+  effectiveStatus: AccessStatus;
   accessExpiresAt: string;
   createdAt: string;
   updatedAt: string;

@@ -1,6 +1,9 @@
 import type { AuthUser } from './auth'
 
-export interface AdminUser extends AuthUser {}
+export interface AdminUser extends AuthUser {
+  /** 实际能不能用：由人工停用状态和到期时间共同算出来，台账显示的是它。 */
+  effectiveStatus: AuthUser['accessStatus']
+}
 
 export interface AdminAccessKey {
   id: number
