@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
-import app from './app';
+import express from 'express';
+import type { Response } from 'express';
+import compression from 'compression';
+import path from 'path';
+import app, { setStaticCacheHeaders, shouldCompress } from './app';
 
 /**
  * 这一层只覆盖「不需要数据库」的契约：健康检查、未登录拦截、跨域白名单。
@@ -57,6 +61,81 @@ describe('受保护路由', () => {
     const response = await request(app).get('/api/definitely-not-a-route');
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe('响应压缩', () => {
+  /**
+   * 静态资源只在 frontend/dist 存在时才挂载，而 CI 里 test 跑在 build 之前，
+   * 所以这里用同一个 filter 搭一个最小应用 —— 验证的是真实中间件行为，不是 mock。
+   */
+  const probeApp = express();
+
+  probeApp.use(compression({ filter: shouldCompress }));
+
+  probeApp.get('/json', (_req, res) => {
+    res.json({ payload: 'x'.repeat(2048) });
+  });
+
+  probeApp.get('/stream', (_req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    /**
+     * 故意不设 no-transform：真实的助手接口带了它，compression 默认就会跳过，
+     * 那样测到的是那个头而不是这里的过滤器。去掉它，这条用例才真的在验证过滤器本身。
+     */
+    res.setHeader('Cache-Control', 'no-cache');
+    res.flushHeaders();
+    // 载荷要越过 compression 的 1KB 阈值，否则过滤失效时也压不上，这条用例就抓不到回归。
+    res.write(`data: ${'x'.repeat(2048)}\n\n`);
+    res.end();
+  });
+
+  it('普通 JSON 响应会被压缩', async () => {
+    const response = await request(probeApp)
+      .get('/json')
+      .set('Accept-Encoding', 'gzip');
+
+    expect(response.headers['content-encoding']).toBe('gzip');
+  });
+
+  it('SSE 不压缩，否则助手回复会被攒在缓冲区里不再逐段出现', async () => {
+    const response = await request(probeApp)
+      .get('/stream')
+      .set('Accept-Encoding', 'gzip');
+
+    expect(response.headers['content-encoding']).toBeUndefined();
+    expect(response.text).toContain('data:');
+  });
+});
+
+describe('静态资源缓存头', () => {
+  function captureHeaders(filePath: string) {
+    const headers: Record<string, string> = {};
+    const res = {
+      setHeader(name: string, value: string) {
+        headers[name] = value;
+      },
+    } as unknown as Response;
+
+    setStaticCacheHeaders(res, filePath);
+
+    return headers;
+  }
+
+  it('文件名带哈希的 assets 可以长期缓存', () => {
+    const headers = captureHeaders(
+      path.join('/app', 'frontend', 'dist', 'assets', 'index-Cu1T6l2G.js'),
+    );
+
+    expect(headers['Cache-Control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('文件名没有哈希的静态文件每次回源校验', () => {
+    const headers = captureHeaders(
+      path.join('/app', 'frontend', 'dist', 'favicon.ico'),
+    );
+
+    expect(headers['Cache-Control']).toBe('no-cache');
   });
 });
 
