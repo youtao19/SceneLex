@@ -4,7 +4,17 @@ import { runMigrations } from './migrations';
 
 let pool: Pool | null = null;
 
-const SYSTEM_WORD_BOOK_SEEDS = [
+/**
+ * 有全量词表的书（cet6/tem4/tem8），种子词必须都能在对应的词表 JSON 里找到。
+ *
+ * 种子只负责给新装库垫几个参考词，全量导入后它们应该隐形地融进词表。一旦某个种子词
+ * 不在词表里，导入之后它就成了书里的孤儿：每次启动都被播种补回书首、order_index 和
+ * 别的词撞车、difficulty 还是 'core'。线上曾经有 9 个这样的词（cet6:approximate、
+ * tem4:morphology、tem8:aesthetic 等），2026-10-10 清掉，规则由 database.test.ts 钉住。
+ *
+ * cet4 和 postgraduate 没有全量词表，这 10 个词就是它们的全部内容。
+ */
+export const SYSTEM_WORD_BOOK_SEEDS = [
   {
     code: 'cet4',
     name: '四级核心词',
@@ -33,10 +43,10 @@ const SYSTEM_WORD_BOOK_SEEDS = [
         ],
       },
       {
-        word: 'approximate',
+        word: 'conventional',
         examMeanings: [
-          { partOfSpeech: 'adj.', meaning: '大约的', priority: 1 },
-          { partOfSpeech: 'v.', meaning: '接近', priority: 2 },
+          { partOfSpeech: 'adj.', meaning: '传统的', priority: 1 },
+          { partOfSpeech: 'adj.', meaning: '常规的', priority: 2 },
         ],
       },
       {
@@ -102,14 +112,14 @@ const SYSTEM_WORD_BOOK_SEEDS = [
     name: '专四核心词',
     description: '英语专业四级基础核心词，兼顾语言学术表达和常用语义辨析。',
     sortOrder: 40,
-    words: ['coherent', 'compound', 'connotation', 'dictation', 'fluent', 'interpret', 'literal', 'morphology', 'phrase', 'syntax'],
+    words: ['comprehension', 'compound', 'eloquent', 'phonetic', 'fluent', 'idiom', 'syllable', 'vowel', 'grammatical', 'syntax'],
   },
   {
     code: 'tem8',
     name: '专八核心词',
     description: '英语专业八级进阶词，适合高阶阅读、翻译和写作积累。',
     sortOrder: 50,
-    words: ['aesthetic', 'allegory', 'discourse', 'elaborate', 'empirical', 'metaphor', 'nuance', 'paradigm', 'rhetoric', 'sophisticated'],
+    words: ['ephemeral', 'allegory', 'discourse', 'elaborate', 'empirical', 'metaphor', 'nuance', 'paradigm', 'rhetoric', 'sophisticated'],
   },
 ];
 
