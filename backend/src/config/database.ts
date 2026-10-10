@@ -208,14 +208,38 @@ async function seedSystemWordBooks() {
 }
 
 /**
+ * 没有连接串就直接失败，不要「警告一句然后照常监听端口」。
+ *
+ * 之前的行为是跳过初始化继续启动，于是 /health 照样返回 200：部署脚本、
+ * 健康检查和监控都显示发布成功，而每个真实请求都在报数据库错误，
+ * 排查时得先怀疑一圈无关的东西。宁可起不来。
+ *
+ * 与 USER_API_KEY_SECRET 不同，这里不区分环境——没有数据库的后端
+ * 在任何环境里都没有意义，本地也一样。
+ */
+export function assertDatabaseConfigured(databaseUrl: string) {
+  if (databaseUrl) {
+    return;
+  }
+
+  throw new Error(
+    [
+      'DATABASE_URL 未配置，拒绝启动。',
+      '',
+      '本地开发：写进 backend/.env.dev.local（格式见 backend/.env 模板）。',
+      '  连线上库调试要先开隧道：npm run dev:db-tunnel',
+      '生产环境：写进 ecosystem.config.cjs 的 env 块，然后',
+      '  pm2 restart ecosystem.config.cjs --only scenelex --update-env',
+    ].join('\n'),
+  );
+}
+
+/**
  * 建表交给版本化迁移，这里只负责「迁移 + 参考数据」两件事。
  * DDL 直接写在代码里会失去版本记录，改列时无处回滚，所以全部搬到了 backend/migrations。
  */
 export async function initializeDatabase() {
-  if (!env.databaseUrl) {
-    console.warn('DATABASE_URL 未配置，跳过 PostgreSQL 初始化。');
-    return;
-  }
+  assertDatabaseConfigured(env.databaseUrl);
 
   if (!env.migrateOnStartup) {
     // 本地开发连线上库时必须关掉：启动自动迁移会把本地还没发布的迁移直接应用到线上。

@@ -254,6 +254,8 @@ The template is `fork` mode with `instances: 1` on purpose. The rate limiter and
 
 In production the backend loads **no** `.env` file — `src/config/env.ts` only reads one outside production. Everything has to arrive through the `env` block (or the systemd/container environment): `DATABASE_URL` and `USER_API_KEY_SECRET` are required, the rest have defaults. After editing the file, reload it with `pm2 restart ecosystem.config.cjs --only scenelex --update-env`; a plain `pm2 restart scenelex` will not pick up the change.
 
+Missing either required variable is a startup failure, not a warning. That is deliberate for both: a backend with no database still answers `/health` with 200, so a deploy would look green while every real request failed, and a missing `USER_API_KEY_SECRET` silently encrypts user keys with a constant published in this repository.
+
 ### Reverse proxy and client IP
 
 Whenever the backend sits behind a proxy, set `TRUST_PROXY_HOPS` to the number of proxies in front of it — `2` for the default Cloudflare → Nginx setup, `1` if Nginx is the only one. The default is `2`.
