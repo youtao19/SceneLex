@@ -30,5 +30,7 @@ ocr-service/uploads/*
 ecosystem.config.cjs
 # ecosystem.config.example.cjs 里 PM2 日志的落盘目录
 logs/
+# dev:db-tunnel 的目标服务器，写在这里就不必每次敲 SERVER=...
+scripts/.tunnel-server
 # 交接改造待办：列有尚未修复的安全问题与基础设施信息，修完之前不进仓库。
 todolist.md

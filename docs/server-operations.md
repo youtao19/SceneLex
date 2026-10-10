@@ -1,6 +1,12 @@
 # SceneLex 服务器操作文档
 
-本文档记录 SceneLex 在服务器 `<origin-ip-removed>` 上的实际运行方式，以及更新代码后的重启步骤。
+本文档记录**这一台**生产服务器的实际运行方式与历史核验结果。
+
+> **通用部署步骤不在这里**，在 [`deployment.md`](deployment.md)。本文只写这台机器特有的事实
+> （目录、域名、备份位置、已知坑），两者内容冲突时以 `deployment.md` 为准。
+
+服务器地址不在文档里写死：公开的源站 IP 会让 Cloudflare 的防护形同虚设。
+地址维护在运维者本地——`scripts/.tunnel-server`（已 gitignore）或 `~/.ssh/config` 的别名。
 
 最近一次运行状态核验：2026-10-08（北京时间）。当天随后完成了一次真实发布，把服务器切到 `main` 并启用了迁移机制；发布结果见下面「本次验证范围」。
 
@@ -29,7 +35,7 @@
 用户浏览器
 -> https://scenlex.cn 或 https://www.scenlex.cn
 -> Cloudflare
--> <origin-ip-removed> 的 Nginx 443
+-> 生产服务器的 Nginx 443
 -> http://127.0.0.1:3003
 -> Express 后端
    ├─ 页面和静态资源 -> /root/SceneLex/frontend/dist
@@ -75,44 +81,39 @@ Express 后端同时负责两件事：
 ## 登录服务器
 
 ```bash
-ssh root@<origin-ip-removed>
+ssh root@<生产服务器地址>      # 地址见 scripts/.tunnel-server 或 ~/.ssh/config
 cd /root/SceneLex
 ```
 
 ## 更新代码并重启服务
 
-部署步骤是：备份数据库 → 从 Gitee 更新代码 → 安装依赖 → `npm run verify` → 重启 PM2 → 检查服务。
+通用步骤（备份 → 拉代码 → 装依赖 → `npm run verify` → 重启 → 健康检查）见
+[`deployment.md` 第 10 节](deployment.md#10-升级)。这里只列这台机器的具体值：
 
-仓库现有主线约定为 `main`，旧的 `production` 分支已删除。服务器已于 2026-10-08 切到 `main`，下面的 `git switch main` 只对新环境需要。
+| 项 | 本机的值 |
+|---|---|
+| 项目目录 | `/root/SceneLex` |
+| 备份目录 | `/root/backups` |
+| 拉取远端 | `gitee`（服务器上 `origin` 与 `gitee` 同址） |
+| 分支 | `main`（旧的 `production` 已于 2026-10-08 删除） |
+| PM2 应用名 | `scenelex` |
 
-先登录服务器并检查工作区；如果有未提交修改，先确认其用途，不要直接覆盖：
-
-```bash
-cd /root/SceneLex
-git status
-```
-
-**先备份数据库并确认命令成功，再继续发布。** 后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据：
-
-```bash
-set -o pipefail
-mkdir -p /root/backups
-sudo -u postgres pg_dump scenelex_db | gzip > /root/backups/scenelex_db-$(date +%F-%H%M).sql.gz
-```
-
-工作区干净、备份成功后，在 Bash 中执行；任何一步失败都应停止后续步骤：
+对应命令：
 
 ```bash
 set -e
 cd /root/SceneLex
+git status                              # 有未提交修改先确认用途，不要直接覆盖
 git fetch gitee main
-git switch main
 git pull --ff-only gitee main
-npm install             # 依赖变了不装会让构建或启动失败
-npm run verify          # 类型检查 + 测试 + 构建，先在服务器上跑一遍再重启
+npm install
+npm run verify
 pm2 restart scenelex
 pm2 save
 ```
+
+> 备份命令见 deployment.md 第 9 节，把目录换成 `/root/backups`。**先备份并确认成功，再动代码**——
+> 后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据。
 
 > 用 `pm2 restart scenelex` 即可；只有改了 `ecosystem.config.cjs` 才需要用 `pm2 restart ecosystem.config.cjs --only scenelex --update-env` 重新读取环境变量。
 

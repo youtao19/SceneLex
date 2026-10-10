@@ -254,7 +254,9 @@ npm run start:tunnel
 
 ## Operations
 
-Server update and restart notes: [docs/server-operations.md](docs/server-operations.md).
+Deploying to a new server — prerequisites, database, configuration, Nginx, HTTPS, backup, upgrade and rollback — is covered step by step in [docs/deployment.md](docs/deployment.md).
+
+[docs/server-operations.md](docs/server-operations.md) is a different thing: a snapshot of one particular production server (paths, backup location, release history). It is not a deployment guide, and it goes stale.
 
 Create an access key:
 
