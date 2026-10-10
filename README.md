@@ -49,7 +49,11 @@ views, components, stores, services, types, utils
 - Node.js 22 or newer is recommended.
 - PostgreSQL with a writable database.
 - An OpenAI-compatible model endpoint (DeepSeek, Kimi, a local Ollama, or anything else). There is no server-side fallback key, so each user must configure one before generation or OCR works.
-- `uv` if you want to run the Python OCR service.
+
+Depending on which OCR method you use, one of these as well:
+
+- `tesseract-ocr` — the `tesseract` method shells out to the `tesseract` binary, and it is also what the API falls back to when a request omits `method`. Install with `apt install tesseract-ocr` (Debian/Ubuntu) or `brew install tesseract` (macOS). The backend runs it as `tesseract <file> stdout -l eng`, so the English language data has to be present (`tesseract-ocr-eng` on Debian/Ubuntu, included on macOS); check with `tesseract --list-langs`. The reading page UI does not currently offer this method.
+- `uv` if you want to run the Python OCR service (the `paddle` method).
 
 ## Quick Start
 
@@ -210,6 +214,8 @@ OCR_SERVICE_URL=http://127.0.0.1:8001/ocr
 ```
 
 Vision OCR runs on the user's own endpoint: give one of your endpoints a vision model, and pick `vision` as the OCR method in the reading page. Images are sent as base64 data URLs, because Ollama's chat/completions accepts base64 but not image URLs.
+
+There are three methods — `tesseract`, `paddle`, `vision` — but the reading page currently only renders `vision`; the other two are reachable through the API (`POST /api/ocr`) but not from the UI. That is why `tesseract` being the API-level default is easy to miss: leave `method` out of a request and the backend will try to exec a binary that may not be installed. Pass `method` explicitly.
 
 `OCR_TIMEOUT` controls the vision request timeout; Tesseract and PaddleOCR have their own (`TESSERACT_OCR_TIMEOUT`, `PADDLE_OCR_TIMEOUT`).
 

@@ -18,7 +18,8 @@
 
 按需安装：
 
-- **`tesseract-ocr`** —— 默认 OCR 方法就是它，靠外部二进制执行。不装的话默认 OCR 路径直接报错。
+- **`tesseract-ocr`** —— `tesseract` 这个方法靠外部二进制执行，而且接口在请求没带 `method` 时就是回落到它。
+  网页端目前只用 `vision`，所以不装它日常也能跑；但直接调 `POST /api/ocr` 且不带 `method` 会报 `spawn tesseract ENOENT`。
 - **`uv`** —— 只有要跑 `ocr-service` 这个 Python 微服务才需要。
 - **Cloudflare R2** —— 只有头像要放对象存储才需要，否则存在服务器本地磁盘。
 
