@@ -59,11 +59,11 @@ Vitest runs in both apps; `npm test` from the root runs both suites. Keep tests 
 - When a rule is subtle or easy to regress (review scheduling, password/token handling), add a test that states the rule rather than the implementation.
 
 ## Commit & Pull Request Guidelines
-This repository currently has no commit history, so use short imperative commit messages such as `Add word generation API wiring`. Keep each commit focused on one change set.
+Commit subjects are Chinese with a conventional-commit prefix — `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `perf:`, `test:`. Keep the subject to one line and put the reasoning in the body when it is not obvious from the diff. Keep each commit focused on one change set.
 
 `main` is the single development branch — do not leave long-lived feature branches around. CI (`.github/workflows/ci.yml`) runs `typecheck`, `test`, and `build` on every push and pull request to `main`.
 
-PRs should include a clear summary, verification steps, related issue links if available, and screenshots or request/response samples for UI or API changes. Call out new environment variables such as `PORT`, `AI_PROVIDER`, or `DATABASE_URL`, and call out any migration that touches or deletes existing data.
+PRs should include a clear summary, verification steps, related issue links if available, and screenshots or request/response samples for UI or API changes. Call out new environment variables such as `PORT`, `DATABASE_URL`, or `USER_API_KEY_SECRET`, and call out any migration that touches or deletes existing data.
 
 ## Development Specifications
 + The code should be simple and easy to understand.

@@ -319,13 +319,9 @@ npm --prefix backend run dict:import-db
 
 ## Verification
 
-There is currently no dedicated test runner configured. Use the build as the minimum check:
+The automated gate is `npm run verify` (typecheck + vitest + build) — see [Development Workflow](#development-workflow). It is the same command CI runs on every push. Backend tests that need a database are skipped unless `RUN_DB_TESTS=1` is set.
 
-```bash
-npm run build
-```
-
-For a basic manual smoke test:
+Beyond that, a basic manual smoke test:
 
 1. Start the app with `npm run dev`.
 2. Open `http://localhost:9003`.
