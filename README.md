@@ -229,6 +229,23 @@ npm run start:prod
 
 When `frontend/dist` exists, the backend serves the built frontend and API from the same port. User avatars are uploaded to Cloudflare R2 when all `R2_*` variables are configured; otherwise they fall back to `/uploads/avatars`.
 
+### Running under PM2
+
+`npm run start:prod` runs the server in the foreground with no supervisor. For a real deployment, use the PM2 template:
+
+```bash
+cp ecosystem.config.example.cjs ecosystem.config.cjs
+# fill in DATABASE_URL and USER_API_KEY_SECRET
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+`ecosystem.config.cjs` is gitignored because it holds the database password and model keys; the `*.example.cjs` template holds none and is tracked, so keep real values out of it.
+
+The template is `fork` mode with `instances: 1` on purpose. The rate limiter and the model concurrency queue live in process memory, so a second instance would double every quota instead of sharing it.
+
+In production the backend loads **no** `.env` file — `src/config/env.ts` only reads one outside production. Everything has to arrive through the `env` block (or the systemd/container environment): `DATABASE_URL` and `USER_API_KEY_SECRET` are required, the rest have defaults. After editing the file, reload it with `pm2 restart ecosystem.config.cjs --only scenelex --update-env`; a plain `pm2 restart scenelex` will not pick up the change.
+
 For temporary public sharing through ngrok:
 
 ```bash
