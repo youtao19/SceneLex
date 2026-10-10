@@ -251,6 +251,18 @@ npm run user:resume
 npm run user:renew
 ```
 
+### Creating the first admin
+
+The admin API is admin-only, so a fresh database has no way to promote anyone through the app. Use the scripts instead:
+
+```bash
+npm run key:create -- --days 30        # mint an access key (works without any admin)
+# register an account with that key in the app
+npm run user:promote -- --email you@example.com
+```
+
+`user:promote` is idempotent, so running it again is safe. `npm run user:demote -- --email <邮箱>` reverses it and refuses to remove the last remaining admin, which would otherwise leave nobody able to sign access keys.
+
 Admin accounts keep login and admin-panel access after `access_expires_at`; use `user:suspend` when an admin must be explicitly disabled.
 
 Prewarm CET-6 system word cards:
