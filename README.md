@@ -154,6 +154,26 @@ There is no server-side fallback key. Each user configures their own endpoints i
 
 An endpoint is a base URL, an API key, and a model name; the vision model is a separate field on the same endpoint (leave it empty if that endpoint should not do OCR). Users can keep several endpoints and pick one as the default. Settings ships presets for DeepSeek, Kimi, and a local Ollama — a preset just fills the form, it is not a whitelist.
 
+### For a new user: add an endpoint before anything else
+
+A fresh account can look up dictionary entries but cannot generate anything. Card generation, sentence translation, the reading assistant and image OCR all run on *somebody's* model endpoint, and there is no server-side fallback key — so a new user who has not configured one gets a `400 还没有配置模型端点` the first time they press a button. The home page says so up front and links to Settings.
+
+What to tell them:
+
+1. Open **设置** (Settings) → **新建端点**.
+2. Pick a preset (DeepSeek / Kimi / local Ollama) or fill the form by hand: a base URL, an API key, a model name.
+3. Press **测试连接** — it sends one tiny request and verifies the address, the key and the model name in one shot. Save only after it says 连接成功.
+4. Make it the default endpoint if it is their only one.
+
+The base URL is the OpenAI-compatible root, e.g. `https://api.deepseek.com/v1` — not the provider's website, and normally ending in `/v1`. A key comes from the provider's own console; there is no shared key to hand out from this repository.
+
+Two constraints worth knowing before they hit them:
+
+- A user-supplied endpoint must be **https**. Plain `http` is only allowed for addresses an admin maintained as a preset, because the API key travels in the request.
+- An endpoint's **vision model** field is what enables image OCR. Leave it empty and OCR fails with `没有可用于 OCR 的端点`, even though card generation works fine.
+
+If a user cannot get a key of their own, the alternative is the admin's shared system endpoint — see below — which is capped per user per day and per month.
+
 ### System endpoint and VIP
 
 An admin can configure one **system endpoint** in `/admin`. It is the shared, admin-funded fallback, so a user who cannot or will not configure their own endpoint can still generate cards and run OCR — they just need to be marked **VIP**.

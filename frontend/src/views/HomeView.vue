@@ -1,6 +1,16 @@
 <template>
   <div class="dashboard-page">
     <main class="dashboard-container">
+      <section v-if="endpointNotice" class="endpoint-notice" role="status">
+        <div class="endpoint-notice-copy">
+          <strong>{{ endpointNotice.title }}</strong>
+          <p>{{ endpointNotice.detail }}</p>
+        </div>
+        <RouterLink v-if="endpointNotice.toSettings" to="/settings" class="peach-button endpoint-notice-action">
+          去设置
+        </RouterLink>
+      </section>
+
       <article class="main-dashboard-card surface-card" :class="{ 'is-active': preview || lookupPreview || lookupMissingWord }">
         
         <!-- 搜索头部 -->
@@ -150,9 +160,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import WordMeaningsPanel from '../components/WordMeaningsPanel.vue'
+import { fetchEndpoints } from '../services/settings.service'
 import { fetchWordBooks } from '../services/word-book.service'
 import { addWord, generateWord, lookupWord } from '../services/word.service'
+import type { SystemEndpointStatus } from '../types/settings'
 import type { WordBook } from '../types/word-book'
 import type { WordGenerateData, WordLookupData } from '../types/word'
 
@@ -168,6 +181,47 @@ const bookLoading = ref(false)
 const saveLoading = ref(false)
 const showBookOptions = ref(false)
 const errorMessage = ref('')
+
+/**
+ * null 表示还没读到端点状态：这时不提示，免得首屏闪一下又消失。
+ */
+const ownEndpointCount = ref<number | null>(null)
+const systemEndpoint = ref<SystemEndpointStatus | null>(null)
+
+/**
+ * 新注册的人拿到的是一个空账号，第一次点「生成场景词卡」只会收到一条报错。
+ * 所以这里提前告诉他缺什么、去哪补——查词库释义不需要端点，生成才需要。
+ */
+const endpointNotice = computed(() => {
+  if (ownEndpointCount.value === null || !systemEndpoint.value) {
+    return null
+  }
+
+  if (ownEndpointCount.value > 0) {
+    return null
+  }
+
+  const system = systemEndpoint.value
+
+  if (system.canUse && system.available) {
+    return null
+  }
+
+  // 有资格用系统端点但管理员还没配：这不是用户能自己解决的事，别让他白跑设置页。
+  if (system.canUse) {
+    return {
+      title: '系统端点还没配置好',
+      detail: '你的账号可以使用系统端点，但管理员还没填好它的地址和模型，请联系管理员。',
+      toSettings: false,
+    }
+  }
+
+  return {
+    title: '先配置一个模型端点，才能生成词卡',
+    detail: '查词库释义不需要端点；生成场景词卡、句子翻译和拍照识读都要用你自己的模型端点。',
+    toSettings: true,
+  }
+})
 
 const showManualSave = computed(() => preview.value?.saved === false)
 const saveButtonText = computed(() => (showManualSave.value ? '确认保存' : '保存到单词本'))
@@ -233,6 +287,20 @@ async function loadWordBooks() {
     errorMessage.value = '单词本读取失败，将保存到默认单词本。'
   } finally {
     bookLoading.value = false
+  }
+}
+
+/**
+ * 端点状态读不到时不提示：这种情况下页面别处已经有错误可看，
+ * 再叠一个「去设置」的横幅只会让人以为是端点的问题。
+ */
+async function loadEndpointState() {
+  try {
+    const response = await fetchEndpoints()
+    ownEndpointCount.value = response.data.endpoints.length
+    systemEndpoint.value = response.data.system
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -333,6 +401,7 @@ async function handleRegenerate() {
 }
 
 onMounted(loadWordBooks)
+onMounted(loadEndpointState)
 </script>
 
 <style scoped>
@@ -375,6 +444,48 @@ onMounted(loadWordBooks)
   gap: 20px;
   border-bottom: 1px solid var(--sl-glass-border);
   background: var(--sl-glass-bg); /* 修改为使用主题变量 */
+}
+
+/**
+ * 新用户的第一屏：还没配端点时告诉他缺什么。
+ * 用中性的暖色提示，不用报错红——这不是出错，是还没开始。
+ */
+.endpoint-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 18px;
+  padding: 18px 24px;
+  border: 1px solid rgba(214, 132, 92, 0.28);
+  border-radius: var(--sl-radius-lg);
+  background: rgba(255, 245, 238, 0.9);
+}
+
+.endpoint-notice-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.endpoint-notice-copy strong {
+  color: #8a4b23;
+  font-size: 15px;
+}
+
+.endpoint-notice-copy p {
+  margin: 0;
+  color: #7b6a5e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.endpoint-notice-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
 .dashboard-error {
