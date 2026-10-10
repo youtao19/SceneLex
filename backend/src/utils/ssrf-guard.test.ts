@@ -159,6 +159,40 @@ describe('assertSafeEndpointUrl', () => {
     });
 
     /**
+     * 出站客户端会在 baseUrl 后面接 /chat/completions。只认整串相等的话，
+     * 本机 Ollama 保存时能过、调用时被判成非可信，等于完全用不了。
+     */
+    it('预设地址下面拼接的路径同样豁免', async () => {
+      await expect(
+        assertSafeEndpointUrl('http://localhost:11434/v1/chat/completions', { trustedUrls: trusted }),
+      ).resolves.toBeInstanceOf(URL);
+    });
+
+    it('路径前缀必须落在分隔符上，v1evil 不算同一个预设', async () => {
+      resolveTo('127.0.0.1');
+
+      await expect(
+        assertSafeEndpointUrl('http://localhost:11434/v1evil', { trustedUrls: trusted }),
+      ).rejects.toThrow(/必须使用 https/);
+    });
+
+    /**
+     * 地址里的 localhost 只是账号部分，真正的主机是 evil.example.com ——
+     * 前缀比对必须按解析后的 host 来，比字符串就会被这种写法骗过去。
+     */
+    it('用账号密码伪装成预设主机的地址不豁免', async () => {
+      resolveTo('93.184.216.34');
+
+      await expect(
+        assertSafeEndpointUrl('http://localhost:11434@evil.example.com/v1', { trustedUrls: trusted }),
+      ).rejects.toThrow(/必须使用 https/);
+
+      await expect(
+        assertSafeEndpointUrl('https://localhost:11434@evil.example.com/v1', { trustedUrls: trusted }),
+      ).rejects.toThrow(/账号密码/);
+    });
+
+    /**
      * 可信性来自「和预设逐字比对」，所以用户不能靠伪造标记绕过。
      */
     it('用户填的相似地址不享受豁免', async () => {

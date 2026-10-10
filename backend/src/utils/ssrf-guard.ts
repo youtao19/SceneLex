@@ -92,17 +92,42 @@ export class UnsafeEndpointUrlError extends Error {}
 
 /**
  * 管理员维护的预设指向本机（Ollama 默认 http://localhost:11434）是合理的，
- * 所以可信性必须由「和预设列表逐字比对」得出，而不是由用户提交的某个标记位决定 ——
+ * 所以可信性必须由「和预设列表比对」得出，而不是由用户提交的某个标记位决定 ——
  * 否则用户自己标个 trusted 就绕过了全部校验。
+ *
+ * 比的是「同源 + 路径前缀」，不是整串相等：出站客户端会在 baseUrl 后面接上
+ * /chat/completions，只认整串的话，http 的预设地址会在保存时通过、在调用那一刻
+ * 被判成非可信 —— 本机 Ollama 就是这样彻底用不了的。
+ *
+ * 前缀必须落在路径分隔符上，否则 http://localhost:11434/v1 会连带放行 v1evil。
  */
 function isTrustedEndpointUrl(rawUrl: string, trustedUrls: string[]) {
-  const normalized = normalizeUrlForCompare(rawUrl);
+  let url: URL;
 
-  return trustedUrls.some((item) => normalizeUrlForCompare(item) === normalized);
-}
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return false;
+  }
 
-function normalizeUrlForCompare(value: string) {
-  return value.trim().replace(/\/+$/, '').toLowerCase();
+  return trustedUrls.some((item) => {
+    let trusted: URL;
+
+    try {
+      trusted = new URL(item);
+    } catch {
+      return false;
+    }
+
+    // 同源比较天然覆盖账号密码：http://localhost:11434/v1@evil.com 的 host 是 evil.com。
+    if (url.protocol !== trusted.protocol || url.origin !== trusted.origin) {
+      return false;
+    }
+
+    const prefix = trusted.pathname.replace(/\/+$/, '');
+
+    return url.pathname === prefix || url.pathname.startsWith(`${prefix}/`);
+  });
 }
 
 /**
