@@ -4,13 +4,15 @@
  */
 
 import app from './app'
-import { env } from './config/env'
+import { assertProductionConfig, env } from './config/env'
 import { initializeDatabase } from './config/database'
 import { dictionaryService } from './services/dictionary.service'
 import { cleanupExpiredOcrBatches } from './services/ocr-batch.service'
 import { ensureOcrTempDirs } from './services/ocr-storage.service'
 
 async function startServer() {
+  // 放在连数据库之前：配置错误应该立刻退出，不必先等一次连接超时。
+  assertProductionConfig(env)
   await initializeDatabase()
   // 过期原图只在启动时清一次：SPEC 明确不做后台常驻任务，也不保证关机后继续执行。
   await ensureOcrTempDirs()

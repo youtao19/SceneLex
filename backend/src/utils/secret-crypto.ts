@@ -7,10 +7,30 @@ import { env } from '../config/env'
  */
 
 /**
- * 生产环境应显式配置密钥；本地兜底只为避免开发库无法读写旧设置。
+ * 生产环境必须显式配置密钥；本地兜底只为避免开发库无法读写旧设置。
+ *
+ * 启动时 assertProductionConfig 已经拦过一次，这里再判一次是因为加密函数
+ * 也可能被脚本直接引用而不经过 server.ts —— 那时候更不能悄悄用一个公开常量。
+ * 写成纯函数是为了能直接测，不必真去改进程的 NODE_ENV。
  */
+export function resolveEncryptionSecret(config: {
+  nodeEnv: string;
+  userApiKeySecret: string;
+  databaseUrl: string;
+}) {
+  if (config.userApiKeySecret) {
+    return config.userApiKeySecret
+  }
+
+  if (config.nodeEnv === 'production') {
+    throw new Error('USER_API_KEY_SECRET 未配置，无法加解密用户端点的 API Key')
+  }
+
+  return config.databaseUrl || 'scenelex-local-dev-key'
+}
+
 function getEncryptionSecret() {
-  return env.userApiKeySecret || env.databaseUrl || 'scenelex-local-dev-key'
+  return resolveEncryptionSecret(env)
 }
 
 /**

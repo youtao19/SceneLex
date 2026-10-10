@@ -16,6 +16,36 @@ export function readMigrateOnStartup(value: string | undefined) {
   return value !== 'false';
 }
 
+/**
+ * 生产环境的配置错误必须在启动时就炸掉，不能等第一个请求进来才发现。
+ * 缺 USER_API_KEY_SECRET 尤其危险：加密函数会退化成仓库里公开的兜底字符串，
+ * 等于所有用户的模型 Key 都用一个公开常量加密，而且从外面完全看不出来。
+ *
+ * 写成接收参数的纯函数而不是直接读 env，是为了能在测试里构造各种取值。
+ */
+export function assertProductionConfig(config: {
+  nodeEnv: string;
+  userApiKeySecret: string;
+}) {
+  if (config.nodeEnv !== 'production') {
+    return;
+  }
+
+  if (!config.userApiKeySecret) {
+    throw new Error(
+      [
+        'USER_API_KEY_SECRET 未配置，拒绝启动。',
+        '它用于加密用户保存的模型 API Key；缺失时会退化成仓库里公开的兜底值。',
+        '',
+        '在 ecosystem.config.cjs 的 env 块里加一行 USER_API_KEY_SECRET（够长的随机串），然后：',
+        '  pm2 restart ecosystem.config.cjs --only scenelex --update-env',
+        '',
+        '注意：一旦有用户保存过端点就不能再改这个值，改了旧密文全部解不开。',
+      ].join('\n'),
+    );
+  }
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3003),

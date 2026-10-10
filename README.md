@@ -191,7 +191,9 @@ VIP is a single flag (`users.is_vip`) whose only meaning is *may use the system 
 
 > **VIP does not extend the account.** A user whose `access_expires_at` has passed is rejected by the access middleware with `403 账号已过期，请联系管理员续期` before any model call runs. Giving someone access means **renewing their account and marking them VIP** — doing only the second one leaves them looking at an expiry error.
 
-Set `USER_API_KEY_SECRET` before users save endpoints. Do not change it casually afterwards, because existing encrypted keys will no longer decrypt.
+Set `USER_API_KEY_SECRET` before users save endpoints, and then leave it alone — it is the key those endpoints are encrypted with, so changing it makes every stored endpoint undecryptable and every user has to paste their API key again.
+
+In production this is enforced rather than merely advised: the backend refuses to start when `NODE_ENV=production` and the variable is unset, because the alternative is silently falling back to a constant that is published in this repository.
 
 ### User-supplied URLs are untrusted
 
