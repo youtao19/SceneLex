@@ -180,6 +180,35 @@ describe('跨域白名单', () => {
 
     expect(response.headers['access-control-allow-origin']).toBeUndefined();
   });
+
+  /**
+   * 浏览器对非 GET 的同源请求也会带 Origin。所以只要部署时没把站点自己的
+   * 域名配进 CORS_ORIGINS，前端每次 POST 都会带上一个"不在白名单"的 Origin——
+   * 那时候必须只是不给放行头，不能整个请求 500。
+   */
+  it('白名单外的 Origin 不会让请求变成 500', async () => {
+    const response = await request(app)
+      .post('/api/words')
+      .set('Origin', 'http://127.0.0.1:3097')
+      .send({ word: 'curious' });
+
+    expect(response.status).toBe(401);
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('放行的域名照常拿到凭据，不带 Origin 的请求也不受影响', async () => {
+    const allowed = await request(app)
+      .post('/api/words')
+      .set('Origin', 'http://localhost:9003')
+      .send({ word: 'curious' });
+
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:9003');
+    expect(allowed.headers['access-control-allow-credentials']).toBe('true');
+
+    const noOrigin = await request(app).post('/api/words').send({ word: 'curious' });
+
+    expect(noOrigin.status).toBe(401);
+  });
 });
 
 /**

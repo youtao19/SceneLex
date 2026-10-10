@@ -57,7 +57,16 @@ const apiCors = cors({
       return
     }
 
-    callback(new Error('CORS origin is not allowed'))
+    // 不抛错，只是不返回放行头。
+    //
+    // 以前这里 callback(new Error(...))，结果是 500。而浏览器对**非 GET 的同源
+    // 请求也会带 Origin**，所以只要部署时没把站点自己的域名配进
+    // CORS_ORIGINS，前端每次登录、注册、保存单词都会 500 —— 看着像后端坏了。
+    //
+    // 抛错也并不能多挡住什么：CORS 由浏览器强制，非浏览器客户端（curl）本来就
+    // 无视它，跨站表单提交也照样发得出去（那是 SameSite Cookie 在防）。
+    // 不给放行头，跨域浏览器请求自然读不到响应，这才是正确的语义。
+    callback(null, false)
   }
 })
 

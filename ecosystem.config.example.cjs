@@ -55,6 +55,11 @@ module.exports = {
         USER_API_KEY_SECRET: 'change-me-to-a-long-random-string',
 
         // ---- 可选：按需打开 ----
+        // 允许跨域访问 API 的前端来源，逗号分隔（旧名字 APP_ORIGIN 仍可用）。
+        // 前后端同源部署时可以留空——同源请求不需要 CORS 放行头。
+        // 只有前端在别的域名/端口上才需要填。
+        // CORS_ORIGINS: 'https://app.example.com',
+
         // 前面有几层代理。默认 2 = Cloudflare → Nginx，这也是本项目的线上链路；
         // 只有 Nginx 一层时设 1，完全直连时设 0。
         // 设错的后果见 README「Reverse proxy and client IP」：数少了登录限流
