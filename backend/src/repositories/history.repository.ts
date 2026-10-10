@@ -27,6 +27,11 @@ interface HistorySummaryRow {
 }
 
 /**
+ * 汇总和列表合成一次扫描后，每行都会带上同一份汇总值。
+ */
+interface HistoryRow extends WordRow, HistorySummaryRow {}
+
+/**
  * pg 的 DATE 运行时可能是 Date，也可能是字符串；前端统一只需要日期部分。
  */
 function toDateString(value: string | Date) {
@@ -80,19 +85,11 @@ function mapSummary(row: HistorySummaryRow): HistorySummary {
  * 归档页展示的是用户自己的词库，所以所有统计和列表都必须按 user_id 收口。
  */
 export async function getHistoryArchive(userId: number): Promise<HistoryArchive> {
-  const summaryResult = await query<HistorySummaryRow>(
-    `
-      SELECT
-        COUNT(*)::text AS total_words,
-        COUNT(*) FILTER (WHERE next_review <= ${LEARNING_DAY_SQL})::text AS due_today,
-        COUNT(*) FILTER (WHERE review_count > 0)::text AS reviewed_words
-      FROM words
-      WHERE user_id = $1
-    `,
-    [userId],
-  );
-
-  const wordsResult = await query<WordRow>(
+  /**
+   * 窗口聚合让汇总和列表共用同一次扫描，省掉原来那条单独的 COUNT 查询；
+   * ORDER BY 由 idx_words_user_created 直接提供顺序，不必再对整份词表排序。
+   */
+  const result = await query<HistoryRow>(
     `
       SELECT
         id,
@@ -107,7 +104,10 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
         study_version,
         first_learned_at,
         created_at,
-        updated_at
+        updated_at,
+        (COUNT(*) OVER ())::text AS total_words,
+        (COUNT(*) FILTER (WHERE next_review <= ${LEARNING_DAY_SQL}) OVER ())::text AS due_today,
+        (COUNT(*) FILTER (WHERE review_count > 0) OVER ())::text AS reviewed_words
       FROM words
       WHERE user_id = $1
       ORDER BY created_at DESC, word ASC
@@ -115,13 +115,25 @@ export async function getHistoryArchive(userId: number): Promise<HistoryArchive>
     [userId],
   );
 
-  const words = wordsResult.rows.map(mapWordRow);
+  /**
+   * 新用户一个词都没有时查不到任何行，汇总只能按零处理，不能从空数组里读。
+   */
+  if (result.rowCount === 0) {
+    return {
+      summary: { totalWords: 0, dueToday: 0, reviewedWords: 0 },
+      dueWords: [],
+      recentWords: [],
+      words: [],
+    };
+  }
+
+  const words = result.rows.map(mapWordRow);
   const dueWords = words
     .filter((word) => isDueToday(word.nextReview))
     .sort((left, right) => left.nextReview.localeCompare(right.nextReview));
 
   return {
-    summary: mapSummary(summaryResult.rows[0]),
+    summary: mapSummary(result.rows[0]),
     dueWords,
     recentWords: words.slice(0, 6),
     words,

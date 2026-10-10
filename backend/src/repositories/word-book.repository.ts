@@ -71,35 +71,58 @@ function mapWordRow(row: WordRow): StoredWord {
   };
 }
 
-async function insertDefaultBookIfMissing(client: PoolClient, userId: number) {
-  await client.query(
+/**
+ * 拿到默认本 id：不存在就建，已存在就复用。
+ * 建和查合成一条语句，比"先插入再回查"少一次往返；idx_word_books_default 保证并发下也只有一个默认本。
+ */
+async function ensureDefaultBookId(client: PoolClient, userId: number) {
+  const result = await client.query<{ id: string }>(
     `
-      INSERT INTO word_books (user_id, name, is_default)
-      SELECT $1, '默认单词本', TRUE
-      WHERE NOT EXISTS (
-        SELECT 1
+      WITH existing AS (
+        SELECT id
         FROM word_books
         WHERE user_id = $1
           AND is_default = TRUE
+        LIMIT 1
+      ), created AS (
+        INSERT INTO word_books (user_id, name, is_default)
+        SELECT $1, '默认单词本', TRUE
+        WHERE NOT EXISTS (SELECT 1 FROM existing)
+        RETURNING id
       )
-    `,
-    [userId],
-  );
-}
-
-async function findDefaultBookId(client: PoolClient, userId: number) {
-  const result = await client.query<{ id: string }>(
-    `
-      SELECT id
-      FROM word_books
-      WHERE user_id = $1
-        AND is_default = TRUE
+      SELECT id FROM created
+      UNION ALL
+      SELECT id FROM existing
       LIMIT 1
     `,
     [userId],
   );
 
   return Number(result.rows[0].id);
+}
+
+/**
+ * 孤儿词只可能来自建本功能上线前的旧数据，补过一次就不会再产生。
+ * 先做只读探测，检测不到就完全不碰写路径。
+ */
+async function hasOrphanWords(client: PoolClient, userId: number) {
+  const result = await client.query<{ has_orphan: boolean }>(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM words w
+        WHERE w.user_id = $1
+          AND NOT EXISTS (
+            SELECT 1
+            FROM word_book_items item
+            WHERE item.word_id = w.id
+          )
+      ) AS has_orphan
+    `,
+    [userId],
+  );
+
+  return result.rows[0].has_orphan;
 }
 
 async function linkOrphanWordsToDefaultBook(
@@ -131,9 +154,11 @@ export async function ensureDefaultWordBook(
   client: PoolClient,
   userId: number,
 ) {
-  await insertDefaultBookIfMissing(client, userId);
-  const defaultBookId = await findDefaultBookId(client, userId);
-  await linkOrphanWordsToDefaultBook(client, userId, defaultBookId);
+  const defaultBookId = await ensureDefaultBookId(client, userId);
+
+  if (await hasOrphanWords(client, userId)) {
+    await linkOrphanWordsToDefaultBook(client, userId, defaultBookId);
+  }
 
   return defaultBookId;
 }
