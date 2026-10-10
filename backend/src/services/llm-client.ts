@@ -1,7 +1,9 @@
 import { readTrustedEndpointUrls } from '../config/endpoint-presets'
 import { HttpError } from '../utils/http-error'
 import { safeFetch } from '../utils/ssrf-guard'
+import { assertModelCallAllowed, recordModelCall } from './model-usage.service'
 import type { AiEndpoint } from '../types/endpoint'
+import type { ModelUsageTokens } from '../types/model-usage'
 
 /**
  * 唯一的模型出站客户端：OpenAI-compatible 的 /v1/chat/completions。
@@ -43,6 +45,11 @@ export interface ChatCompletionOptions {
    * 但请求本身成功了，说明地址、密钥、模型名都对。连通性测试要用这个。
    */
   allowEmptyContent?: boolean
+  /**
+   * 这次调用记在谁头上。留空表示不记账、也不检查配额 ——
+   * 连通性测试和系统词卡预热都属于这种：它们不代表某个用户的使用。
+   */
+  usageUserId?: number | null
 }
 
 export interface ChatCompletionResult {
@@ -61,6 +68,32 @@ export class LlmRequestError extends HttpError {
 }
 
 const DEFAULT_TIMEOUT = 120_000
+
+/**
+ * 配额与记账都放在这个文件里，而不是各个业务方法里：这里是唯一的模型出站口，
+ * 新加一条调用路径不可能「调了模型但忘了记账」。
+ *
+ * 没有 usageUserId 的调用（连通性测试）两者都跳过。
+ */
+async function prepareModelCall(endpoint: AiEndpoint, options: ChatCompletionOptions) {
+  if (options.usageUserId == null) {
+    return
+  }
+
+  await assertModelCallAllowed(options.usageUserId, endpoint)
+}
+
+async function finishModelCall(
+  endpoint: AiEndpoint,
+  options: ChatCompletionOptions,
+  tokens: ModelUsageTokens,
+) {
+  if (options.usageUserId == null) {
+    return
+  }
+
+  await recordModelCall(options.usageUserId, endpoint, tokens)
+}
 
 /**
  * 上游错误可能包含密钥或很长的 JSON，只取短摘要反馈给用户。
@@ -121,17 +154,51 @@ export function buildVisionMessage(prompt: string, imageBase64: string, mimeType
   }
 }
 
+/**
+ * 上游的 usage 是外部数据，字段类型只能当成未知来收：
+ * 各家兼容层的形状并不一致，缺字段或给字符串都不该让请求失败。
+ */
+interface ChatCompletionUsage {
+  prompt_tokens?: unknown
+  completion_tokens?: unknown
+}
+
 interface ChatCompletionResponse {
   choices?: Array<{
     finish_reason?: string | null
     message?: { content?: string | null }
   }>
+  usage?: ChatCompletionUsage
 }
 
 interface ChatCompletionStreamChunk {
   choices?: Array<{
     delta?: { content?: string | null }
   }>
+  usage?: ChatCompletionUsage
+}
+
+const NO_TOKENS: ModelUsageTokens = { promptTokens: 0, completionTokens: 0 };
+
+function readTokenCount(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : 0
+}
+
+function readUsageTokens(usage: ChatCompletionUsage | undefined): ModelUsageTokens {
+  if (!usage) {
+    return NO_TOKENS
+  }
+
+  return {
+    promptTokens: readTokenCount(usage.prompt_tokens),
+    completionTokens: readTokenCount(usage.completion_tokens),
+  }
+}
+
+function hasTokens(tokens: ModelUsageTokens) {
+  return tokens.promptTokens > 0 || tokens.completionTokens > 0
 }
 
 function buildBody(endpoint: AiEndpoint, messages: ChatMessage[], options: ChatCompletionOptions, stream: boolean) {
@@ -173,6 +240,8 @@ export async function chatCompletion(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT
   let response: Response
 
+  await prepareModelCall(endpoint, options)
+
   try {
     response = await safeFetch(
       buildChatCompletionsUrl(endpoint.baseUrl),
@@ -202,6 +271,9 @@ export async function chatCompletion(
   const choice = data.choices?.[0]
   const content = choice?.message?.content
 
+  // 先记账再判空：这次调用上游已经计费了，哪怕它返回的是空内容。
+  await finishModelCall(endpoint, options, readUsageTokens(data.usage))
+
   if ((!content || !content.trim()) && !options.allowEmptyContent) {
     throw new LlmRequestError('模型没有返回内容')
   }
@@ -214,8 +286,11 @@ export async function chatCompletion(
 
 /**
  * SSE 里一个 event 可能有多行 data，先拼成完整 JSON 再取 delta。
+ *
+ * usage 和 delta 一起从同一个 JSON 里取：流式响应里它通常只出现在最后
+ * 一个 chunk 上，而且不少上游根本不带，所以要容忍它一直缺席。
  */
-function readStreamDelta(event: string) {
+function readStreamChunk(event: string): { delta: string; usage: ModelUsageTokens } {
   const payload = event
     .split('\n')
     .map((line) => line.trim())
@@ -224,12 +299,15 @@ function readStreamDelta(event: string) {
     .join('\n')
 
   if (!payload || payload === '[DONE]') {
-    return ''
+    return { delta: '', usage: NO_TOKENS }
   }
 
   const data = JSON.parse(payload) as ChatCompletionStreamChunk
 
-  return data.choices?.[0]?.delta?.content ?? ''
+  return {
+    delta: data.choices?.[0]?.delta?.content ?? '',
+    usage: readUsageTokens(data.usage),
+  }
 }
 
 export type StreamDeltaHandler = (delta: string) => void | Promise<void>
@@ -242,6 +320,8 @@ export async function chatCompletionStream(
 ): Promise<string> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT
   let response: Response
+
+  await prepareModelCall(endpoint, options)
 
   try {
     response = await safeFetch(
@@ -276,34 +356,45 @@ export async function chatCompletionStream(
   const decoder = new TextDecoder()
   let buffer = ''
   let fullText = ''
+  let streamTokens = NO_TOKENS
 
   async function handleEvent(event: string) {
-    const delta = readStreamDelta(event)
+    const chunk = readStreamChunk(event)
 
-    if (delta) {
-      fullText += delta
-      await onDelta(delta)
+    if (hasTokens(chunk.usage)) {
+      streamTokens = chunk.usage
+    }
+
+    if (chunk.delta) {
+      fullText += chunk.delta
+      await onDelta(chunk.delta)
     }
   }
 
-  while (true) {
-    const { done, value } = await reader.read()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
 
-    if (done) {
-      break
+      if (done) {
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      const events = buffer.split(/\r?\n\r?\n/)
+      buffer = events.pop() ?? ''
+
+      for (const event of events) {
+        await handleEvent(event)
+      }
     }
 
-    buffer += decoder.decode(value, { stream: true })
-    const events = buffer.split(/\r?\n\r?\n/)
-    buffer = events.pop() ?? ''
-
-    for (const event of events) {
-      await handleEvent(event)
+    if (buffer.trim()) {
+      await handleEvent(buffer)
     }
-  }
-
-  if (buffer.trim()) {
-    await handleEvent(buffer)
+  } finally {
+    // 放在 finally 里：用户中途关掉页面时上游已经把这次调用算进账单了，
+    // 记账不该因为客户端断开而漏掉。
+    await finishModelCall(endpoint, options, streamTokens)
   }
 
   return fullText

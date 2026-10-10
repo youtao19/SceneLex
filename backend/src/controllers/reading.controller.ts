@@ -22,6 +22,7 @@ export async function lookupReadingWord(
     const authUser = readAuthUser(req)
     const endpoint = await endpointService.resolveEndpointForUser(authUser)
     const result = await readingService.lookupWord(
+      authUser.id,
       endpoint,
       req.body.word ?? '',
       req.body.sentence ?? '',
@@ -44,6 +45,7 @@ export async function translateReadingSentence(
     const authUser = readAuthUser(req)
     const endpoint = await endpointService.resolveEndpointForUser(authUser)
     const result = await readingService.translateSentence(
+      authUser.id,
       endpoint,
       req.body.sentence ?? '',
     )
@@ -141,6 +143,7 @@ export async function chatWithAssistant(
     const authUser = readAuthUser(req)
     const endpoint = await endpointService.resolveEndpointForUser(authUser)
     const result = await readingService.chat(
+      authUser.id,
       endpoint,
       req.body.content ?? '',
       req.body.question ?? '',

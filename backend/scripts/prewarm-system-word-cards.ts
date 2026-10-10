@@ -99,6 +99,8 @@ async function main() {
 
     try {
       const result = await wordService.generateWordContent(
+        // 预热是运维动作，不属于任何账号：不记用量，也不占用系统端点配额。
+        null,
         item.word,
         false,
         item.exam_meanings,

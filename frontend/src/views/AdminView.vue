@@ -147,6 +147,7 @@
         <div>
           <p class="eyebrow">USERS</p>
           <h3 id="users-title">用户授权台账</h3>
+          <p class="muted-text">{{ usageNote }}</p>
         </div>
         <span class="state-pill">{{ users.length }} 个账号</span>
       </div>
@@ -158,6 +159,7 @@
           <span role="columnheader">状态</span>
           <span role="columnheader">权限</span>
           <span role="columnheader">到期</span>
+          <span role="columnheader">模型用量</span>
           <span role="columnheader">续期与操作</span>
         </div>
 
@@ -204,6 +206,11 @@
             <small :class="{ 'is-expired': readRemainingDays(user.accessExpiresAt) < 0 }">
               {{ remainingDaysText(user.accessExpiresAt) }}
             </small>
+          </span>
+
+          <span class="usage-cell" role="cell">
+            <strong>{{ monthUsageText(user.id) }}</strong>
+            <small>{{ todayUsageText(user.id) }}</small>
           </span>
 
           <span v-if="user.id === userStore.user?.id" class="self-cell" role="cell">
@@ -343,6 +350,7 @@ import {
   createAdminAccessKey,
   deleteSystemEndpoint,
   fetchAdminAccessKeys,
+  fetchAdminUsage,
   fetchAdminUsers,
   fetchSystemEndpoint,
   saveSystemEndpoint,
@@ -353,12 +361,13 @@ import {
   updateAdminUserVip,
 } from '../services/admin.service'
 import { useUserStore } from '../stores/user'
-import type { AdminAccessKey, AdminUser } from '../types/admin'
+import type { AdminAccessKey, AdminUsageOverview, AdminUser } from '../types/admin'
 import type { AiEndpoint } from '../types/settings'
 
 const userStore = useUserStore()
 const users = ref<AdminUser[]>([])
 const accessKeys = ref<AdminAccessKey[]>([])
+const usage = ref<AdminUsageOverview | null>(null)
 const isLoading = ref(false)
 const isBusy = ref(false)
 const errorMessage = ref('')
@@ -465,6 +474,60 @@ function remainingDaysText(value: string | null) {
 }
 
 /**
+ * 用量按 userId 索引：用户台账按授权信息排序，两边的顺序并不一致。
+ */
+function usageOf(userId: number) {
+  return usage.value?.users.find((item) => item.userId === userId) ?? null
+}
+
+/**
+ * 0 表示不限，写上「不限」而不是「0 次」，否则会读成一点额度都没有。
+ */
+function formatCallLimit(value: number) {
+  return value > 0 ? `${value} 次` : '不限'
+}
+
+const usageNote = computed(() => {
+  if (!usage.value) {
+    return '模型用量按学习日（北京时间 04:00 换日）统计。'
+  }
+
+  const { limits, usageDate } = usage.value
+  const quota = `系统端点配额：每人每天 ${formatCallLimit(limits.dailyCalls)}、每月 ${formatCallLimit(limits.monthlyCalls)}`
+
+  return `模型用量按学习日统计（当前统计日 ${usageDate}）；${quota}。`
+})
+
+/**
+ * 大厅要盯的是「本月从管理员端点花掉多少」，所以第一行给它。
+ */
+function monthUsageText(userId: number) {
+  const item = usageOf(userId)
+
+  if (!item) {
+    return '-'
+  }
+
+  return `本月系统 ${item.monthSystemCalls} 次`
+}
+
+/**
+ * 第二行是当天全部调用：用户用自己的端点时同样计入，
+ * 这样「谁在用」和「谁在花我的钱」是分开的两个数。
+ */
+function todayUsageText(userId: number) {
+  const item = usageOf(userId)
+
+  if (!item) {
+    return ''
+  }
+
+  const tokens = item.todayTokens >= 1000 ? `${Math.round(item.todayTokens / 1000)}k` : `${item.todayTokens}`
+
+  return `今日 ${item.todayCalls} 次 · ${tokens} tokens`
+}
+
+/**
  * 密钥状态和用户状态不是同一组枚举，单独映射能避免误用。
  */
 function keyStatusText(status: AdminAccessKey['status']) {
@@ -534,13 +597,15 @@ async function loadAdminData() {
   errorMessage.value = ''
 
   try {
-    const [usersResponse, keysResponse, endpointResponse] = await Promise.all([
+    const [usersResponse, keysResponse, endpointResponse, usageResponse] = await Promise.all([
       fetchAdminUsers(),
       fetchAdminAccessKeys(),
       fetchSystemEndpoint(),
+      fetchAdminUsage(),
     ])
     users.value = usersResponse.data
     accessKeys.value = keysResponse.data
+    usage.value = usageResponse.data
     applySystemEndpoint(endpointResponse.data)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '读取管理数据失败'
@@ -1030,6 +1095,7 @@ onMounted(loadAdminData)
     70px
     minmax(160px, 1fr)
     170px
+    minmax(150px, 0.9fr)
     minmax(390px, 1.55fr);
 }
 
@@ -1141,9 +1207,23 @@ onMounted(loadAdminData)
   background: rgba(254, 243, 199, 0.82);
 }
 
-.expiry-cell {
+.expiry-cell,
+.usage-cell {
   display: grid;
   gap: 3px;
+}
+
+.usage-cell strong,
+.usage-cell small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-cell small {
+  color: var(--admin-soft);
 }
 
 .expiry-cell small {
@@ -1362,7 +1442,8 @@ onMounted(loadAdminData)
   .ledger-row > span:nth-child(2)::before { content: "状态"; }
   .ledger-row > span:nth-child(3)::before { content: "权限"; }
   .ledger-row > span:nth-child(4)::before { content: "到期"; }
-  .ledger-row > span:nth-child(5)::before { content: "操作"; }
+  .ledger-row > span:nth-child(5)::before { content: "模型用量"; }
+  .ledger-row > span:nth-child(6)::before { content: "操作"; }
 
   .key-row > span:nth-child(1)::before { content: "ID"; }
   .key-row > span:nth-child(2)::before { content: "状态"; }

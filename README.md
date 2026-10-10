@@ -168,12 +168,34 @@ OCR follows the same order, looking for a vision model on the user's own endpoin
 
 Because the system endpoint belongs to the admin, it is allowed to point at private addresses over plain `http` — pointing it at an internal vLLM is normal operations. User-entered endpoints do not get that exemption.
 
+### Model usage and the system endpoint quota
+
+Opening the system endpoint to other people means paying for their usage, so it has a ceiling: every call is counted per user, and calls that go to the system endpoint are capped per day and per month.
+
+```env
+# 0 disables the limit. A malformed value falls back to the default, not to "unlimited".
+SYSTEM_ENDPOINT_DAILY_CALL_LIMIT=200
+SYSTEM_ENDPOINT_MONTHLY_CALL_LIMIT=3000
+```
+
+The quota counts **calls, not tokens**. A call count is known for certain on every request, whereas token counts depend on whether the upstream bothers to report `usage` — streaming responses often do not. That is sound as a cost cap because every request carries `max_tokens`, so a call limit is also an output-token limit. Tokens are still recorded when the upstream reports them, and the admin page shows both numbers.
+
+The day boundary is the same **learning day** the rest of the app uses (Beijing time, resets at 04:00) — not the server's midnight, so the count shown in the app and the limit that is actually enforced agree.
+
+`/admin` has a **模型用量** column on the user ledger: calls today (all endpoints) and system-endpoint calls this month, which is the number that turns into a bill. Users on their own endpoints are not capped — that money is theirs.
+
+Usage is recorded by the outbound model client (`services/llm-client.ts`), not by each feature, so a new call path cannot quietly go uncounted. Connection tests and the prewarm script deliberately do not count against anyone.
+
 Why `/v1/chat/completions` and not `/v1/responses`: the point of letting users paste a URL is breadth of compatibility, and chat/completions is what essentially every provider and local runtime implements. The Responses API's real advantage is server-side conversation state, and Ollama explicitly only supports the stateless flavour.
 
 Useful environment variables:
 
 ```env
 USER_API_KEY_SECRET=
+
+# Optional: caps how much of the admin's system endpoint one user may spend
+SYSTEM_ENDPOINT_DAILY_CALL_LIMIT=200
+SYSTEM_ENDPOINT_MONTHLY_CALL_LIMIT=3000
 
 # Optional: only used by the prewarm script and the Ollama preset
 OLLAMA_OPENAI_BASE_URL=http://localhost:11434/v1

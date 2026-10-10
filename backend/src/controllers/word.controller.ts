@@ -47,6 +47,7 @@ export async function generateWordContent(
     // 端点可能为空：命中系统词卡缓存时不需要调模型。
     const endpoint = await endpointService.findEndpointForUser(authUser)
     const result = await wordService.generateWordContent(
+      authUser.id,
       word ?? '',
       forceRegenerate === true,
       requiredMeanings,

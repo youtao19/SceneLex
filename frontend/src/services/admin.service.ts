@@ -2,6 +2,7 @@ import { del, get, patch, post } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   AdminAccessKey,
+  AdminUsageOverview,
   AdminUser,
   CreateAccessKeyPayload,
   CreatedAdminAccessKey,
@@ -38,6 +39,13 @@ export function updateAdminUserVip(userId: number, isVip: boolean) {
   return patch<ApiResponse<AdminUser>>(`/admin/users/${userId}/vip`, {
     isVip,
   });
+}
+
+/**
+ * 模型用量总览。配额上限由后端一并返回，页面不重复默认值。
+ */
+export function fetchAdminUsage() {
+  return get<ApiResponse<AdminUsageOverview>>('/admin/usage')
 }
 
 export function fetchSystemEndpoint() {

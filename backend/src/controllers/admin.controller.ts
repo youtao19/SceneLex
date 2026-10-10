@@ -99,6 +99,21 @@ export async function updateUserVip(
 }
 
 /**
+ * 模型用量总览。配额上限也一起返回，页面不用自己知道默认值。
+ */
+export async function getUsageOverview(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    return res.json(ok(await adminService.readUsageOverview(), '模型用量已获取'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * 读取系统端点配置。没配过时返回 null，前端据此显示「还没配置」。
  */
 export async function getSystemEndpoint(

@@ -90,6 +90,13 @@ module.exports = {
         // MODEL_RATE_LIMIT_MAX: '10',
         // MODEL_QUEUE_TIMEOUT_MS: '30000',
 
+        // 系统端点配额：单个用户每天/每月最多能调用几次管理员出钱的端点。
+        // 按调用次数算，不按 token —— 次数是每次都确定知道的，token 要看上游回不回传。
+        // 每次请求都带 max_tokens，所以次数上限同时也是 token 上限。
+        // 0 表示不限；写错（负数、小数、乱码）会回落到默认值而不是不限。
+        // SYSTEM_ENDPOINT_DAILY_CALL_LIMIT: '200',
+        // SYSTEM_ENDPOINT_MONTHLY_CALL_LIMIT: '3000',
+
         // 头像存 Cloudflare R2。三个变量要么都填，要么都留空——
         // 只填一部分时后端会拒绝上传，而不是悄悄写回本地磁盘。
         // 全空则存到 backend/uploads/avatars。

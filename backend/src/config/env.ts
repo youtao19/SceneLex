@@ -51,6 +51,39 @@ export function readTrustProxyHops(value: string | undefined) {
   return parsed;
 }
 
+/**
+ * 系统端点每天/每月允许单个用户调用多少次。0 表示不限。
+ *
+ * 默认值必须是有限的：把管理员出钱的端点开放给别人的那一刻，
+ * 账单就没有上限了，而「不限」是个不该靠默认值生效的决定。
+ */
+export const DEFAULT_SYSTEM_ENDPOINT_DAILY_CALLS = 200;
+export const DEFAULT_SYSTEM_ENDPOINT_MONTHLY_CALLS = 3000;
+
+/**
+ * 只认正整数和 0。写错（负数、小数、乱码）一律回落到默认值，
+ * 而不是回落到「不限」——一个字符的笔误不该把保护整个关掉。
+ */
+export function readSystemEndpointCallLimit(value: string | undefined, fallback: number) {
+  const text = (value ?? '').trim();
+
+  if (!text) {
+    return fallback;
+  }
+
+  const parsed = Number(text);
+
+  if (parsed === 0) {
+    return 0;
+  }
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 export function assertProductionConfig(config: {
   nodeEnv: string;
   userApiKeySecret: string;
@@ -87,6 +120,14 @@ export const env = {
   modelGlobalConcurrency: Number(process.env.MODEL_GLOBAL_CONCURRENCY ?? 3),
   modelUserConcurrency: Number(process.env.MODEL_USER_CONCURRENCY ?? 1),
   modelQueueTimeoutMs: Number(process.env.MODEL_QUEUE_TIMEOUT_MS ?? 30_000),
+  systemEndpointDailyCallLimit: readSystemEndpointCallLimit(
+    process.env.SYSTEM_ENDPOINT_DAILY_CALL_LIMIT,
+    DEFAULT_SYSTEM_ENDPOINT_DAILY_CALLS,
+  ),
+  systemEndpointMonthlyCallLimit: readSystemEndpointCallLimit(
+    process.env.SYSTEM_ENDPOINT_MONTHLY_CALL_LIMIT,
+    DEFAULT_SYSTEM_ENDPOINT_MONTHLY_CALLS,
+  ),
   r2AvatarPublicBaseUrl: process.env.R2_AVATAR_PUBLIC_BASE_URL ?? '',
   r2AvatarUploadUrl: process.env.R2_AVATAR_UPLOAD_URL ?? '',
   r2AvatarUploadToken: process.env.R2_AVATAR_UPLOAD_TOKEN ?? '',

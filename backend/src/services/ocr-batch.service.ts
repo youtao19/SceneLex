@@ -129,12 +129,13 @@ function findPage(batch: OcrBatch, pageIndex: number) {
  * 模型调用可能很慢，所以不放在事务里；页结果写入是最后一步的短事务。
  */
 async function recognizeBuffer(
+  userId: number,
   buffer: Buffer,
   mimetype: string,
   endpoint: AiEndpoint | null,
 ): Promise<{ status: 'success' | 'failed'; text: string; error: string }> {
   try {
-    const text = await extractTextWithVision(buffer, mimetype, endpoint);
+    const text = await extractTextWithVision(userId, buffer, mimetype, endpoint);
 
     if (!text.trim()) {
       return { status: 'failed', text: '', error: '这一页没有识别到正文，请重拍或更换图片' };
@@ -216,7 +217,7 @@ export const ocrBatchService = {
         await removeStoredFile(previousStoredPath);
       }
 
-      const recognized = await recognizeBuffer(buffer, imageType, endpoint);
+      const recognized = await recognizeBuffer(userId, buffer, imageType, endpoint);
 
       await withTransaction(async (client) => {
         await upsertPage(client, {
@@ -274,7 +275,7 @@ export const ocrBatchService = {
     }
 
     const buffer = await readPageImage(storedPath);
-    const recognized = await recognizeBuffer(buffer, detectImageType(buffer), endpoint);
+    const recognized = await recognizeBuffer(userId, buffer, detectImageType(buffer), endpoint);
 
     await withTransaction(async (client) => {
       await upsertPage(client, {

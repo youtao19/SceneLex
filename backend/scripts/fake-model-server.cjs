@@ -88,6 +88,9 @@ const server = http.createServer(async (request, response) => {
     response.end(
       JSON.stringify({
         choices: [{ message: { role: 'assistant', content: text } }],
+        // 真实服务都会回传 usage，假服务也回一份，让用量记账这条路径能被真机联调覆盖。
+        // 流式那一侧刻意不回传：多数上游不加 stream_options 时就是这样。
+        usage: { prompt_tokens: 128, completion_tokens: 64, total_tokens: 192 },
       }),
     );
     return;

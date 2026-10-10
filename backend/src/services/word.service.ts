@@ -498,8 +498,11 @@ export const wordService = {
   /**
    * 普通查词默认走系统缓存，个人 words 只保存用户确认学习的进度。
    * endpoint 允许为空：命中系统缓存时不需要调模型，只有真要生成时才要求端点。
+   * userId 只用于模型用量记账，不影响生成内容；传 null 表示这次调用不属于
+   * 任何账号（系统词卡预热脚本），既不记账也不受系统端点配额限制。
    */
   async generateWordContent(
+    userId: number | null,
     word: string,
     forceRegenerate = false,
     requiredMeaningsInput: unknown = [],
@@ -538,7 +541,7 @@ export const wordService = {
       throw new HttpError(400, '还没有配置模型端点。可以自己添加一个，或联系管理员开通系统端点。');
     }
 
-    const rawText = await generateWordJson(endpoint, prompt);
+    const rawText = await generateWordJson(userId, endpoint, prompt);
     let parsed: unknown;
 
     try {

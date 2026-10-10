@@ -115,6 +115,7 @@ async function extractWithTesseract(file: Express.Multer.File) {
  * 以前这里按 OCR_VISION_PROVIDER 分 ollama / kimi 两条路，现在只剩一条。
  */
 async function extractWithVisionEndpoint(
+  userId: number,
   file: { buffer: Buffer; mimetype: string },
   endpoint: AiEndpoint | null,
 ) {
@@ -126,6 +127,7 @@ async function extractWithVisionEndpoint(
 
   try {
     return await extractTextFromImage(
+      userId,
       endpoint,
       buildArticleOcrPrompt(),
       file.buffer.toString('base64'),
@@ -185,6 +187,7 @@ async function extractWithPaddleOcr(file: Express.Multer.File) {
  * 阅读页按用户选择调用单一识别引擎，失败原因能更直接地反馈给用户。
  */
 export async function extractArticleTextFromImage(
+  userId: number,
   file: Express.Multer.File | undefined,
   methodValue: unknown,
   visionEndpoint: AiEndpoint | null,
@@ -196,7 +199,7 @@ export async function extractArticleTextFromImage(
   const method = parseOcrMethod(methodValue)
 
   if (method === 'vision') {
-    return extractWithVisionEndpoint(file, visionEndpoint)
+    return extractWithVisionEndpoint(userId, file, visionEndpoint)
   }
 
   if (method === 'paddle') {
@@ -211,9 +214,10 @@ export async function extractArticleTextFromImage(
  * 所以这里不复用网页那条按 method 分派的路。
  */
 export async function extractTextWithVision(
+  userId: number,
   buffer: Buffer,
   mimetype: string,
   endpoint: AiEndpoint | null,
 ) {
-  return extractWithVisionEndpoint({ buffer, mimetype }, endpoint)
+  return extractWithVisionEndpoint(userId, { buffer, mimetype }, endpoint)
 }

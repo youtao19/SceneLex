@@ -111,13 +111,14 @@ export const readingService = {
    * 单词查询必须带句子上下文，否则多义词会给出错误义项。
    */
   async lookupWord(
+    userId: number,
     endpoint: AiEndpoint,
     word: string,
     sentence: string,
   ): Promise<ReadingWordLookupResult> {
     const cleanWord = normalizeInput(word, 'word', 80)
     const cleanSentence = normalizeInput(sentence, 'sentence', 600)
-    const text = await generatePlainText(endpoint, buildWordPrompt(cleanWord, cleanSentence))
+    const text = await generatePlainText(userId, endpoint, buildWordPrompt(cleanWord, cleanSentence))
 
     return { text }
   },
@@ -126,11 +127,12 @@ export const readingService = {
    * 整句翻译只处理短句，长文章仍交给前端逐句触发，避免一次请求拖垮本地模型。
    */
   async translateSentence(
+    userId: number,
     endpoint: AiEndpoint,
     sentence: string,
   ): Promise<ReadingSentenceTranslateResult> {
     const cleanSentence = normalizeInput(sentence, 'sentence', 800)
-    const text = await generatePlainText(endpoint, buildSentencePrompt(cleanSentence))
+    const text = await generatePlainText(userId, endpoint, buildSentencePrompt(cleanSentence))
 
     return { text }
   },
@@ -138,10 +140,15 @@ export const readingService = {
   /**
    * 阅读助手对话接口。
    */
-  async chat(endpoint: AiEndpoint, content: string, question: string): Promise<{ text: string }> {
+  async chat(
+    userId: number,
+    endpoint: AiEndpoint,
+    content: string,
+    question: string,
+  ): Promise<{ text: string }> {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
-    const text = await generatePlainText(endpoint, buildChatPrompt(cleanContent, cleanQuestion))
+    const text = await generatePlainText(userId, endpoint, buildChatPrompt(cleanContent, cleanQuestion))
 
     return { text }
   },
@@ -150,6 +157,7 @@ export const readingService = {
    * 带最近对话历史的阅读助手接口，用于历史聊天继续追问。
    */
   async chatWithHistory(
+    userId: number,
     endpoint: AiEndpoint,
     content: string,
     question: string,
@@ -159,6 +167,7 @@ export const readingService = {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await generatePlainText(
+      userId,
       endpoint,
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
     )
@@ -170,6 +179,7 @@ export const readingService = {
    * 流式回答复用同一个 prompt，避免普通接口和流式接口回答风格分叉。
    */
   async chatWithHistoryStream(
+    userId: number,
     endpoint: AiEndpoint,
     content: string,
     question: string,
@@ -180,6 +190,7 @@ export const readingService = {
     const cleanContent = normalizeInput(content, 'content', 10000)
     const cleanQuestion = normalizeInput(question, 'question', 3000)
     const text = await streamPlainText(
+      userId,
       endpoint,
       buildChatPrompt(cleanContent, cleanQuestion, history, questionMode),
       onDelta,

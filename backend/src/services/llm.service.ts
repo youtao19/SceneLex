@@ -14,6 +14,11 @@ import type { AiEndpoint } from '../types/endpoint'
  *
  * 这里刻意不再按 provider 分支：端点由用户自己填，协议统一是
  * OpenAI-compatible 的 /v1/chat/completions。
+ *
+ * 每个函数都要带上 userId：它不参与请求内容，只用于模型用量记账，
+ * 以及系统端点的配额判定。写成必填而不是可选，是为了让漏传在编译期就暴露 ——
+ * 漏一个调用点就是一个记不进账的窟窿。传 null 表示这次调用不属于任何账号
+ * （预热脚本直接生成系统词卡），既不记账也不受配额限制。
  */
 
 export { LlmRequestError }
@@ -108,7 +113,11 @@ function findLastJsonObjectText(text: string) {
 /**
  * 词卡生成：要求 JSON object，并容忍模型在 JSON 前后带解释。
  */
-export async function generateWordJson(endpoint: AiEndpoint, prompt: string): Promise<string> {
+export async function generateWordJson(
+  userId: number | null,
+  endpoint: AiEndpoint,
+  prompt: string,
+): Promise<string> {
   const messages: ChatMessage[] = [
     { role: 'system', content: wordJsonSystemPrompt },
     { role: 'user', content: prompt },
@@ -118,6 +127,7 @@ export async function generateWordJson(endpoint: AiEndpoint, prompt: string): Pr
     json: true,
     maxTokens: WORD_JSON_MAX_TOKENS,
     temperature: 0.8,
+    usageUserId: userId,
   })
 
   const jsonText = findLastJsonObjectText(content)
@@ -136,14 +146,18 @@ export async function generateWordJson(endpoint: AiEndpoint, prompt: string): Pr
 /**
  * 阅读问答要自然语言短回答，不能复用词卡的 JSON 约束。
  */
-export async function generatePlainText(endpoint: AiEndpoint, prompt: string): Promise<string> {
+export async function generatePlainText(
+  userId: number | null,
+  endpoint: AiEndpoint,
+  prompt: string,
+): Promise<string> {
   const { content } = await chatCompletion(
     endpoint,
     [
       { role: 'system', content: PLAIN_TEXT_SYSTEM_PROMPT },
       { role: 'user', content: prompt },
     ],
-    { maxTokens: PLAIN_TEXT_MAX_TOKENS, temperature: 0.3 },
+    { maxTokens: PLAIN_TEXT_MAX_TOKENS, temperature: 0.3, usageUserId: userId },
   )
 
   return cleanPlainText(content)
@@ -153,6 +167,7 @@ export async function generatePlainText(endpoint: AiEndpoint, prompt: string): P
  * 阅读助手边生成边展示，避免用户等整段结束。
  */
 export async function streamPlainText(
+  userId: number | null,
   endpoint: AiEndpoint,
   prompt: string,
   onDelta: StreamDeltaHandler,
@@ -164,7 +179,7 @@ export async function streamPlainText(
       { role: 'user', content: prompt },
     ],
     onDelta,
-    { maxTokens: PLAIN_TEXT_MAX_TOKENS, temperature: 0.3 },
+    { maxTokens: PLAIN_TEXT_MAX_TOKENS, temperature: 0.3, usageUserId: userId },
   )
 
   return cleanPlainText(text)
@@ -174,6 +189,7 @@ export async function streamPlainText(
  * 视觉 OCR。图片走 base64 data URL，这是唯一同时适配 Ollama 和云端服务的写法。
  */
 export async function extractTextFromImage(
+  userId: number | null,
   endpoint: AiEndpoint,
   prompt: string,
   imageBase64: string,
@@ -185,7 +201,7 @@ export async function extractTextFromImage(
       { role: 'system', content: 'You are an OCR engine. Return only the text extracted from the image.' },
       buildVisionMessage(prompt, imageBase64, mimeType),
     ],
-    { maxTokens: 1800, temperature: 0 },
+    { maxTokens: 1800, temperature: 0, usageUserId: userId },
   )
 
   return cleanPlainText(content)

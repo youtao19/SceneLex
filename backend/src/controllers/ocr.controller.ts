@@ -19,6 +19,7 @@ export async function recognizeArticleText(
       ? await endpointService.resolveVisionEndpointForUser(authUser)
       : null;
     const text = await extractArticleTextFromImage(
+      authUser.id,
       req.file,
       req.body.method,
       visionEndpoint,

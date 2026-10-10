@@ -26,6 +26,7 @@ describe('受保护路由', () => {
     '/api/word-books',
     '/api/settings',
     '/api/admin',
+    '/api/admin/usage',
     '/api/word/overview',
     '/api/word/new',
   ])('%s 没有会话时返回 401', async (path) => {

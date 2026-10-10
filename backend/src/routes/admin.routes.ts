@@ -3,6 +3,7 @@ import {
   createAccessKey,
   deleteSystemEndpoint,
   getSystemEndpoint,
+  getUsageOverview,
   listAccessKeys,
   listUsers,
   saveSystemEndpoint,
@@ -19,6 +20,7 @@ router.get('/users', listUsers);
 router.patch('/users/:userId/access', updateUserAccess);
 router.patch('/users/:userId/role', updateUserRole);
 router.patch('/users/:userId/vip', updateUserVip);
+router.get('/usage', getUsageOverview);
 router.get('/system-endpoint', getSystemEndpoint);
 router.patch('/system-endpoint', saveSystemEndpoint);
 router.delete('/system-endpoint', deleteSystemEndpoint);

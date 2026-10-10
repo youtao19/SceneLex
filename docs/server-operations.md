@@ -380,6 +380,10 @@ sudo -u postgres psql -d scenelex_db -Atc "select tablename from pg_tables where
 
 只点「设为 VIP」而不续期，用户看到的仍然是过期报错，很容易误判成系统端点没配好。
 
+**还有第三件事：配额。** 系统端点默认给每个用户每天 200 次、每月 3000 次上限（`SYSTEM_ENDPOINT_DAILY_CALL_LIMIT`
+/ `SYSTEM_ENDPOINT_MONTHLY_CALL_LIMIT`，0 表示不限）。用量在管理页的用户台账里直接看得到，
+不用查库。有人报「额度用完」时先看那一列，再决定是调上限还是让他自己配端点。
+
 **不要在这里记用户名单。** 用户邮箱是别人的个人信息，仓库里不放；而且写下来的那一刻就开始过期
 （2026-10-08 那次核查里，五个账号按到期时间判有四个已经失效）。要看现在的状态直接查库：
 

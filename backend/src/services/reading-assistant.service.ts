@@ -170,6 +170,7 @@ export const readingAssistantService = {
 
     try {
       const answer = await readingService.chatWithHistory(
+        userId,
         endpoint,
         chat.articleContent,
         question,
@@ -215,6 +216,7 @@ export const readingAssistantService = {
 
     try {
       const answer = await readingService.chatWithHistoryStream(
+        userId,
         endpoint,
         chat.articleContent,
         question,

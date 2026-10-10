@@ -17,6 +17,7 @@ import type {
 } from '../types/admin';
 import type { AccessStatus, UserRole } from '../types/auth';
 import { endpointService } from './endpoint.service'
+import { readUsageOverview } from './model-usage.service'
 import { HttpError } from '../utils/http-error';
 import { hashToken } from '../utils/token';
 
@@ -205,6 +206,13 @@ export const adminService = {
     }
 
     return user;
+  },
+
+  /**
+   * 模型用量：管理员看的是「谁在花我的钱」，所以按本月系统端点调用倒序。
+   */
+  async readUsageOverview() {
+    return readUsageOverview();
   },
 
   /**
