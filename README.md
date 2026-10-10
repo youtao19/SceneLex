@@ -337,6 +337,26 @@ npm --prefix backend run dict:import-db
 - Rotate database passwords and model API keys if they were ever committed.
 - The built-in rate limiter and model queue are in-memory and intended for a single Node process. Use shared storage such as Redis before scaling to multiple backend instances.
 
+## Handing the Project Over
+
+Clone or export the repository — do not zip the working directory.
+
+Most of what you would leak is gitignored, so `git clone` and `git archive` never carry it: `backend/.env.dev.local` (produces your production `DATABASE_URL`), its `.bak-*` copies, `backend/uploads/` and `ocr-service/uploads/` (real user avatars and OCR images), `ecosystem.config.cjs` (database password and model keys), `mobile/android/key.properties` and the keystore it points at, `mobile/android/local.properties`, `backups/`. A folder zip takes all of it, and nothing in the archive says which parts were yours alone.
+
+Check before you hand anything over:
+
+```bash
+npm run handover:check                  # the working tree
+npm run handover:check -- ../the-zip    # an unpacked copy
+```
+
+It lists local-only files still sitting in the directory (fatal for a zip, harmless for a clone) and files that are git-*tracked* despite being sensitive (fatal for both, and a sign to rotate the credential). It prints file names only, never contents, so its output is safe to paste.
+
+Two things it cannot check for you:
+
+- **Git history.** A file deleted in a later commit is still in the objects of an earlier one, and clone hands over all of them.
+- **Anything outside the directory.** The release keystore lives outside the repository by design; hand it over separately, or the recipient cannot ship an update that installs over an existing one.
+
 ## Verification
 
 The automated gate is `npm run verify` (typecheck + vitest + build) — see [Development Workflow](#development-workflow). It is the same command CI runs on every push. Backend tests that need a database are skipped unless `RUN_DB_TESTS=1` is set.

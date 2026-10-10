@@ -23,6 +23,7 @@
     "start:tunnel": "sh ./scripts/start-tunnel.sh",
     "health:check": "sh ./scripts/check-health.sh",
     "health:check:prod": "sh ./scripts/check-health.sh https://scenlex.cn",
+    "handover:check": "sh ./scripts/check-handover.sh",
     "dict:download": "npm --prefix backend run dict:download",
     "wordbook:import": "sh ./scripts/wordbook-import.sh",
     "prewarm:cet6": "npm --prefix backend run wordbook:prewarm:cet6",
