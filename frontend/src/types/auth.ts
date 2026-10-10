@@ -35,3 +35,8 @@ export interface LoginPayload {
 export interface UpdateProfilePayload {
   nickname: string
 }
+
+export interface ChangePasswordPayload {
+  currentPassword: string
+  newPassword: string
+}

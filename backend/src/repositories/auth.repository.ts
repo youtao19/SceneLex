@@ -267,6 +267,84 @@ export async function updateUserAvatar(userId: number, avatarUrl: string) {
 }
 
 /**
+ * 改密码和注销都要先核对当前口令，所以单独取一次凭据列。
+ * 不复用 findUserByEmail：那条路按邮箱查，而这里只有会话里的 userId，
+ * 且不该让调用方拿到密码哈希以外的资料。
+ */
+export async function findPasswordHashById(userId: number) {
+  const result = await query<{ password_salt: string; password_hash: string }>(
+    `
+      SELECT password_salt, password_hash
+      FROM users
+      WHERE id = $1
+    `,
+    [userId],
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return {
+    passwordSalt: result.rows[0].password_salt,
+    passwordHash: result.rows[0].password_hash,
+  };
+}
+
+/**
+ * 改密码只改凭据两列，避免顺手把 access_status 之类的授权字段一起写坏。
+ */
+export async function updateUserPassword(
+  userId: number,
+  passwordSalt: string,
+  passwordHash: string,
+) {
+  await query(
+    `
+      UPDATE users
+      SET
+        password_salt = $2,
+        password_hash = $3,
+        updated_at = NOW()
+      WHERE id = $1
+    `,
+    [userId, passwordSalt, passwordHash],
+  );
+}
+
+/**
+ * 改密码后把其他设备踢下线，但保留发起修改的这一台。
+ * 只留 token 哈希不留 id：调用方拿不到别人的会话标识，也就不可能误删别的用户。
+ */
+export async function deleteOtherSessions(userId: number, keepTokenHash: string) {
+  await query(
+    `
+      DELETE FROM user_sessions
+      WHERE user_id = $1
+        AND token_hash <> $2
+    `,
+    [userId, keepTokenHash],
+  );
+}
+
+/**
+ * 注销账号走级联删除，业务数据由各表自己的外键约束负责清理。
+ * 唯一例外是 access_keys.bound_user_id，它设成 NULL 是故意的：
+ * 注册码用过就该算用过，不能因为用户注销而重新变成可用的码。
+ */
+export async function deleteUserById(userId: number) {
+  await query('DELETE FROM users WHERE id = $1', [userId]);
+}
+
+export async function countAdmins() {
+  const result = await query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin'`,
+  );
+
+  return result.rows[0]?.count ?? 0;
+}
+
+/**
  * 退出登录只需要删当前会话，不影响同账号的其他设备。
  */
 export async function deleteSessionByTokenHash(tokenHash: string) {

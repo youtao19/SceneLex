@@ -9,6 +9,7 @@ import ProfileView from '../views/ProfileView.vue';
 import WordBooksView from '../views/WordBooksView.vue';
 import SystemWordBooksView from '../views/SystemWordBooksView.vue';
 import AdminView from '../views/AdminView.vue';
+import TermsView from '../views/TermsView.vue';
 import { AUTH_STORAGE_KEY, type AuthState } from '../types/auth';
 import { readFromStorage } from '../utils/storage';
 
@@ -16,6 +17,8 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'landing', component: LandingView, meta: { guestOnly: true } },
+    // 条款页不看登录状态：注册前要读得到，登录后想回看也不该被弹回仪表盘。
+    { path: '/terms', name: 'terms', component: TermsView },
     { path: '/dashboard', name: 'dashboard', component: HomeView, meta: { requiresAuth: true } },
     { path: '/reading', name: 'reading', component: ReadingView, meta: { requiresAuth: true } },
     { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },

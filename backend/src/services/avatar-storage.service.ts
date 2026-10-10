@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, unlink, writeFile } from 'fs/promises';
 import { env } from '../config/env';
 import { HttpError } from '../utils/http-error';
 
@@ -106,6 +106,34 @@ async function saveR2Avatar(
   }
 
   return `${config.publicBaseUrl}/${objectKey}`;
+}
+
+/**
+ * 注销账号时清掉本机留下的头像文件。
+ *
+ * 只处理 /uploads/avatars/ 开头的相对路径：那是本机存的文件。R2 上的对象是
+ * 绝对 URL，删除要 Worker 配合（当前上传入口只支持写入），这里不假装能删。
+ *
+ * 用 basename 而不是直接拼 avatarUrl：这个值虽然来自数据库，但拼路径的写法
+ * 一旦哪天变成用户可控，就成了目录穿越。
+ */
+export async function deleteAvatarFileQuietly(avatarUrl?: string | null) {
+  if (!avatarUrl || !avatarUrl.startsWith('/uploads/avatars/')) {
+    return;
+  }
+
+  const filePath = path.join(localAvatarDir, path.basename(avatarUrl));
+
+  try {
+    await unlink(filePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+
+    // 文件本来就不在（本地开发常见）不算问题，其他错误才值得看一眼。
+    if (code !== 'ENOENT') {
+      console.error('[avatar] 删除头像文件失败', filePath, error);
+    }
+  }
 }
 
 /**

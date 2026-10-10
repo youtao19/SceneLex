@@ -193,7 +193,7 @@ VIP is a single flag (`users.is_vip`) whose only meaning is *may use the system 
 
 Set `USER_API_KEY_SECRET` before users save endpoints, and then leave it alone — it is the key those endpoints are encrypted with, so changing it makes every stored endpoint undecryptable and every user has to paste their API key again.
 
-The landing page's "contact the admin" link is the one setting that is *not* here: it is baked into the frontend at build time, so it lives in `frontend/.env.local` as `VITE_CONTACT_EMAIL`. Leave it empty and the link is not rendered at all. See [docs/deployment.md](docs/deployment.md).
+The landing page's "contact the admin" link is the one setting that is *not* here: it is baked into the frontend at build time, so it lives in `frontend/.env.local` as `VITE_CONTACT_EMAIL`. Leave it empty and the link is not rendered at all — the sign-in page then says who to ask instead of showing a password reset that cannot work, because this app sends no email. See [docs/deployment.md](docs/deployment.md).
 
 In production this is enforced rather than merely advised: the backend refuses to start when `NODE_ENV=production` and the variable is unset, because the alternative is silently falling back to a constant that is published in this repository.
 
@@ -305,6 +305,21 @@ npm run user:promote -- --email you@example.com
 `user:promote` is idempotent, so running it again is safe. `npm run user:demote -- --email <邮箱>` reverses it and refuses to remove the last remaining admin, which would otherwise leave nobody able to sign access keys.
 
 Admin accounts keep login and admin-panel access after `access_expires_at`; use `user:suspend` when an admin must be explicitly disabled.
+
+### Account self-service
+
+Users are not locked out of their own account, and the three routes below deliberately sit behind `authMiddleware` only — no `accessMiddleware`. An expired or suspended user can still change their password, export their data, and delete their account. Those three cost no model quota, and refusing them would trap the people most likely to want out.
+
+| Route | What it does |
+|---|---|
+| `POST /api/auth/password` | Current password plus a new one, at least 8 characters and different from the old. Deletes every other session, keeps the calling one. |
+| `GET /api/auth/export` | Downloads the user's own rows as JSON: word cards, word books, reading articles, assistant chats, learning settings, OCR records, endpoints. Plain `attachment` response, not the `{ code, message, data }` envelope. |
+| `DELETE /api/auth/account` | Password-confirmed. One `DELETE FROM users`; every user-owned table cascades. |
+
+Two rules that are easy to get wrong later:
+
+- **The export never contains credentials.** No password hash or salt, no session tokens, and no endpoint API keys — not even the ciphertext, which is encrypted with the server key and useless anywhere else. Endpoints export with `has_api_key` instead. `export.repository.ts` spells out every column; do not replace it with `SELECT *`.
+- **The last admin cannot delete themselves.** Same reasoning as `user:demote`: with no admin left, nobody can sign access keys. Deleting an account leaves its access key consumed (`used_count` unchanged, `bound_user_id` set to NULL), so the key cannot be reused.
 
 Import the exam word books:
 

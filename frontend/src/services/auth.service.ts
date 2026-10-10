@@ -1,8 +1,9 @@
-import { get, patch, post, request } from './http'
+import { del, get, patch, post, request, requestFile } from './http'
 import type { ApiResponse } from '../types/api'
 import type {
   AuthSession,
   AuthUser,
+  ChangePasswordPayload,
   LoginPayload,
   RegisterPayload,
   UpdateProfilePayload,
@@ -36,6 +37,27 @@ export async function uploadAvatar(file: File) {
     method: 'POST',
     body: formData,
   })
+}
+
+/**
+ * 改密码成功后当前会话仍然有效，只有其他设备会被踢下线。
+ */
+export async function changePassword(payload: ChangePasswordPayload) {
+  return post<ApiResponse<null>>('/auth/password', payload)
+}
+
+/**
+ * 注销账号要重新输密码：会话可能是别人在用，仅凭会话不足以销毁数据。
+ */
+export async function deleteAccount(password: string) {
+  return del<ApiResponse<null>>('/auth/account', { password })
+}
+
+/**
+ * 导出返回的是文件，不是 { code, message, data }，所以走 requestFile。
+ */
+export async function exportData() {
+  return requestFile('/auth/export')
 }
 
 export async function logout() {

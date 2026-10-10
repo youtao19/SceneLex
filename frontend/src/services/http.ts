@@ -33,6 +33,25 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+/**
+ * 下载类接口不能走 request：那里会 response.json()，把文件内容直接解析坏。
+ * Content-Disposition 原样交回调用方解析，保持这一层只负责传输。
+ */
+export async function requestFile(url: string) {
+  const response = await fetch(`${BASE_URL}${url}`, {
+    credentials: 'same-origin',
+  })
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response))
+  }
+
+  return {
+    blob: await response.blob(),
+    contentDisposition: response.headers.get('Content-Disposition'),
+  }
+}
+
 export async function get<T>(url: string): Promise<T> {
   return request<T>(url)
 }
@@ -57,8 +76,18 @@ export async function patch<T>(url: string, body: unknown): Promise<T> {
   })
 }
 
-export async function del<T>(url: string): Promise<T> {
+/**
+ * body 可选：注销账号要带密码确认，而"删除"这个动作本身不需要 body，
+ * 所以不能强制所有调用方都传。
+ */
+export async function del<T>(url: string, body?: unknown): Promise<T> {
   return request<T>(url, {
-    method: 'DELETE'
+    method: 'DELETE',
+    ...(body === undefined
+      ? {}
+      : {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
   })
 }

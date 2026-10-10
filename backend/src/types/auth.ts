@@ -42,6 +42,15 @@ export interface UpdateProfilePayload {
   nickname?: string;
 }
 
+export interface ChangePasswordPayload {
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+export interface DeleteAccountPayload {
+  password?: string;
+}
+
 export interface AccessKeyGrant {
   id: number;
   grantedDays: number;

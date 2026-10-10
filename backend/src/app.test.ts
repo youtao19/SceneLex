@@ -62,6 +62,22 @@ describe('受保护路由', () => {
 
     expect(response.status).toBe(404);
   });
+
+  /**
+   * 这三条是账号自助出口。它们必须比别的接口更难被误加保护——如果哪天有人
+   * 顺手给路由补上 accessMiddleware，到期的用户就被困在系统里出不去了。
+   * 没有会话时仍然是 401，这一条不能松。
+   */
+  it.each([
+    ['post', '/api/auth/password'],
+    ['get', '/api/auth/export'],
+    ['delete', '/api/auth/account'],
+  ] as const)('%s %s 没有会话时返回 401', async (method, path) => {
+    const response = await request(app)[method](path).send({});
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toBe('请先登录');
+  });
 });
 
 describe('请求日志', () => {

@@ -121,6 +121,16 @@
             </RouterLink>
           </div>
 
+          <RouterLink
+            to="/terms"
+            class="profile-menu-item"
+            role="menuitem"
+            @click="closeProfileMenu"
+          >
+            <span class="menu-icon icon-doc" aria-hidden="true"></span>
+            <span>服务条款与隐私</span>
+          </RouterLink>
+
           <button
             class="profile-menu-item sign-out-item"
             type="button"
@@ -837,6 +847,8 @@ onBeforeUnmount(() => {
 .icon-books::before { content: "▤"; }
 .icon-history::before { content: "📋"; }
 .icon-more::before { content: "⋯"; }
+/* § 是条款的通用记号，比复用齿轮或书本图标更能一眼认出这一项是什么。 */
+.icon-doc::before { content: "§"; font-size: 16px; font-weight: 900; }
 .icon-admin::before { content: "⚙"; }
 
 @media (max-height: 620px) and (min-width: 861px) {

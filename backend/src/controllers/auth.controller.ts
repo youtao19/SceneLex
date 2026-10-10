@@ -5,7 +5,14 @@ import {
 } from '../middlewares/auth.middleware';
 import { uploadAvatarFile } from '../services/avatar-storage.service';
 import { authService } from '../services/auth.service';
-import type { LoginPayload, RegisterPayload, UpdateProfilePayload } from '../types/auth';
+import { exportService } from '../services/export.service';
+import type {
+  ChangePasswordPayload,
+  DeleteAccountPayload,
+  LoginPayload,
+  RegisterPayload,
+  UpdateProfilePayload,
+} from '../types/auth';
 import { ok } from '../utils/response';
 import { clearSessionCookie, setSessionCookie } from '../utils/session-cookie';
 
@@ -100,6 +107,68 @@ export async function updateAvatar(
     const avatarUrl = await uploadAvatarFile(authUser.id, req.file);
     const result = await authService.updateAvatar(authUser.id, avatarUrl);
     return res.json(ok(result, '头像已更新'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 改密码成功后不重新签发会话：当前这条会话继续可用，改密前已经登录的其他设备被踢下线。
+ */
+export async function changePassword(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req);
+    const payload = req.body as ChangePasswordPayload;
+    await authService.changePassword(authUser.id, readAuthToken(req), payload);
+    return res.json(ok(null, '密码已更新，其他设备需要重新登录'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 注销账号。成功后会话已随用户一起删除，这里必须清 Cookie，
+ * 否则前端会继续带着一个永远 401 的 Cookie 重试。
+ */
+export async function deleteAccount(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req);
+    const payload = req.body as DeleteAccountPayload;
+    await authService.deleteAccount(authUser, payload);
+    clearSessionCookie(res);
+    return res.json(ok(null, '账号已注销'));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 数据导出。前端点一下就直接下载，所以这里自己写 Content-Disposition，
+ * 不走统一的 { code, message, data } 包装。
+ */
+export async function exportData(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const authUser = readAuthUser(req);
+    const { filename, document } = await exportService.exportUserData(authUser.id);
+
+    // filename 只由服务端生成（日期而已），不含用户输入，所以不必再转义。
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // 导出内容里是全部个人数据，明确禁止中间层缓存。
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(JSON.stringify(document, null, 2));
   } catch (error) {
     next(error);
   }

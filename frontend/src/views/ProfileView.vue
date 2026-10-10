@@ -126,12 +126,136 @@
           </div>
         </form>
 
-        <section class="profile-note surface-card" aria-label="资料说明">
-          <p class="card-label">SECURITY</p>
-          <h3>账号安全</h3>
-          <p>
-            密码、访问密钥和账号状态由后端统一管理。资料页只保存展示信息，避免误改登录凭据。
-          </p>
+        <form class="profile-form surface-card" @submit.prevent="handleChangePassword">
+          <div class="panel-head">
+            <div>
+              <p class="card-label">SECURITY</p>
+              <h3>修改密码</h3>
+            </div>
+            <span class="panel-chip">其他设备将退出登录</span>
+          </div>
+
+          <div class="form-grid">
+            <label class="field-block" for="current-password">
+              <span>当前密码</span>
+              <input
+                id="current-password"
+                v-model="currentPassword"
+                type="password"
+                autocomplete="current-password"
+              />
+            </label>
+
+            <label class="field-block" for="new-password">
+              <span>新密码</span>
+              <input
+                id="new-password"
+                v-model="newPassword"
+                type="password"
+                autocomplete="new-password"
+              />
+              <small>至少 8 位，且不能与当前密码相同。</small>
+            </label>
+
+            <label class="field-block" for="confirm-password">
+              <span>确认新密码</span>
+              <input
+                id="confirm-password"
+                v-model="confirmPassword"
+                type="password"
+                autocomplete="new-password"
+              />
+            </label>
+          </div>
+
+          <p v-if="passwordMessage" class="save-message" role="status">{{ passwordMessage }}</p>
+          <p v-if="passwordError" class="save-message is-error" role="alert">{{ passwordError }}</p>
+
+          <div class="form-actions">
+            <button
+              class="peach-button"
+              type="submit"
+              :disabled="savingPassword || !canSubmitPassword"
+            >
+              {{ savingPassword ? '提交中...' : '修改密码' }}
+            </button>
+          </div>
+        </form>
+
+        <section class="profile-form surface-card" aria-label="数据与账号">
+          <div class="panel-head">
+            <div>
+              <p class="card-label">DATA</p>
+              <h3>我的数据</h3>
+            </div>
+          </div>
+
+          <div class="data-row">
+            <div>
+              <strong>导出全部数据</strong>
+              <p>
+                下载一份 JSON，含单词卡、词书、阅读文章、助手对话、学习设置和 OCR 记录。
+                不含密码与模型 API Key。
+              </p>
+            </div>
+            <button
+              class="peach-button-ghost"
+              type="button"
+              :disabled="exporting"
+              @click="handleExport"
+            >
+              {{ exporting ? '正在导出...' : '导出' }}
+            </button>
+          </div>
+
+          <p v-if="dataMessage" class="save-message" role="status">{{ dataMessage }}</p>
+          <p v-if="dataError" class="save-message is-error" role="alert">{{ dataError }}</p>
+
+          <div class="danger-zone">
+            <div>
+              <strong>注销账号</strong>
+              <p>
+                删除账号会一并删除你的单词卡、词书、阅读文章与助手对话，无法恢复。
+                访问密钥不会因此恢复可用。想留个备份就先导出。
+              </p>
+            </div>
+
+            <template v-if="!confirmingDelete">
+              <button class="danger-button" type="button" @click="confirmingDelete = true">
+                注销账号
+              </button>
+            </template>
+
+            <template v-else>
+              <label class="field-block" for="delete-password">
+                <span>输入密码以确认</span>
+                <input
+                  id="delete-password"
+                  v-model="deletePassword"
+                  type="password"
+                  autocomplete="current-password"
+                />
+              </label>
+              <div class="form-actions">
+                <button
+                  class="peach-button-ghost"
+                  type="button"
+                  :disabled="deleting"
+                  @click="cancelDelete"
+                >
+                  取消
+                </button>
+                <button
+                  class="danger-button"
+                  type="button"
+                  :disabled="deleting || !deletePassword"
+                  @click="handleDeleteAccount"
+                >
+                  {{ deleting ? '正在注销...' : '确认注销，永久删除' }}
+                </button>
+              </div>
+            </template>
+          </div>
         </section>
       </main>
     </section>
@@ -140,10 +264,19 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { updateProfile, uploadAvatar } from '../services/auth.service'
+import { useRouter } from 'vue-router'
+import {
+  changePassword,
+  deleteAccount,
+  exportData,
+  updateProfile,
+  uploadAvatar,
+} from '../services/auth.service'
 import { useUserStore } from '../stores/user'
 import UserAvatar from '../components/UserAvatar.vue'
+import { parseFilenameFromDisposition, saveBlob } from '../utils/download'
 
+const router = useRouter()
 const userStore = useUserStore()
 const nickname = ref(userStore.nickname)
 const nicknameError = ref('')
@@ -208,6 +341,104 @@ watch(
     nickname.value = value
   },
 )
+
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const passwordMessage = ref('')
+const passwordError = ref('')
+const savingPassword = ref(false)
+
+const exporting = ref(false)
+const dataMessage = ref('')
+const dataError = ref('')
+const confirmingDelete = ref(false)
+const deletePassword = ref('')
+const deleting = ref(false)
+
+/**
+ * 两次输入一致才允许提交。长度和不与旧密码相同交给后端判断——
+ * 那两条规则只有后端知道完整答案（前端并不知道旧密码是什么）。
+ */
+const canSubmitPassword = computed(
+  () =>
+    Boolean(currentPassword.value) &&
+    Boolean(newPassword.value) &&
+    newPassword.value === confirmPassword.value,
+)
+
+function resetPasswordForm() {
+  currentPassword.value = ''
+  newPassword.value = ''
+  confirmPassword.value = ''
+}
+
+async function handleChangePassword() {
+  passwordMessage.value = ''
+  passwordError.value = ''
+
+  if (newPassword.value !== confirmPassword.value) {
+    passwordError.value = '两次输入的新密码不一致。'
+    return
+  }
+
+  savingPassword.value = true
+
+  try {
+    const response = await changePassword({
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+    })
+    resetPasswordForm()
+    // 后端会把其他设备的会话删掉，这里如实说清楚，免得用户以为到处都还是登录状态。
+    passwordMessage.value = response.message || '密码已更新。'
+  } catch (error) {
+    passwordError.value = error instanceof Error ? error.message : '修改失败，请稍后重试。'
+  } finally {
+    savingPassword.value = false
+  }
+}
+
+async function handleExport() {
+  dataMessage.value = ''
+  dataError.value = ''
+  exporting.value = true
+
+  try {
+    const { blob, contentDisposition } = await exportData()
+    saveBlob(blob, parseFilenameFromDisposition(contentDisposition) ?? 'scenelex-export.json')
+    dataMessage.value = '导出已开始下载。'
+  } catch (error) {
+    dataError.value = error instanceof Error ? error.message : '导出失败，请稍后重试。'
+  } finally {
+    exporting.value = false
+  }
+}
+
+function cancelDelete() {
+  confirmingDelete.value = false
+  deletePassword.value = ''
+}
+
+/**
+ * 注销后后端已删掉会话，本地也必须清干净再跳走：
+ * 留着 user 的话路由守卫会认为还登录着，用户会看到一个空壳的仪表盘。
+ */
+async function handleDeleteAccount() {
+  dataMessage.value = ''
+  dataError.value = ''
+  deleting.value = true
+
+  try {
+    await deleteAccount(deletePassword.value)
+    userStore.clearSession()
+    await router.push({ name: 'landing' })
+  } catch (error) {
+    dataError.value = error instanceof Error ? error.message : '注销失败，请稍后重试。'
+  } finally {
+    deleting.value = false
+  }
+}
 
 async function handleAvatarChange(event: Event) {
   const target = event.target as HTMLInputElement
@@ -397,8 +628,7 @@ async function handleSubmit() {
 }
 
 .profile-summary,
-.profile-form,
-.profile-note {
+.profile-form {
   border-radius: var(--sl-radius-lg);
 }
 
@@ -462,8 +692,7 @@ async function handleSubmit() {
   gap: 20px;
 }
 
-.profile-form,
-.profile-note {
+.profile-form {
   padding: 26px;
 }
 
@@ -476,8 +705,7 @@ async function handleSubmit() {
   border-bottom: 1px solid var(--sl-glass-border);
 }
 
-.panel-head h3,
-.profile-note h3 {
+.panel-head h3 {
   margin: 0;
   color: var(--sl-text-main);
   font-size: 24px;
@@ -549,10 +777,67 @@ async function handleSubmit() {
   opacity: 0.55;
 }
 
-.profile-note p:last-child {
-  margin: 10px 0 0;
+.data-row,
+.danger-zone {
+  padding-top: 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.data-row strong,
+.danger-zone strong {
+  color: var(--sl-text-main);
+  font-size: 17px;
+}
+
+.data-row p,
+.danger-zone p {
+  max-width: 560px;
+  margin: 8px 0 0;
   color: var(--sl-text-soft);
   line-height: 1.7;
+}
+
+/* 不让文字段落把按钮压窄：两个字的按钮被折成竖排会很难认出是按钮。 */
+.data-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 注销是不可撤销的，视觉上要和上面的普通操作明显分开。 */
+.danger-zone {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--sl-glass-border);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.danger-zone .field-block {
+  max-width: 360px;
+}
+
+.danger-button {
+  align-self: flex-start;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: var(--sl-radius-md);
+  border: 1px solid rgba(180, 35, 24, 0.4);
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: rgba(180, 35, 24, 0.14);
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .avatar-upload-wrapper {
@@ -654,8 +939,7 @@ async function handleSubmit() {
   }
 
   .profile-hero,
-  .profile-form,
-  .profile-note {
+  .profile-form {
     padding: 24px;
   }
 
@@ -665,6 +949,15 @@ async function handleSubmit() {
 
   .form-actions button {
     width: 100%;
+  }
+
+  .data-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .danger-button {
+    align-self: stretch;
   }
 }
 </style>

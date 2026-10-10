@@ -1,22 +1,30 @@
 import { withTransaction } from '../config/database';
+import { deleteAvatarFileQuietly } from './avatar-storage.service';
 import {
   consumeAccessKey,
   findAccessKeyForUpdate,
 } from '../repositories/access-key.repository';
 import {
+  countAdmins,
   createSession,
   createUser,
+  deleteOtherSessions,
   deleteSessionByTokenHash,
+  deleteUserById,
+  findPasswordHashById,
   findUserByEmail,
   findUserByTokenHash,
   touchSession,
   updateUserAvatar,
+  updateUserPassword,
   updateUserProfile,
 } from '../repositories/auth.repository';
 import type {
   AccessStatus,
   AuthSession,
   AuthUser,
+  ChangePasswordPayload,
+  DeleteAccountPayload,
   LoginPayload,
   RegisterPayload,
   UpdateProfilePayload,
@@ -55,6 +63,21 @@ function throwInvalidCredentials(): never {
 function validatePassword(password: string) {
   if (password.length < 8) {
     throw new HttpError(400, '密码至少需要 8 位');
+  }
+}
+
+/**
+ * 改密码的规则单独抽出来，是因为它全是纯判断：不连库就能测，改规则时
+ * 测试直接说明"什么算合规的新密码"，而不是绕一大圈去断言数据库状态。
+ *
+ * 调用时机在"验过旧密码之后"，这样旧密码打错时报的是"当前密码不正确"，
+ * 而不是被新密码的格式问题抢先报出来。
+ */
+export function assertNewPasswordIsUsable(currentPassword: string, newPassword: string) {
+  validatePassword(newPassword);
+
+  if (currentPassword === newPassword) {
+    throw new HttpError(400, '新密码不能与当前密码相同');
   }
 }
 
@@ -297,6 +320,99 @@ export const authService = {
     }
 
     return user;
+  },
+
+  /**
+   * 改密码要验旧口令，否则会话被偷走后可以直接改密把真正的用户锁在外面。
+   */
+  async changePassword(
+    userId: number,
+    token: string,
+    payload: ChangePasswordPayload,
+  ) {
+    const currentPassword = payload.currentPassword?.trim() ?? '';
+    const newPassword = payload.newPassword?.trim() ?? '';
+
+    if (!currentPassword) {
+      throw new HttpError(400, '请输入当前密码');
+    }
+
+    if (!newPassword) {
+      throw new HttpError(400, '请输入新密码');
+    }
+
+    const credentials = await findPasswordHashById(userId);
+
+    if (!credentials) {
+      throw new HttpError(404, '用户不存在');
+    }
+
+    const matched = await verifyPassword(
+      currentPassword,
+      credentials.passwordSalt,
+      credentials.passwordHash,
+    );
+
+    if (!matched) {
+      throw new HttpError(401, '当前密码不正确');
+    }
+
+    assertNewPasswordIsUsable(currentPassword, newPassword);
+
+    const passwordInfo = await hashPassword(newPassword);
+
+    await updateUserPassword(userId, passwordInfo.salt, passwordInfo.hash);
+    // 改密码的常见动机是"怀疑别人知道我的密码"，所以其他设备的会话必须失效。
+    // 保留当前这条：用户刚证明过自己知道新密码，把他自己也踢下线只会让人以为改失败了。
+    await deleteOtherSessions(userId, hashToken(token));
+  },
+
+  /**
+   * 注销账号不可撤销，所以要求重新输入密码，而不是仅凭会话。
+   */
+  async deleteAccount(user: AuthUser, payload: DeleteAccountPayload) {
+    const password = payload.password?.trim() ?? '';
+
+    if (!password) {
+      throw new HttpError(400, '请输入密码以确认注销');
+    }
+
+    // 先查管理员数量再验密码：注销是本人主动发起的，早一步给出"你是最后一个管理员"
+    // 比让他输完密码才被拒更好懂。这一步不泄露任何别人的信息。
+    if (user.role === 'admin') {
+      const admins = await countAdmins();
+
+      if (admins <= 1) {
+        throw new HttpError(
+          400,
+          '这是最后一个管理员账号，注销后将没有人能再进入管理页。请先设置另一个管理员。',
+        );
+      }
+    }
+
+    const credentials = await findPasswordHashById(user.id);
+
+    if (!credentials) {
+      throw new HttpError(404, '用户不存在');
+    }
+
+    const matched = await verifyPassword(
+      password,
+      credentials.passwordSalt,
+      credentials.passwordHash,
+    );
+
+    if (!matched) {
+      throw new HttpError(401, '密码不正确');
+    }
+
+    await deleteUserById(user.id);
+
+    // 数据已经删了，这时文件删不掉也不该让请求失败——报错只会让用户以为没注销成功，
+    // 然后反复重试。留个日志，剩下的交给运维清理。
+    await deleteAvatarFileQuietly(user.avatarUrl);
+
+    return { email: user.email };
   },
 
   /**

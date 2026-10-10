@@ -115,7 +115,11 @@
               <label class="checkbox-label">
                 <input v-model="acceptedTerms" type="checkbox" required />
                 <span class="checkbox-custom"></span>
-                <span>我已阅读并同意 <a href="#" class="link">服务条款</a> <span class="required">*</span></span>
+                <span>
+                  我已阅读并同意
+                  <RouterLink :to="{ name: 'terms' }" class="link" target="_blank">服务条款与隐私说明</RouterLink>
+                  <span class="required">*</span>
+                </span>
               </label>
             </div>
           </template>
@@ -127,7 +131,9 @@
                 <span class="checkbox-custom"></span>
                 <span>记住我</span>
               </label>
-              <a href="#" class="link">忘记密码？</a>
+              <!-- 没有邮件找回：本站不发信，所以只给一条真人求助路径，不留 dead link。 -->
+              <a v-if="contactMailto" :href="contactMailto" class="link">忘记密码？联系管理员</a>
+              <span v-else class="link-hint">忘记密码请找发你访问密钥的人</span>
             </div>
           </template>
 
@@ -163,7 +169,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { login, register } from '../services/auth.service'
 import { useUserStore } from '../stores/user'
 import { contactMailto } from '../utils/contact'
@@ -612,6 +618,12 @@ async function handleSubmit() {
 
 .link:hover {
   text-decoration: underline;
+}
+
+/* 没配联系邮箱时的替代文案：不是链接，所以不能借用 .link 的配色和字重。 */
+.link-hint {
+  color: var(--sl-text-mute);
+  font-size: 14px;
 }
 
 .form-feedback {
