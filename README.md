@@ -267,6 +267,15 @@ npm run user:promote -- --email you@example.com
 
 Admin accounts keep login and admin-panel access after `access_expires_at`; use `user:suspend` when an admin must be explicitly disabled.
 
+Import the exam word books:
+
+```bash
+npm run wordbook:import                 # CET-6, TEM-4 and TEM-8 in one run
+npm run wordbook:import -- --book tem8  # just one book
+```
+
+The word lists ship in `backend/data/<code>-word-list.json`, so this needs no network access. A backend start only seeds about ten reference words per book (`src/config/database.ts`); the full lists come from this command. Re-running it is safe — each book is cleared and rewritten inside one transaction.
+
 Prewarm CET-6 system word cards:
 
 ```bash
