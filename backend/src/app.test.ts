@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import type { Response } from 'express';
@@ -61,6 +61,29 @@ describe('受保护路由', () => {
     const response = await request(app).get('/api/definitely-not-a-route');
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe('请求日志', () => {
+  /**
+   * loggerMiddleware 曾经只被定义、从未在 app.ts 里注册，等于线上一条请求日志都没有。
+   * 这条用例盯的就是"有没有真的接上"，光看中间件自身是发现不了的。
+   */
+  it('每个请求都会记录状态码和耗时', async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+
+    try {
+      await request(app).get('/health');
+      // finish 事件在响应交给内核之后才触发，等一拍再断言，否则会偶发读不到。
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(lines.some((line) => /\[GET\] \/health 200 [\d.]+ms/.test(line))).toBe(true);
   });
 });
 

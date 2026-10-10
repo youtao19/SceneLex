@@ -12,6 +12,7 @@ import compression from 'compression'
 import routes from './routes'
 import { env } from './config/env'
 import { errorMiddleware } from './middlewares/error.middleware'
+import { loggerMiddleware } from './middlewares/logger.middleware'
 
 const app = express()
 const backendRootPath = path.resolve(__dirname, '..')
@@ -78,6 +79,11 @@ export function setStaticCacheHeaders(res: Response, filePath: string) {
 
   res.setHeader('Cache-Control', 'no-cache')
 }
+
+/**
+ * 请求日志必须排在最前面：只有从这里开始计时，才量得到压缩、路由和静态资源的全部开销。
+ */
+app.use(loggerMiddleware)
 
 /**
  * 响应压缩。放在路由和静态资源之前，才能覆盖到所有出站响应。
