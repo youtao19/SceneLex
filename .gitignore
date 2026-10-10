@@ -28,3 +28,5 @@ ocr-service/.venv
 ocr-service/uploads/*
 !ocr-service/uploads/.gitkeep
 ecosystem.config.cjs
+# 交接改造待办：列有尚未修复的安全问题与基础设施信息，修完之前不进仓库。
+todolist.md
