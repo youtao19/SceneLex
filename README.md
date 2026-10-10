@@ -294,11 +294,26 @@ pm2 save
 
 `ecosystem.config.cjs` is gitignored because it holds the database password and model keys; the `*.example.cjs` template holds none and is tracked, so keep real values out of it.
 
-The template is `fork` mode with `instances: 1` on purpose. The rate limiter and the model concurrency queue live in process memory, so a second instance would double every quota instead of sharing it.
+The template is `fork` mode with `instances: 1` on purpose — see [Scaling past one process](#scaling-past-one-process) before you change it.
 
 In production the backend loads **no** `.env` file — `src/config/env.ts` only reads one outside production. Everything has to arrive through the `env` block (or the systemd/container environment): `DATABASE_URL` and `USER_API_KEY_SECRET` are required, the rest have defaults. After editing the file, reload it with `pm2 restart ecosystem.config.cjs --only scenelex --update-env`; a plain `pm2 restart scenelex` will not pick up the change.
 
 Missing either required variable is a startup failure, not a warning. That is deliberate for both: a backend with no database still answers `/health` with 200, so a deploy would look green while every real request failed, and a missing `USER_API_KEY_SECRET` silently encrypts user keys with a constant published in this repository.
+
+### Scaling past one process
+
+**This backend is written for exactly one Node process.** One process is enough for the current load, so the limits below are a deliberate trade, not an oversight. They are hard limits: raising `instances` in `ecosystem.config.cjs` (or running the app on two servers behind a load balancer) silently breaks all four, and nothing in the app will warn you.
+
+| What breaks | Why | What it needs first |
+| --- | --- | --- |
+| Rate limits: 20 auth attempts per 15 min per IP, 10 model calls per minute per user (`rate-limit.middleware.ts`) | Counters live in a process-local `Map`, so N instances allow N× the configured limit | Shared counters (Redis) with the same windows and keys |
+| Model concurrency: `MODEL_GLOBAL_CONCURRENCY` (3) and `MODEL_USER_CONCURRENCY` (1) | The queue and the active-request counters are process-local. The global cap is what keeps the shared system-endpoint key inside its upstream rate limit, so N instances mean N× the concurrent load on that key | A shared semaphore/queue (Redis), not just a bigger number |
+| Avatars | Written to `backend/uploads/avatars` on the local disk unless the `R2_AVATAR_*` variables are set; an instance cannot serve a file another instance wrote | Configure R2, or mount one shared volume |
+| OCR batch pages | `ocr_pages.stored_path` records a path on the machine that received the upload, and retry reads that file back. On the other instance the page looks uploaded but retry fails | Shared volume, or move page images to object storage |
+
+Two things that are **not** affected, so you do not need to move them: sessions and access keys live in PostgreSQL, and so does model usage (`model_usage_daily`), which means the daily/monthly system-endpoint quota is shared across instances as-is. Its check is read-then-record rather than atomic across instances, so a burst on several instances can overshoot the cap by roughly one call per instance — acceptable for a cost guard, not for a hard billing boundary.
+
+The OCR sidecar (`ocr-service/`) is a separate Python process reached over HTTP; scaling the backend does not scale it, and it holds the loaded PaddleOCR models in memory on whichever machine runs it.
 
 ### Reverse proxy and client IP
 
@@ -392,7 +407,7 @@ npm --prefix backend run dict:import-db
 - Keep local runtime values in `backend/.env.dev.local`.
 - Use `USER_API_KEY_SECRET` in production.
 - Rotate database passwords and model API keys if they were ever committed.
-- The built-in rate limiter and model queue are in-memory and intended for a single Node process. Use shared storage such as Redis before scaling to multiple backend instances.
+- The built-in rate limiter and model queue are in-memory and intended for a single Node process. What that rules out, and what has to change first, is listed under [Scaling past one process](#scaling-past-one-process).
 
 ### History rewrite (2026-10-10)
 

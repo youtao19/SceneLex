@@ -25,6 +25,8 @@ module.exports = {
 
       // 必须是 fork + 单实例。限流器和模型并发队列都建在进程内存里，
       // 多开实例它们互不可见，实际配额会翻倍，用户端看到的是限流失效。
+      // 头像和 OCR 原图也在本机磁盘上，换实例就取不到。
+      // 扩容前要先改什么，见 README 的 "Scaling past one process"。
       exec_mode: 'fork',
       instances: 1,
 

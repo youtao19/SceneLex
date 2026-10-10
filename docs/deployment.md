@@ -130,6 +130,12 @@ pm2 restart ecosystem.config.cjs --only scenelex --update-env
 pm2 save
 ```
 
+### 不要顺手把 `instances` 调大
+
+模板里 `instances: 1` 是硬前提，不是保守估计。限流计数、模型并发队列都在进程内存里，头像和 OCR 原图落在本机磁盘上——加实例不会分摊这些，只会让每一份配额各算各的。多实例之前必须先做的事，README 的 [Scaling past one process](../README.md#scaling-past-one-process) 列了一张表，照着改完再动这个数字。
+
+模型用量配额（`model_usage_daily`）是例外：它存在 PostgreSQL 里，本来就在实例间共享。
+
 ## 6. 首次初始化
 
 数据库是空的，没有账号也没有词书。按顺序做：
