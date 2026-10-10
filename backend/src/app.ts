@@ -15,6 +15,16 @@ import { errorMiddleware } from './middlewares/error.middleware'
 import { loggerMiddleware } from './middlewares/logger.middleware'
 
 const app = express()
+
+/**
+ * 不设这个的话 req.ip 恒为 127.0.0.1（Nginx 的地址），于是「按 IP 计数」的
+ * 登录/注册限流变成全站共用一个桶：15 分钟 20 次是所有用户加起来的额度，
+ * 人一多就一起被锁死，暴力破解防护也失去意义。
+ *
+ * 跳数含义与前提见 config/env.ts 的 readTrustProxyHops。
+ */
+app.set('trust proxy', env.trustProxyHops)
+
 const backendRootPath = path.resolve(__dirname, '..')
 const repoRootPath = path.resolve(backendRootPath, '..')
 const avatarUploadPath = path.join(backendRootPath, 'uploads/avatars')

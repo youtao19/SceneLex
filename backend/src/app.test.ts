@@ -181,3 +181,38 @@ describe('跨域白名单', () => {
     expect(response.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
+
+/**
+ * 线上链路是 Cloudflare → Nginx → 本进程。没有 trust proxy 时 req.ip 恒为
+ * 127.0.0.1，按 IP 计数的登录限流就变成全站共用一个桶——线上表现为
+ * 「人一多所有人一起被锁死」，而且暴力破解防护也一起失效。
+ */
+describe('按 IP 的登录限流', () => {
+  const login = (ip: string) =>
+    request(app)
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', ip)
+      .send({ email: 'rate-limit-probe@example.com', password: 'not-a-real-password' });
+
+  it('一个客户端打满额度后，另一个客户端不受影响', async () => {
+    const noisy = '203.0.113.10';
+    const quiet = '203.0.113.20';
+
+    // authRateLimit 是 15 分钟 20 次，第 21 次才拒绝。
+    for (let i = 0; i < 20; i += 1) {
+      const response = await login(noisy);
+
+      expect(response.status).not.toBe(429);
+    }
+
+    expect((await login(noisy)).status).toBe(429);
+    expect((await login(quiet)).status).not.toBe(429);
+  });
+
+  it('同一客户端继续受 20 次约束，不因为前面是别人就重新计数', async () => {
+    const response = await login('203.0.113.10');
+
+    expect(response.status).toBe(429);
+    expect(response.body.message).toBe('请求太频繁，请稍后再试');
+  });
+});

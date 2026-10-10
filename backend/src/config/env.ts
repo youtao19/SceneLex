@@ -23,6 +23,34 @@ export function readMigrateOnStartup(value: string | undefined) {
  *
  * 写成接收参数的纯函数而不是直接读 env，是为了能在测试里构造各种取值。
  */
+/**
+ * 本进程前面有几层代理。默认 2 = Cloudflare → Nginx，即本项目的线上链路。
+ *
+ * 这个数字决定 req.ip 从 X-Forwarded-For 的右端往回数几跳：
+ * 数少了（比如 0）所有人共用 Cloudflare 出口 IP，按 IP 计数的登录限流会退化成
+ * 几个大桶；数多了会把攻击者自己伪造的那部分头部当成真实客户端，限流形同虚设。
+ *
+ * 数几跳的前提是进程只能经由这些代理访问到。源站若可直连，攻击者绕过
+ * Cloudflare 直接打过来就能随便编 X-Forwarded-For，所以防火墙要只放行
+ * Cloudflare 的出口网段 —— 这条在代码里保证不了，见 README。
+ *
+ * 写成可配是因为部署形态会不同：不套 Cloudflare 的部署应该设 1。
+ */
+export function readTrustProxyHops(value: string | undefined) {
+  const text = (value ?? '').trim();
+
+  // 用 Number 而不是 parseInt：parseInt('1.5') 会悄悄截断成 1，
+  // 而 '1.5' 显然是写错了，应该回落到默认值让人发现。
+  const parsed = Number(text);
+
+  // 0 是合法值（不信任任何代理），所以只排除负数和非整数。
+  if (!text || !Number.isInteger(parsed) || parsed < 0) {
+    return 2;
+  }
+
+  return parsed;
+}
+
 export function assertProductionConfig(config: {
   nodeEnv: string;
   userApiKeySecret: string;
@@ -54,6 +82,7 @@ export const env = {
   dictionaryJsonPath: process.env.DICTIONARY_JSON_PATH ?? '',
   userApiKeySecret: process.env.USER_API_KEY_SECRET ?? '',
   corsOrigins: process.env.CORS_ORIGINS ?? process.env.APP_ORIGIN ?? '',
+  trustProxyHops: readTrustProxyHops(process.env.TRUST_PROXY_HOPS),
   modelRateLimitMax: Number(process.env.MODEL_RATE_LIMIT_MAX ?? 10),
   modelGlobalConcurrency: Number(process.env.MODEL_GLOBAL_CONCURRENCY ?? 3),
   modelUserConcurrency: Number(process.env.MODEL_USER_CONCURRENCY ?? 1),

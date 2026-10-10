@@ -55,6 +55,12 @@ module.exports = {
         USER_API_KEY_SECRET: 'change-me-to-a-long-random-string',
 
         // ---- 可选：按需打开 ----
+        // 前面有几层代理。默认 2 = Cloudflare → Nginx，这也是本项目的线上链路；
+        // 只有 Nginx 一层时设 1，完全直连时设 0。
+        // 设错的后果见 README「Reverse proxy and client IP」：数少了登录限流
+        // 会退化成全站一个桶，数多了伪造的 X-Forwarded-For 会被当真。
+        // TRUST_PROXY_HOPS: '2',
+
         // 默认开启启动迁移，线上不要设成 false（那会让未部署的迁移永远不执行）。
         // MIGRATE_ON_STARTUP: 'false',
 

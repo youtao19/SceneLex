@@ -254,6 +254,14 @@ The template is `fork` mode with `instances: 1` on purpose. The rate limiter and
 
 In production the backend loads **no** `.env` file — `src/config/env.ts` only reads one outside production. Everything has to arrive through the `env` block (or the systemd/container environment): `DATABASE_URL` and `USER_API_KEY_SECRET` are required, the rest have defaults. After editing the file, reload it with `pm2 restart ecosystem.config.cjs --only scenelex --update-env`; a plain `pm2 restart scenelex` will not pick up the change.
 
+### Reverse proxy and client IP
+
+Whenever the backend sits behind a proxy, set `TRUST_PROXY_HOPS` to the number of proxies in front of it — `2` for the default Cloudflare → Nginx setup, `1` if Nginx is the only one. The default is `2`.
+
+This is not cosmetic. Login and registration are rate limited per IP, and without the setting `req.ip` is always `127.0.0.1` (Nginx), so the limit collapses into a single shared bucket — twenty failed logins in fifteen minutes across *all* users. Counting the wrong number of hops is also a problem in the other direction: too many hops and a forged `X-Forwarded-For` is accepted as the real client.
+
+Counting hops only works if the backend can *only* be reached through those proxies. If the origin is reachable directly, an attacker bypasses Cloudflare and writes whatever `X-Forwarded-For` they like, so restrict the origin's firewall to [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) — that part cannot be enforced from inside the app.
+
 For temporary public sharing through ngrok:
 
 ```bash

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertProductionConfig, readMigrateOnStartup } from './env';
+import { assertProductionConfig, readMigrateOnStartup, readTrustProxyHops } from './env';
 
 /**
  * 这个默认值一旦被改反，线上会静默地永远不再执行迁移 —— 不会报错，只会慢慢跑偏。
@@ -45,6 +45,31 @@ describe('assertProductionConfig', () => {
   it('开发与测试环境不强制，否则本地和 CI 都跑不起来', () => {
     for (const nodeEnv of ['development', 'test']) {
       expect(() => assertProductionConfig({ nodeEnv, userApiKeySecret: '' })).not.toThrow();
+    }
+  });
+});
+
+/**
+ * 跳数写错的两个方向都会出事：数少了所有用户共用一个限流桶，
+ * 数多了攻击者伪造的 X-Forwarded-For 会被当成真实客户端。
+ */
+describe('readTrustProxyHops', () => {
+  it('未配置时用线上链路的值：Cloudflare + Nginx 两跳', () => {
+    expect(readTrustProxyHops(undefined)).toBe(2);
+  });
+
+  it('0 是合法值，表示不信任任何代理', () => {
+    expect(readTrustProxyHops('0')).toBe(0);
+  });
+
+  it('显式配置按配置走，覆盖不套 Cloudflare 的部署', () => {
+    expect(readTrustProxyHops('1')).toBe(1);
+    expect(readTrustProxyHops('3')).toBe(3);
+  });
+
+  it('非法值回落到默认两跳，而不是回落到 0', () => {
+    for (const value of ['', 'abc', '-1', '1.5']) {
+      expect(readTrustProxyHops(value)).toBe(2);
     }
   });
 });

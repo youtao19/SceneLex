@@ -185,6 +185,25 @@ ln -s /etc/nginx/sites-available/scenlex /etc/nginx/sites-enabled/scenlex
 nginx -t && systemctl reload nginx
 ```
 
+### 让后端认得真实客户端 IP
+
+反代之后 `req.ip` 默认是 Nginx 的地址，而登录/注册是**按 IP** 限流的（15 分钟 20 次）。
+不配的话这 20 次是全站共享的：人一多大家会一起被锁死，暴力破解防护也同时失效。
+
+在 `ecosystem.config.cjs` 里把 `TRUST_PROXY_HOPS` 设成前面代理的层数：
+
+| 部署形态 | 值 |
+|---|---|
+| Cloudflare → Nginx → 后端 | `2`（默认值） |
+| Nginx → 后端 | `1` |
+| 后端直接对外 | `0` |
+
+数多了同样有问题：多出来的那一跳会取自攻击者伪造的 `X-Forwarded-For`。
+
+**数跳数的前提是后端只能经由这些代理访问到。** 如果源站能被直连，攻击者绕过 Cloudflare
+自己编一个 `X-Forwarded-For` 就绕过了按 IP 的限流。所以源站防火墙要只放行
+[Cloudflare 的出口网段](https://www.cloudflare.com/ips/)——这一条在应用里保证不了。
+
 ## 8. HTTPS
 
 ```bash
