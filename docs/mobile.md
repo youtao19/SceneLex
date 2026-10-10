@@ -118,8 +118,10 @@ node backend/scripts/fake-model-server.cjs     # 127.0.0.1:3010，OpenAI-compati
 - 应用 ID 固定 `cn.scenlex.app`；`minSdk` 由插件决定为 24（Android 7.0），`targetSdk` 36。
 - 已交付的包（2026-10-09）：`mobile/build/app/outputs/flutter-apk/app-release.apk`，
   versionName 1.0.0 / versionCode 1 / minSdk 24 / targetSdk 36，默认指向 `https://scenlex.cn/api`。
-  签名证书主体含开发者真实姓名与城市，不记录在仓库里；
-  SHA-256 `78db97cc5a46f8f9436469b0c6f75c7428cd5e033c7e054742eb7b1048b8d4e4`；
+  签名证书主体含开发者真实姓名与城市，**不记录在仓库里**；需要核对时用
+  `keytool -list -v -keystore <你的 jks> -alias scenlex` 或
+  `apksigner verify --print-certs <apk>` 自己看。
+  证书 SHA-256 `78db97cc5a46f8f9436469b0c6f75c7428cd5e033c7e054742eb7b1048b8d4e4`；
   APK SHA-256 `0db2a3553a4afb0bf9075ffa557b3031d24aed5a22526a03b6d665f2a8f1ffad`。
   真机已验证：该签名包能安装、能启动；同一签名把 versionCode 1 升到 2 覆盖安装成功且应用数据保留。
 - 发布签名：`android/app/build.gradle.kts` 会读本机 `android/key.properties`；

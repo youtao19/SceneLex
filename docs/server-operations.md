@@ -54,7 +54,7 @@ Express 后端同时负责两件事：
 - 服务器当前检出分支：`main`（`production` 已于 2026-10-08 删除）。
 - 服务器当前提交：`50f59a6`（`docs: 补充服务器运行状态核查结果`）。
 - 切换前已确认 `production`（`d265968`）是 `main` 的祖先，所以切分支不丢任何提交；确认后已删除本地、GitHub、Gitee 和服务器上的 `production`。
-- 服务器的 `origin` 和 `gitee` 均指向 `https://gitee.com/youtao19/SceneLex.git`，部署从 Gitee 拉取。
+- 服务器的 `origin` 和 `gitee` 都指向 Gitee 上的同一个仓库，部署从 Gitee 拉取（具体地址见服务器上的 `git remote -v`）。
 - 生产环境配置文件：`/root/SceneLex/ecosystem.config.cjs`。
 - 当前默认 AI 提供商：DeepSeek；视觉 OCR 提供商：Kimi。
 - 数据库连接、模型密钥及用户密钥加密配置由 PM2 环境变量提供。本文只记录配置位置，不记录凭据明文。
@@ -166,10 +166,10 @@ curl https://scenlex.cn/health
 - `USER_API_KEY_SECRET` **必须保持不变**：迁移是把旧的密钥密文原样搬到端点表，换密钥会让已存的端点全部解不开。
 - 迁移会把每个用户旧的 kimi / deepseek 密钥转成端点（DeepSeek 优先作为默认）。**没有存过密钥的用户迁移后一个端点都没有**，他们需要自己在设置页配一个才能用生成和 OCR —— 因为服务器兜底 Key 已经去掉了。
 - 词卡预热脚本不再能借用服务端 Key，需要在环境里给 `PREWARM_BASE_URL` / `PREWARM_API_KEY` / `PREWARM_MODEL`（或沿用 `DEEPSEEK_*`）。
-- **VIP 名单会丢**：迁移 1791443876521 删过 `users.is_vip`，1791443876522 又加回来（默认 false），中间的值没了。线上原来 VIP 是 `<email-removed>`（user 4），**部署后要手动补**：
+- **VIP 名单会丢**：迁移 1791443876521 删过 `users.is_vip`，1791443876522 又加回来（默认 false），中间的值没了。**部署后要按自己记录里的 user id 手动补**（哪些人是 VIP 见运维私有记录，不写在这里）：
 
   ```sql
-  UPDATE users SET is_vip = TRUE WHERE id = 4;
+  UPDATE users SET is_vip = TRUE WHERE id = <user id>;
   ```
 
 - 部署后还要在管理页配一次**系统端点**，否则 VIP 用户仍然没有端点可用。系统端点允许指向内网和 http，因为是你自己的服务器。
@@ -304,8 +304,10 @@ systemctl list-timers certbot.timer --all
 生产服务通过 `DATABASE_URL` 连接本机 PostgreSQL：
 
 ```text
-postgresql://USER:PASSWORD@127.0.0.1:5432/scenelex_db
+postgresql://<应用角色>:***@127.0.0.1:5432/scenelex_db
 ```
+
+（角色名与口令属于凭据，只记在 `ecosystem.config.cjs` 和你自己的密码管理器里，本文不写。）
 
 其中：
 
@@ -341,15 +343,17 @@ sudo -u postgres psql -d scenelex_db -Atc "select tablename from pg_tables where
 
 只点「设为 VIP」而不续期，用户看到的仍然是过期报错，很容易误判成系统端点没配好。
 
-2026-10-08 部署时的实际状态（`access_status` 都还是 active，但按到期时间判都是过期）：
+**不要在这里记用户名单。** 用户邮箱是别人的个人信息，仓库里不放；而且写下来的那一刻就开始过期
+（2026-10-08 那次核查里，五个账号按到期时间判有四个已经失效）。要看现在的状态直接查库：
 
-| 用户 | 邮箱 | 到期日 | 有效 |
-|---|---|---|---|
-| 2 | <email-removed>（管理员） | 2026-06-12 | 过期，但靠管理员豁免照常能用 |
-| 3 | <email-removed> | 2026-06-04 | 否 |
-| 4 | <email-removed>（VIP） | 2026-06-04 | 否 |
-| 5 | <email-removed> | 2026-05-08 | 否 |
-| 6 | <email-removed> | 2026-10-10 | 是（线上唯一有效） |
+```bash
+sudo -u postgres psql -d scenelex_db -c "
+  SELECT id, email, role, is_vip, access_status, access_expires_at,
+         (access_expires_at > NOW()) AS 未过期
+  FROM users ORDER BY id;"
+```
+
+查出来的东西留在终端，不要贴回文档或提交记录里。
 
 ## 管理员账号过期策略
 
