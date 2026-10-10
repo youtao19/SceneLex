@@ -9,6 +9,7 @@ import path from 'path'
 import fs from 'fs'
 import cors from 'cors'
 import compression from 'compression'
+import helmet from 'helmet'
 import routes from './routes'
 import { env } from './config/env'
 import { errorMiddleware } from './middlewares/error.middleware'
@@ -94,6 +95,70 @@ export function setStaticCacheHeaders(res: Response, filePath: string) {
  * 请求日志必须排在最前面：只有从这里开始计时，才量得到压缩、路由和静态资源的全部开销。
  */
 app.use(loggerMiddleware)
+
+/**
+ * 头像配了 R2 时存的是对象存储的绝对 URL，所以 img-src 要把那个域名放行。
+ * 只取到 origin：路径和查询串对 CSP 没有意义。
+ *
+ * 配了个不合法的地址时返回空数组而不是抛错：CSP 少一条指令顶多让头像显示不出来，
+ * 而在这里抛错会让整个服务起不来，代价不对等。
+ */
+export function readAvatarOrigin() {
+  if (!env.r2AvatarPublicBaseUrl) {
+    return []
+  }
+
+  try {
+    return [new URL(env.r2AvatarPublicBaseUrl).origin]
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 安全响应头。CSP 按前端实际用到的东西来定，不留用不上的口子：
+ * - 构建产物只有 /assets 下的外链 JS 和 CSS，模板里没有内联 <script>，
+ *   也没有静态 style 属性（样式都走 :style 绑定和构建后的样式表），
+ *   所以 script-src / style-src 都不需要 'unsafe-inline'
+ * - 阅读助手是 SSE，同源，connect-src 'self' 够用
+ * - 图片来自同源 /uploads/avatars 或 R2 的公开域名
+ *
+ * 刻意不加 upgrade-insecure-requests：线上浏览器看到的一直是 Cloudflare 的
+ * https，这条永远不会触发；反倒会让用 http 直连试跑的人（内网、临时机器）
+ * 所有子资源被升级到 https 而整个前端打不开。收益接近零，代价是难查的故障。
+ *
+ * HSTS 只在生产开：HTTP 响应上的 HSTS 本来也会被浏览器忽略，本地带上只会让人困惑。
+ */
+const isProduction = env.nodeEnv === 'production'
+const avatarOrigins = readAvatarOrigin()
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'"],
+      'style-src': ["'self'"],
+      'img-src': ["'self'", 'data:', ...avatarOrigins],
+      'font-src': ["'self'"],
+      'connect-src': ["'self'"],
+      'object-src': ["'none'"],
+      'base-uri': ["'self'"],
+      // 页面上的 <form> 都带 @submit.prevent，本来就不会真的提交。
+      // 这里用 'self' 而不是 'none'：要挡的是「注入的表单把数据发去外站」，
+      // 同源提交留着，避免哪天有人漏写 .prevent 就变成一个查不出原因的坏表单。
+      'form-action': ["'self'"],
+      'frame-ancestors': ["'none'"],
+    },
+  },
+  // 与上面的 frame-ancestors 保持一致；这个应用没有需要被嵌 iframe 的场景。
+  xFrameOptions: { action: 'deny' },
+  // 生产才带 HSTS：本地 http 上它没有意义，只会让后续调试困惑。
+  strictTransportSecurity: isProduction
+    ? { maxAge: 31536000, includeSubDomains: true }
+    : false,
+  // Referrer 用默认的 no-referrer：出站请求不该带上站内路径。
+}))
 
 /**
  * 响应压缩。放在路由和静态资源之前，才能覆盖到所有出站响应。

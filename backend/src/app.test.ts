@@ -4,7 +4,7 @@ import express from 'express';
 import type { Response } from 'express';
 import compression from 'compression';
 import path from 'path';
-import app, { setStaticCacheHeaders, shouldCompress } from './app';
+import app, { readAvatarOrigin, setStaticCacheHeaders, shouldCompress } from './app';
 
 /**
  * 这一层只覆盖「不需要数据库」的契约：健康检查、未登录拦截、跨域白名单。
@@ -214,5 +214,43 @@ describe('按 IP 的登录限流', () => {
 
     expect(response.status).toBe(429);
     expect(response.body.message).toBe('请求太频繁，请稍后再试');
+  });
+});
+
+/**
+ * 安全响应头是「配了就一直生效、删了没人发现」的那类东西，
+ * 所以把验收要求的三项（CSP / X-Content-Type-Options / Referrer-Policy）
+ * 钉成测试。HSTS 只在生产出现，单测跑在非生产环境，这里断言它不出现。
+ */
+describe('安全响应头', () => {
+  it('CSP 按前端实际用到的资源收紧，不给 inline 开口子', async () => {
+    const csp = (await request(app).get('/health')).headers['content-security-policy'];
+
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    // 前端没有内联 script，样式走 :style 绑定（CSSOM 不受 style-src 约束），
+    // 所以这两个 'unsafe-inline' 都不该出现；出现即说明有人图省事放开了。
+    expect(csp).not.toContain('unsafe-inline');
+    expect(csp).not.toContain('unsafe-eval');
+  });
+
+  it('浏览器会用到的其余几项也在', async () => {
+    const headers = (await request(app).get('/health')).headers;
+
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['referrer-policy']).toBe('no-referrer');
+    expect(headers['x-frame-options']).toBe('DENY');
+  });
+
+  it('非生产环境不带 HSTS，免得本地 http 上出现难以解释的行为', async () => {
+    expect((await request(app).get('/health')).headers['strict-transport-security']).toBeUndefined();
+  });
+});
+
+describe('readAvatarOrigin', () => {
+  it('未配置 R2 时不额外放行任何域名', () => {
+    expect(readAvatarOrigin()).toEqual([]);
   });
 });
