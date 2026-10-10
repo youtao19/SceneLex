@@ -358,10 +358,10 @@ Early commits carried a real `DATABASE_URL` and one release's worth of other peo
 
 Two things that rewrite does **not** fix, and which are worth knowing before you trust it:
 
-- **GitHub keeps unreachable objects.** The old commits are gone from every branch, but GitHub still serves them by exact SHA (verified: `gh api repos/<owner>/<repo>/commits/<old-sha>` still answers). Only a support request gets them garbage-collected. Anyone who already knows a SHA can still read it; nobody browsing or cloning can find it.
+- **GitHub keeps unreachable objects.** The old commits are gone from every branch, but GitHub still served them by exact SHA: `gh api repos/<owner>/<repo>/commits/<old-sha>` kept answering, the contents API still returned the old file with the addresses in it, and `git fetch origin <old-sha>` still succeeded. Only a support request gets those garbage-collected — the rewrite alone does not. Anyone who already knows a SHA can still read it; nobody browsing or cloning can find it.
 - **Clones and forks made before the rewrite keep the old history.** No action on the upstream reaches those. If a fork exists, it is still public.
 
-The upstream clone on the production server predates the rewrite, so its next `git pull --ff-only gitee main` will fail with a diverged history. See [docs/server-operations.md](docs/server-operations.md) for the recovery steps.
+An existing clone cannot follow a rewritten history — `git pull --ff-only` fails with a diverged history, and merging would pull the removed content straight back. Such a clone needs `git fetch && git reset --hard <remote>/<branch>`; see [docs/server-operations.md](docs/server-operations.md), which records the steps taken on the production server.
 
 ## Handing the Project Over
 

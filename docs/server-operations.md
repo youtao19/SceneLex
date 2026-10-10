@@ -115,11 +115,15 @@ pm2 save
 > 备份命令见 deployment.md 第 9 节，把目录换成 `/root/backups`。**先备份并确认成功，再动代码**——
 > 后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据。
 
-### 2026-10-10 改写历史后，这台机器需要做一次
+### 2026-10-10 改写历史后的恢复（已执行完毕）
 
 上游在 2026-10-10 用 `git filter-repo` 改写过历史（清掉早期提交里的数据库连接串与文档里的他人邮箱），
 所有提交的 SHA 都变了。服务器上的克隆还是改写前的，**`git pull --ff-only` 会直接失败**（历史已分叉）。
 不要试图 merge 或 rebase，那只会把要清掉的东西又拉回来。按下面做一次即可：
+
+> **这段已于 2026-10-10 执行完毕**，服务器现在停在 `4f3c750`，本地旧对象也已 `gc --prune=now` 清掉。
+> 留着是因为**任何在改写之前克隆过这个仓库的机器都需要照做一遍**——写在这里比留在聊天记录里可靠。
+> 只需要把下面的 `gitee` 换成那台机器实际使用的远端名。
 
 ```bash
 set -e
@@ -139,6 +143,14 @@ sh ./scripts/check-health.sh http://127.0.0.1:3003
 （`frontend/dist` 和 `backend/dist` 会被 `npm run build` 重写，本来就该重建。）
 
 如果 `git status` 显示有未提交的改动，先弄清楚那是什么再继续——别直接 `--hard`。
+
+两条这次踩到的补充：
+
+- **`origin` 与 `gitee` 在这台机器上同址，但只 fetch 了一个是不够的。** `git fetch gitee` 只更新
+  `refs/remotes/gitee/*`，`refs/remotes/origin/*` 仍指着旧历史，`git gc` 因此清不掉那些旧对象。
+  两个远端都要 fetch，或者直接删掉多余的那个远端。
+- **`git gc` 之后要逐个 `git cat-file -e <旧 SHA>` 复查**，不能只看命令有没有报错——
+  只要还有任何一个 ref 能到达旧提交，GC 就会静默地什么都不清。
 
 > 用 `pm2 restart scenelex` 即可；只有改了 `ecosystem.config.cjs` 才需要用 `pm2 restart ecosystem.config.cjs --only scenelex --update-env` 重新读取环境变量。
 
