@@ -148,8 +148,8 @@
       </article>
     </div>
 
-    <!-- Bottom Left Icon -->
-    <a class="bottom-left-icon" :href="contactMailto" aria-label="联系管理员申请访问密钥">
+    <!-- Bottom Left Icon：没配联系邮箱时整块不渲染，避免出现点了没反应的入口 -->
+    <a v-if="contactMailto" class="bottom-left-icon" :href="contactMailto" aria-label="联系管理员申请访问密钥">
       <div class="chat-bubble" aria-hidden="true">
         <div class="chat-inner"></div>
       </div>
@@ -166,6 +166,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { login, register } from '../services/auth.service'
 import { useUserStore } from '../stores/user'
+import { contactMailto } from '../utils/contact'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -182,10 +183,6 @@ const submitError = ref('')
 const submitSuccess = ref('')
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-const contactEmail = '<email-removed>'
-const contactSubject = '申请开通 SceneLex 访问密钥'
-const contactBody = '你好，我想申请开通 SceneLex 访问密钥，请协助处理。谢谢。'
-const contactMailto = `mailto:${contactEmail}?subject=${encodeURIComponent(contactSubject)}&body=${encodeURIComponent(contactBody)}`
 
 function handleWheel(e: WheelEvent) {
   if (e.deltaY > 0 && !isScrolled.value) {

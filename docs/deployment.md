@@ -77,6 +77,19 @@ cp ecosystem.config.example.cjs ecosystem.config.cjs
 
 `ecosystem.config.cjs` 已在 `.gitignore` 里，因为它含数据库口令和模型 Key。**不要把真值写进 `*.example.cjs`**——那份是要提交的。
 
+### 前端要单独配的一项
+
+落地页那个「没有访问密钥？点击联系管理员」的收件地址是**构建期**变量，不在 PM2 的环境里
+（PM2 的环境是运行期的，注入不进已经打包好的前端）：
+
+```bash
+# frontend/.env.local —— 已被 gitignore，不会进仓库
+VITE_CONTACT_EMAIL=admin@example.com
+```
+
+也可以只在构建那一次带上：`VITE_CONTACT_EMAIL=admin@example.com npm run build`。
+留空的话那个入口整块不渲染——好过显示一个收不到信的 `mailto:`，让人以为申请已经发出去了。
+
 ## 4. 构建
 
 ```bash

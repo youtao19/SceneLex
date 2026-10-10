@@ -193,6 +193,8 @@ VIP is a single flag (`users.is_vip`) whose only meaning is *may use the system 
 
 Set `USER_API_KEY_SECRET` before users save endpoints, and then leave it alone — it is the key those endpoints are encrypted with, so changing it makes every stored endpoint undecryptable and every user has to paste their API key again.
 
+The landing page's "contact the admin" link is the one setting that is *not* here: it is baked into the frontend at build time, so it lives in `frontend/.env.local` as `VITE_CONTACT_EMAIL`. Leave it empty and the link is not rendered at all. See [docs/deployment.md](docs/deployment.md).
+
 In production this is enforced rather than merely advised: the backend refuses to start when `NODE_ENV=production` and the variable is unset, because the alternative is silently falling back to a constant that is published in this repository.
 
 ### User-supplied URLs are untrusted
