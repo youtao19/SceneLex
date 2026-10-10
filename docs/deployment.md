@@ -157,7 +157,7 @@ npm run wordbook:import              # CET-6 / TEM-4 / TEM-8
 npm run wordbook:import -- --book cet6   # 只导一本
 ```
 
-词表随仓库提供（`backend/data/<code>-word-list.json`），不联网。重跑是安全的。
+词表随仓库提供（`backend/data/<code>-word-list.json`），不联网。重跑是安全的——每次都是先清空再写入，所以它也是把词书恢复成词表原始顺序的手段（历史版本里启动播种会覆盖导入结果，现在改成只补缺失的词，不再覆盖）。
 
 **(3) 配系统端点（可选）。** 在 `/admin` 里配一个管理员出资的共享端点，然后把需要用它的用户标为 VIP。
 没有这一步，每个用户都得自己在设置页填自己的模型端点。

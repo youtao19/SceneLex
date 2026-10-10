@@ -144,7 +144,7 @@ MIGRATE_ON_STARTUP=false
 
 Because of this, `npm run dev` **on its own will fail** while the tunnel is closed — the backend exits with `connect ECONNREFUSED 127.0.0.1:5433` and `ts-node-dev` keeps respawning it. Vite still starts on 9003, but every `/api` call fails. Start the tunnel first, or switch `DATABASE_URL` in `backend/.env.dev.local` back to the local database when you do not need production data.
 
-> Your local server writes to real data. Logging in creates sessions, generating cards writes `system_word_cards`, and the startup word-book seed upserts reference data. Use a separate database if you need to test destructive changes.
+> Your local server writes to real data. Logging in creates sessions, generating cards writes `system_word_cards`, and the startup word-book seed fills in missing reference words. Use a separate database if you need to test destructive changes.
 
 The CLI scripts under `backend/scripts/` load configuration through `backend/scripts/load-env.js`, which reads the same files as the backend (`backend/.env.dev.local`, then `backend/.env`, then a repo-root `.env`; anything already in `process.env` wins). They therefore hit whatever `DATABASE_URL` points at — with the tunnel open, `npm run key:create` and `npm run user:renew` write straight to production.
 
@@ -386,6 +386,8 @@ npm run wordbook:import -- --book tem8  # just one book
 ```
 
 The word lists ship in `backend/data/<code>-word-list.json`, so this needs no network access. A backend start only seeds about ten reference words per book (`src/config/database.ts`); the full lists come from this command. Re-running it is safe — each book is cleared and rewritten inside one transaction.
+
+Seeding only fills in words that are **missing** (`ON CONFLICT ... DO NOTHING`), so a word added to the seed list in `database.ts` will not appear in a database that already has that word — and re-importing is what puts an imported book back into its JSON order if a seed ever overwrote it.
 
 Prewarm CET-6 system word cards:
 

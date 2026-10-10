@@ -182,6 +182,12 @@ async function seedSystemWordBooks() {
         const word = typeof item === 'string' ? item : item.word;
         const examMeanings = typeof item === 'string' ? [] : item.examMeanings;
 
+        // DO NOTHING：种子只负责首次填充。种子词和全量词表大量重叠，之前用
+        // DO UPDATE 会在每次启动时把它们拽回书首（order_index 重置、difficulty
+        // 变回 'core'），把导入的正式数据改坏。
+        //
+        // 代价：往 SYSTEM_WORD_BOOK_SEEDS 里加词不会再自动进库，已有库要手动
+        // 补一次（重跑 npm run wordbook:import，或直接 INSERT）。
         await client.query(
           `
             INSERT INTO system_word_book_items (
@@ -194,11 +200,7 @@ async function seedSystemWordBooks() {
             )
             VALUES ($1, $2, $3, $4, $5, $6::jsonb)
             ON CONFLICT (book_id, word)
-            DO UPDATE SET
-              order_index = EXCLUDED.order_index,
-              unit = EXCLUDED.unit,
-              difficulty = EXCLUDED.difficulty,
-              exam_meanings = EXCLUDED.exam_meanings
+            DO NOTHING
           `,
           [bookId, word, index + 1, 'Unit 1', 'core', JSON.stringify(examMeanings)],
         );
