@@ -1,10 +1,8 @@
 const crypto = require('crypto');
-const path = require('path');
-const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const { loadEnv, readDatabaseUrl } = require('./load-env');
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+loadEnv();
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -55,12 +53,7 @@ function readGrantedDays() {
 }
 
 async function main() {
-  const databaseUrl = process.env.DATABASE_URL ?? '';
-
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL 未配置，无法创建访问密钥');
-  }
-
+  const databaseUrl = readDatabaseUrl();
   const grantedDays = readGrantedDays();
   const note = readArgValue('--note');
   const accessKey = generateAccessKey();

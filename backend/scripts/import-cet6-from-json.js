@@ -1,10 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const { loadEnv, readDatabaseUrl } = require('./load-env');
 
-dotenv.config({ path: path.resolve(__dirname, '..', '.env.dev.local') });
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+loadEnv();
 
 const JSON_PATH = path.resolve(__dirname, '..', 'data', 'cet6-word-list.json');
 
@@ -101,12 +100,8 @@ function loadWordList() {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL 未配置');
-  }
-
   const words = loadWordList();
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: readDatabaseUrl() });
   const client = await pool.connect();
 
   try {

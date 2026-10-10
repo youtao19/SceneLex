@@ -36,6 +36,15 @@ Schema changes go in `backend/migrations/` as timestamped `.cjs` migrations. The
 
 Startup migrations are controlled by `MIGRATE_ON_STARTUP`, which defaults to on and is only disabled by an explicit `false`. Never set it on the server. It exists so local development can connect to the production database through an SSH tunnel (`npm run dev:db-tunnel`) without pushing undeployed migrations to production.
 
+## Configuration & CLI Scripts
+Every CLI script under `backend/scripts/` loads configuration through `backend/scripts/load-env.js` — never call `dotenv.config` directly in a script. `backend/src/scripts-env.test.ts` enforces this and will fail if a new script bypasses it.
+
+`load-env.js` reads the same files as the backend, in priority order: `process.env` (PM2/systemd) > `backend/.env.dev.local` > `backend/.env` > a repo-root `.env`; dotenv never overwrites an existing variable, so the order is the precedence. It deliberately does **not** branch on `NODE_ENV` the way `src/config/env.ts` does: scripts run in an interactive shell where the PM2-injected `NODE_ENV` is absent, so branching there would silently load nothing on the server. This rule exists because those scripts once drifted into three different loading schemes, which made `npm run key:create` fail for anyone who set up only the documented `.env.dev.local`.
+
+Two consequences worth remembering:
+- Scripts act on whatever `DATABASE_URL` resolves to. With the SSH tunnel open, `npm run key:create` / `user:renew` write straight to production — they are not a dry run.
+- When configuration is missing, `readDatabaseUrl()` lists every path it searched instead of just saying "not configured".
+
 ## Coding Style & Naming Conventions
 TypeScript is `strict` in both apps; keep types explicit at API boundaries and avoid `any` and `unknown`. Match the style of the file you edit: the frontend currently favors semicolons, while much of the backend omits them. Do not reformat unrelated files.
 

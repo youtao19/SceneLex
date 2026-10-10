@@ -1,15 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const { loadEnv, readDatabaseUrl } = require('./load-env');
 
-if (process.env.NODE_ENV !== 'production') {
-  dotenv.config({
-    path: path.resolve(__dirname, '..', '.env.dev.local'),
-  });
-}
+loadEnv();
 
-const databaseUrl = process.env.DATABASE_URL;
 const sourcePath = process.env.DICTIONARY_JSON_PATH
   ? path.resolve(process.env.DICTIONARY_JSON_PATH)
   : path.resolve(__dirname, '..', 'data', 'ecdict.compact.json');
@@ -108,13 +103,9 @@ async function insertBatch(client, rows) {
 }
 
 async function importDictionary() {
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL 未配置，无法导入词典');
-  }
-
   const startedAt = Date.now();
   const entries = readEntries();
-  const pool = new Pool({ connectionString: databaseUrl });
+  const pool = new Pool({ connectionString: readDatabaseUrl() });
   const client = await pool.connect();
   let imported = 0;
   let batch = [];

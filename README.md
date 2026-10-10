@@ -142,6 +142,8 @@ Because of this, `npm run dev` **on its own will fail** while the tunnel is clos
 
 > Your local server writes to real data. Logging in creates sessions, generating cards writes `system_word_cards`, and the startup word-book seed upserts reference data. Use a separate database if you need to test destructive changes.
 
+The CLI scripts under `backend/scripts/` load configuration through `backend/scripts/load-env.js`, which reads the same files as the backend (`backend/.env.dev.local`, then `backend/.env`, then a repo-root `.env`; anything already in `process.env` wins). They therefore hit whatever `DATABASE_URL` points at — with the tunnel open, `npm run key:create` and `npm run user:renew` write straight to production.
+
 ## Model Endpoints
 
 There is no server-side fallback key. Each user configures their own endpoints in Settings, and every call goes to an OpenAI-compatible `/v1/chat/completions`.

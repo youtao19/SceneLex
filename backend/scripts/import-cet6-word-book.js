@@ -1,11 +1,10 @@
 const fs = require('node:fs');
 const https = require('node:https');
 const path = require('node:path');
-const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const { loadEnv, readDatabaseUrl } = require('./load-env');
 
-dotenv.config({ path: path.resolve(__dirname, '..', '.env.dev.local') });
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+loadEnv();
 
 const WORD_LIST_URL = 'https://raw.githubusercontent.com/JavaProgrammerLB/cet-word-list/master/word-list.txt';
 const ECDICT_PATH = path.resolve(__dirname, '..', 'data', 'ecdict.csv');
@@ -175,13 +174,9 @@ function parseWordList(text) {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL 未配置');
-  }
-
   const dictionary = buildDictionaryIndex();
   const words = parseWordList(await fetchText(WORD_LIST_URL));
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: readDatabaseUrl() });
   const client = await pool.connect();
 
   try {

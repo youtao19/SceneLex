@@ -1,9 +1,7 @@
-const path = require('path');
-const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const { loadEnv, readDatabaseUrl } = require('./load-env');
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+loadEnv();
 
 function readArgValue(name) {
   const args = process.argv.slice(2);
@@ -205,18 +203,13 @@ function printResult(action, row) {
 
 async function main() {
   const command = readCommand();
-  const databaseUrl = process.env.DATABASE_URL ?? '';
-
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL 未配置，无法执行用户授权管理命令');
-  }
 
   if (!['suspend', 'resume', 'renew', 'promote', 'demote'].includes(command)) {
     throw new Error('命令非法，只支持 suspend / resume / renew / promote / demote');
   }
 
   const pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString: readDatabaseUrl(),
   });
 
   try {
