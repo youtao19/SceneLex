@@ -115,6 +115,31 @@ pm2 save
 > 备份命令见 deployment.md 第 9 节，把目录换成 `/root/backups`。**先备份并确认成功，再动代码**——
 > 后端启动时会自动执行未应用的迁移，迁移可能改动或删除数据。
 
+### 2026-10-10 改写历史后，这台机器需要做一次
+
+上游在 2026-10-10 用 `git filter-repo` 改写过历史（清掉早期提交里的数据库连接串与文档里的他人邮箱），
+所有提交的 SHA 都变了。服务器上的克隆还是改写前的，**`git pull --ff-only` 会直接失败**（历史已分叉）。
+不要试图 merge 或 rebase，那只会把要清掉的东西又拉回来。按下面做一次即可：
+
+```bash
+set -e
+cd /root/SceneLex
+git status                       # 先确认没有未提交的修改
+cp ecosystem.config.cjs /root/backups/ecosystem.config.cjs.$(date +%F)   # 它被 gitignore，但值得单独留一份
+git fetch gitee
+git reset --hard gitee/main
+git log --oneline -1             # 确认是新历史的提交
+npm install && npm run build && npm run verify
+pm2 restart scenelex
+sh ./scripts/check-health.sh http://127.0.0.1:3003
+```
+
+`git reset --hard` 只影响被跟踪的文件。`ecosystem.config.cjs`、`backend/.env.dev.local`、
+`frontend/dist`、`backend/dist`、`node_modules` 都是 gitignore 的，不会被动。
+（`frontend/dist` 和 `backend/dist` 会被 `npm run build` 重写，本来就该重建。）
+
+如果 `git status` 显示有未提交的改动，先弄清楚那是什么再继续——别直接 `--hard`。
+
 > 用 `pm2 restart scenelex` 即可；只有改了 `ecosystem.config.cjs` 才需要用 `pm2 restart ecosystem.config.cjs --only scenelex --update-env` 重新读取环境变量。
 
 重启后按下面顺序检查：

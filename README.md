@@ -352,6 +352,17 @@ npm --prefix backend run dict:import-db
 - Rotate database passwords and model API keys if they were ever committed.
 - The built-in rate limiter and model queue are in-memory and intended for a single Node process. Use shared storage such as Redis before scaling to multiple backend instances.
 
+### History rewrite (2026-10-10)
+
+Early commits carried a real `DATABASE_URL` and one release's worth of other people's email addresses in an operations doc. The history was rewritten with `git filter-repo --replace-text` and force-pushed to both remotes, so a fresh `git clone` no longer contains any of it.
+
+Two things that rewrite does **not** fix, and which are worth knowing before you trust it:
+
+- **GitHub keeps unreachable objects.** The old commits are gone from every branch, but GitHub still serves them by exact SHA (verified: `gh api repos/<owner>/<repo>/commits/<old-sha>` still answers). Only a support request gets them garbage-collected. Anyone who already knows a SHA can still read it; nobody browsing or cloning can find it.
+- **Clones and forks made before the rewrite keep the old history.** No action on the upstream reaches those. If a fork exists, it is still public.
+
+The upstream clone on the production server predates the rewrite, so its next `git pull --ff-only gitee main` will fail with a diverged history. See [docs/server-operations.md](docs/server-operations.md) for the recovery steps.
+
 ## Handing the Project Over
 
 Clone or export the repository — do not zip the working directory.
